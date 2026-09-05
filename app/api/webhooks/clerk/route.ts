@@ -4,7 +4,6 @@ import { WebhookEvent } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
-  // 1. Get Svix headers for signature verification
   const headerPayload = await headers();
   const svix_id = headerPayload.get("svix-id");
   const svix_timestamp = headerPayload.get("svix-timestamp");
@@ -14,11 +13,9 @@ export async function POST(req: Request) {
     return new Response('Error occurred -- no svix headers', { status: 400 });
   }
 
-  // 2. Get the body payload
   const payload = await req.json();
   const body = JSON.stringify(payload);
 
-  // 3. Create a new Svix instance with your webhook secret
   const webhookSecret = process.env.CLERK_WEBHOOK_SECRET || '';
   if (!webhookSecret) {
     return new Response('Error occurred -- missing webhook secret', { status: 500 });
@@ -27,27 +24,24 @@ export async function POST(req: Request) {
   const wh = new Webhook(webhookSecret);
   let evt: WebhookEvent;
 
-  // 4. Verify the payload with headers
   try {
     evt = wh.verify(body, {
       "svix-id": svix_id,
       "svix-timestamp": svix_timestamp,
       "svix-signature": svix_signature,
-    }) as WebhookEvent;
+    }) as unknown as WebhookEvent;
   } catch (err) {
     console.error('Webhook verification failed:', err);
     return new Response('Error occurred -- invalid signature', { status: 400 });
   }
 
-  // 5. Handle the user.created event safely
   const eventType = evt.type;
   if (eventType === 'user.created') {
-    const { email_addresses, first_name } = evt.data;
+    const { email_addresses, first_name } = evt.data as any;
     const email = email_addresses[0]?.email_address;
 
     if (email) {
       try {
-        // Trigger Brevo API welcome email dispatch
         await fetch('https://api.brevo.com/v3/smtp/email', {
           method: 'POST',
           headers: {
@@ -63,7 +57,6 @@ export async function POST(req: Request) {
               <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #064e3b;">
                 <h2 style="color: #059669;">Jambo ${first_name || 'Conservationist'}!</h2>
                 <p>Congratulations on joining the most vibrant club at DeKUT — <strong>Dedan Kimathi Wildlife and Environmental Club (DEKUWEC)</strong>!</p>
-                
                 <div style="background-color: #ecfdf5; padding: 20px; border-radius: 12px; margin: 20px 0; border: 1px solid #a7f3d0;">
                   <h3 style="margin-top: 0; color: #065f46;">Our Core Activities Include:</h3>
                   <ul style="padding-left: 20px; margin-bottom: 0;">
@@ -72,7 +65,6 @@ export async function POST(req: Request) {
                     <li>Weekly Meetings, Board Games & Environmental Debates</li>
                   </ul>
                 </div>
-                
                 <p>Log in to your dashboard to view upcoming excursions, community projects, and member perks.</p>
                 <br/>
                 <p>Best regards,<br/><strong>DEKUWEC Executive Board</strong></p>
