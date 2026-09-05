@@ -62,7 +62,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   // 1. Fetch Global Likes on Load
   useEffect(() => {
-    // Check local storage to see if they already liked it on this browser
     if (localStorage.getItem("dekuwec_portal_liked")) {
       setHasLiked(true);
     }
@@ -151,7 +150,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const handleLikePortal = async () => {
     if (hasLiked) return;
     
-    // Optimistically update UI instantly
     setLikeCount(prev => prev + 1);
     setHasLiked(true);
     localStorage.setItem("dekuwec_portal_liked", "true");
@@ -238,7 +236,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         
         <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-8 shrink-0 z-20 shadow-sm relative">
           
-          {/* Empty left side to balance the flexbox */}
           <div className="w-32 hidden sm:block"></div>
 
           {/* CENTER: The Like Button */}
@@ -309,7 +306,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </div>
 
             <div className="pl-2 border-l border-gray-200 flex items-center">
-              <UserButton afterSignOutUrl="/" />
+              <UserButton />
             </div>
           </div>
         </header>
@@ -318,7 +315,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {isMessagesOpen && (
           <div className="absolute right-0 top-16 bottom-0 w-80 sm:w-96 bg-white border-l border-gray-200 shadow-2xl z-30 flex flex-col animate-in slide-in-from-right duration-300">
             
-            {/* Directory View */}
             {!activeChat ? (
               <>
                 <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-emerald-900 text-white">
@@ -350,7 +346,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </div>
               </>
             ) : (
-              /* Active Chat View */
               <div className="flex flex-col h-full bg-gray-50">
                 <div className="p-4 border-b border-gray-200 bg-white flex items-center gap-3 shadow-sm z-10">
                   <button onClick={() => { setActiveChat(null); setChatHistory([]); }} className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-full transition">
