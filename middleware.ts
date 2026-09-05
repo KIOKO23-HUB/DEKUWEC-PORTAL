@@ -11,7 +11,7 @@ export default clerkMiddleware(async (auth, request) => {
   if (!isPublicRoute(request)) {
     await auth.protect();
   }
-});
+}, { debug: true }); // Enables verbose error logging in your Vercel runtime logs
 
 export const config = {
   matcher: [
