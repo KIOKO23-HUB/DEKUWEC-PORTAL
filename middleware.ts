@@ -7,11 +7,11 @@ const isPublicRoute = createRouteMatcher([
   '/api/webhooks(.*)'
 ]);
 
-export default clerkMiddleware(async (auth, request) => {
+export default clerkMiddleware((auth, request) => {
   if (!isPublicRoute(request)) {
-    await auth.protect();
+    auth().protect();
   }
-}, { debug: true }); // Enables verbose error logging in your Vercel runtime logs
+});
 
 export const config = {
   matcher: [
