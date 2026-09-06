@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useUser } from "@clerk/nextjs";
 import { 
   Users, 
@@ -44,6 +44,10 @@ export default function MembershipPortalPage() {
   const [directorySearch, setDirectorySearch] = useState("");
   const [statusNotice, setStatusNotice] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // New State for Directory
+  const [directoryMembers, setDirectoryMembers] = useState<any[]>([]);
+  const [isFetchingDirectory, setIsFetchingDirectory] = useState(true);
 
   const [regForm, setRegForm] = useState({
     name: user?.fullName || "",
@@ -56,7 +60,24 @@ export default function MembershipPortalPage() {
   const [messageText, setMessageText] = useState("");
   const [sentNotice, setSentNotice] = useState(false);
 
-  // Handle Roster Claim Submission (User clicked YES)
+  // Fetch full directory on load
+  useEffect(() => {
+    const fetchDirectory = async () => {
+      try {
+        const res = await fetch("/api/directory");
+        if (res.ok) {
+          const data = await res.json();
+          setDirectoryMembers(data);
+        }
+      } catch (error) {
+        console.error("Failed to fetch member directory", error);
+      } finally {
+        setIsFetchingDirectory(false);
+      }
+    };
+    if (isLoaded) fetchDirectory();
+  }, [isLoaded]);
+
   const handleClaimRoster = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedRosterName || !user) return;
@@ -88,7 +109,6 @@ export default function MembershipPortalPage() {
     }
   };
 
-  // Handle New Registration Submission (User clicked NO -> YES)
   const handleNewRegistration = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -109,7 +129,6 @@ export default function MembershipPortalPage() {
       });
 
       if (res.ok) {
-        // Updated text: removed amount, added specific phone number.
         setStatusNotice(`Thanks for applying! A confirmation email and notification have been dispatched to ${regForm.email} with instructions to send the registration fee to 0118506251.`);
       } else {
         alert("Failed to submit registration. Please try again.");
@@ -137,17 +156,9 @@ export default function MembershipPortalPage() {
     name.toLowerCase().includes(rosterSearch.toLowerCase())
   );
 
-  const currentDirectory = user ? [
-    {
-      name: user.fullName || "DEKUWEC Member",
-      status: "Pending Approval",
-      isOnline: true,
-      imageUrl: user.imageUrl,
-    }
-  ] : [];
-
-  const filteredDirectory = currentDirectory.filter((member) =>
-    member.name.toLowerCase().includes(directorySearch.toLowerCase())
+  // Filter the actual MongoDB directory state
+  const filteredDirectory = directoryMembers.filter((member) =>
+    (member.fullName || "").toLowerCase().includes(directorySearch.toLowerCase())
   );
 
   if (!isLoaded) return null;
@@ -386,53 +397,60 @@ export default function MembershipPortalPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filteredDirectory.map((member, index) => {
-            const firstName = member.name.split(" ")[0];
+        {isFetchingDirectory ? (
+           <div className="p-8 text-center bg-gray-50 rounded-2xl border border-gray-200">
+             <Loader2 className="h-6 w-6 animate-spin text-emerald-600 mx-auto mb-2" />
+             <p className="text-sm text-gray-500">Loading directory...</p>
+           </div>
+        ) : directoryMembers.length === 0 ? (
+           <div className="p-8 text-center text-gray-500">
+             <p>No members found in the directory yet.</p>
+           </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {filteredDirectory.map((member, index) => {
+              const displayStatus = member.status || "Pending Approval";
+              const firstName = (member.fullName || "Unknown").split(" ")[0];
 
-            return (
-              <div 
-                key={index}
-                className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm hover:border-emerald-300 transition flex items-center justify-between"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="relative">
-                    {member.imageUrl ? (
-                      <img src={member.imageUrl} alt={firstName} className="h-10 w-10 rounded-full object-cover" />
-                    ) : (
-                      <div className="h-10 w-10 rounded-full bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center">
-                        {firstName[0]}
-                      </div>
-                    )}
-                    <span 
-                      className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white ${
-                        member.isOnline ? "bg-emerald-500" : "bg-gray-300"
-                      }`}
-                    ></span>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-bold text-gray-900 leading-tight">{member.name}</h3>
-                    <span className={`inline-block mt-1 text-[10px] font-bold px-2 py-0.5 rounded-md ${
-                      member.status === "Registered Member"
-                        ? "text-emerald-700 bg-emerald-50 border border-emerald-200" 
-                        : "text-amber-700 bg-amber-50 border border-amber-200"
-                    }`}>
-                      {member.status}
-                    </span>
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => setMessagingTarget(member.name)}
-                  className="p-2.5 rounded-xl border border-gray-200 hover:border-emerald-600 hover:bg-emerald-50 text-gray-600 hover:text-emerald-700 transition shrink-0"
-                  title={`Message ${firstName}`}
+              return (
+                <div 
+                  key={index}
+                  className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm hover:border-emerald-300 transition flex items-center justify-between"
                 >
-                  <MessageSquare className="h-4 w-4" />
-                </button>
-              </div>
-            );
-          })}
-        </div>
+                  <div className="flex items-center gap-3">
+                    <div className="relative">
+                      {member.imageUrl ? (
+                        <img src={member.imageUrl} alt={firstName} className="h-10 w-10 rounded-full object-cover" />
+                      ) : (
+                        <div className="h-10 w-10 rounded-full bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center">
+                          {firstName[0]}
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-gray-900 leading-tight">{member.fullName}</h3>
+                      <span className={`inline-block mt-1 text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                        displayStatus === "Registered Member"
+                          ? "text-emerald-700 bg-emerald-50 border border-emerald-200" 
+                          : "text-amber-700 bg-amber-50 border border-amber-200"
+                      }`}>
+                        {displayStatus}
+                      </span>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => setMessagingTarget(member.fullName)}
+                    className="p-2.5 rounded-xl border border-gray-200 hover:border-emerald-600 hover:bg-emerald-50 text-gray-600 hover:text-emerald-700 transition shrink-0"
+                    title={`Message ${firstName}`}
+                  >
+                    <MessageSquare className="h-4 w-4" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </section>
 
       {/* Direct Messaging Modal */}
