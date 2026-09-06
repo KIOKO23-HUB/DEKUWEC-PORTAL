@@ -22,12 +22,6 @@ import {
   Loader2
 } from "lucide-react";
 
-const CLUB_DIRECTORY = [
-  { id: "admin_1", name: "DEKUWEC Official Admin", role: "Club Management", isOnline: true },
-  { id: "exec_2", name: "Grace Chebet", role: "Vice Chairperson", isOnline: false },
-  { id: "exec_3", name: "Elizabeth Mwelu", role: "Club Secretary", isOnline: true },
-];
-
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, isLoaded } = useUser();
   
@@ -37,6 +31,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   
   // Live Database State
   const [notifications, setNotifications] = useState<any[]>([]);
+  const [directoryContacts, setDirectoryContacts] = useState<any[]>([]);
+  const [isFetchingContacts, setIsFetchingContacts] = useState(false);
   const [activeChat, setActiveChat] = useState<any | null>(null);
   const [chatHistory, setChatHistory] = useState<any[]>([]);
   
@@ -86,7 +82,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   }, [user]);
 
-  // 3. Fetch REAL Chat History when a contact is selected
+  // 3. Fetch REAL Contacts Directory when Message Sidebar is opened
+  useEffect(() => {
+    if (isMessagesOpen && directoryContacts.length === 0) {
+      setIsFetchingContacts(true);
+      fetch("/api/directory")
+        .then(res => res.json())
+        .then(data => setDirectoryContacts(data))
+        .catch(err => console.error("Failed to load contacts", err))
+        .finally(() => setIsFetchingContacts(false));
+    }
+  }, [isMessagesOpen, directoryContacts.length]);
+
+  // 4. Fetch REAL Chat History when a contact is selected
   useEffect(() => {
     if (user && activeChat) {
       setIsLoadingChat(true);
@@ -321,28 +329,37 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   <h3 className="font-bold text-lg">Direct Messages</h3>
                   <button onClick={() => setIsMessagesOpen(false)} className="p-1 hover:bg-emerald-800 rounded-full transition"><X className="h-5 w-5" /></button>
                 </div>
-                <div className="p-3 bg-gray-50 text-xs text-gray-500 font-semibold border-b border-gray-100 uppercase tracking-wider">
-                  Club Contacts Directory
+                <div className="p-3 bg-gray-50 text-xs text-gray-500 font-semibold border-b border-gray-100 uppercase tracking-wider flex justify-between items-center">
+                  <span>Club Contacts Directory</span>
+                  {isFetchingContacts && <Loader2 className="h-3 w-3 animate-spin text-emerald-500" />}
                 </div>
                 <div className="flex-1 overflow-y-auto p-2">
-                  {CLUB_DIRECTORY.map((contact) => (
+                  {directoryContacts.map((contact) => (
                     <div 
-                      key={contact.id} 
-                      onClick={() => setActiveChat(contact)}
+                      key={contact.clerkId} 
+                      onClick={() => setActiveChat({
+                        id: contact.clerkId,
+                        name: contact.fullName || "Member",
+                        role: contact.status || "Pending",
+                        isOnline: true // Defaults active indicator for UI polish
+                      })}
                       className="flex items-center gap-3 p-3 rounded-xl hover:bg-emerald-50 cursor-pointer transition border border-transparent hover:border-emerald-100 mb-1"
                     >
                       <div className="relative shrink-0">
                         <div className="h-10 w-10 bg-emerald-100 text-emerald-700 font-bold flex items-center justify-center rounded-full">
-                          {contact.name[0]}
+                          {(contact.fullName || "U")[0]}
                         </div>
-                        <span className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white ${contact.isOnline ? 'bg-emerald-500' : 'bg-gray-300'}`}></span>
+                        <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-emerald-500"></span>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h4 className="text-sm font-bold text-gray-900 truncate">{contact.name}</h4>
-                        <p className="text-xs text-emerald-600 truncate font-semibold">{contact.role}</p>
+                        <h4 className="text-sm font-bold text-gray-900 truncate">{contact.fullName}</h4>
+                        <p className="text-xs text-emerald-600 truncate font-semibold">{contact.status || "Pending"}</p>
                       </div>
                     </div>
                   ))}
+                  {!isFetchingContacts && directoryContacts.length === 0 && (
+                    <div className="p-4 text-center text-xs text-gray-400 mt-4">No members found.</div>
+                  )}
                 </div>
               </>
             ) : (

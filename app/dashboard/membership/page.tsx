@@ -1,20 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useUser } from "@clerk/nextjs";
 import { 
-  Users, 
-  CheckCircle2, 
-  Search, 
-  MessageSquare, 
-  UserCheck, 
-  Send,
-  X,
-  AlertCircle,
-  Loader2
+  Users, CheckCircle2, Search, MessageSquare, 
+  UserCheck, Send, X, AlertCircle, Loader2
 } from "lucide-react";
 
-// Official Registered Roster (For Dropdown Verification)
 const rosterMembers = [
   "Edith Asachita", "Neema Kimutai", "Trecy Kipchoge", "Orville Awour",
   "Margaret Karongo", "Samuel Ndicu", "Phillip Theuri", "Mercy Njoki",
@@ -45,7 +37,6 @@ export default function MembershipPortalPage() {
   const [statusNotice, setStatusNotice] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // New State for Directory
   const [directoryMembers, setDirectoryMembers] = useState<any[]>([]);
   const [isFetchingDirectory, setIsFetchingDirectory] = useState(true);
 
@@ -56,11 +47,14 @@ export default function MembershipPortalPage() {
     year: "Year 1",
   });
 
-  const [messagingTarget, setMessagingTarget] = useState<string | null>(null);
+  const [messagingTarget, setMessagingTarget] = useState<any>(null);
   const [messageText, setMessageText] = useState("");
-  const [sentNotice, setSentNotice] = useState(false);
+  
+  // New States for Chat History
+  const [chatHistory, setChatHistory] = useState<any[]>([]);
+  const [isFetchingChat, setIsFetchingChat] = useState(false);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
 
-  // Fetch full directory on load
   useEffect(() => {
     const fetchDirectory = async () => {
       try {
@@ -70,7 +64,7 @@ export default function MembershipPortalPage() {
           setDirectoryMembers(data);
         }
       } catch (error) {
-        console.error("Failed to fetch member directory", error);
+        console.error("Failed to fetch directory", error);
       } finally {
         setIsFetchingDirectory(false);
       }
@@ -78,11 +72,37 @@ export default function MembershipPortalPage() {
     if (isLoaded) fetchDirectory();
   }, [isLoaded]);
 
+  // Fetch Chat History when a user is clicked
+  useEffect(() => {
+    const fetchChatHistory = async () => {
+      if (!messagingTarget || !user) return;
+      setIsFetchingChat(true);
+      try {
+        const res = await fetch(`/api/messages?user1=${user.id}&user2=${messagingTarget.clerkId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setChatHistory(data.messages || []);
+        }
+      } catch (error) {
+        console.error("Failed to load chat history", error);
+      } finally {
+        setIsFetchingChat(false);
+      }
+    };
+    fetchChatHistory();
+  }, [messagingTarget, user]);
+
+  // Auto-scroll to bottom of chat
+  useEffect(() => {
+    if (chatScrollRef.current) {
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+    }
+  }, [chatHistory]);
+
   const handleClaimRoster = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedRosterName || !user) return;
     setIsSubmitting(true);
-
     try {
       const res = await fetch("/api/membership", {
         method: "POST",
@@ -95,15 +115,9 @@ export default function MembershipPortalPage() {
           claimedRosterName: selectedRosterName,
         }),
       });
-
-      if (res.ok) {
-        setStatusNotice(`Thanks for confirming your registration as "${selectedRosterName}". Your record is pending admin approval.`);
-      } else {
-        alert("Failed to submit claim. Please try again.");
-      }
+      if (res.ok) setStatusNotice(`Thanks for confirming your registration as "${selectedRosterName}". Your record is pending admin approval.`);
     } catch (error) {
       console.error(error);
-      alert("An error occurred.");
     } finally {
       setIsSubmitting(false);
     }
@@ -113,7 +127,6 @@ export default function MembershipPortalPage() {
     e.preventDefault();
     if (!user) return;
     setIsSubmitting(true);
-
     try {
       const res = await fetch("/api/membership", {
         method: "POST",
@@ -127,36 +140,49 @@ export default function MembershipPortalPage() {
           yearOfStudy: regForm.year,
         }),
       });
-
-      if (res.ok) {
-        setStatusNotice(`Thanks for applying! A confirmation email and notification have been dispatched to ${regForm.email} with instructions to send the registration fee to 0118506251.`);
-      } else {
-        alert("Failed to submit registration. Please try again.");
-      }
+      if (res.ok) setStatusNotice(`Thanks for applying! A confirmation email and notification have been dispatched to ${regForm.email} with instructions to send the registration fee to 0118506251.`);
     } catch (error) {
       console.error(error);
-      alert("An error occurred.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleSendMessage = (e: React.FormEvent) => {
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!messageText.trim()) return;
-    setSentNotice(true);
-    setTimeout(() => {
-      setSentNotice(false);
-      setMessagingTarget(null);
-      setMessageText("");
-    }, 1500);
+    if (!messageText.trim() || !user || !messagingTarget) return;
+    
+    // Optimistically update UI immediately
+    const tempMessage = {
+      _id: Date.now().toString(),
+      senderId: user.id,
+      content: messageText,
+      createdAt: new Date().toISOString()
+    };
+    setChatHistory((prev) => [...prev, tempMessage]);
+    setMessageText("");
+
+    try {
+      await fetch("/api/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          senderId: user.id,
+          senderName: user.fullName || "Member",
+          receiverId: messagingTarget.clerkId, 
+          receiverName: messagingTarget.fullName,
+          content: tempMessage.content, 
+        }),
+      });
+    } catch (error) {
+      console.error("Failed to route message:", error);
+    }
   };
 
   const filteredRoster = rosterMembers.filter((name) =>
     name.toLowerCase().includes(rosterSearch.toLowerCase())
   );
 
-  // Filter the actual MongoDB directory state
   const filteredDirectory = directoryMembers.filter((member) =>
     (member.fullName || "").toLowerCase().includes(directorySearch.toLowerCase())
   );
@@ -165,8 +191,6 @@ export default function MembershipPortalPage() {
 
   return (
     <div className="p-6 sm:p-8 lg:p-12 max-w-7xl mx-auto space-y-10">
-      
-      {/* Header */}
       <div className="border-b border-gray-200 pb-6">
         <div className="flex items-center gap-3 mb-2">
           <div className="p-2 bg-emerald-100 text-emerald-700 rounded-xl">
@@ -179,7 +203,6 @@ export default function MembershipPortalPage() {
         </p>
       </div>
 
-      {/* Confirmation & Registration Card */}
       <section className="bg-white border border-gray-200 rounded-3xl p-6 sm:p-10 shadow-sm space-y-6">
         <div className="flex items-center gap-3 pb-4 border-b border-gray-100">
           <UserCheck className="h-5 w-5 text-emerald-700" />
@@ -209,97 +232,41 @@ export default function MembershipPortalPage() {
           </div>
         ) : isRegisteredAnswer === null ? (
           <div className="space-y-4">
-            <p className="text-base font-semibold text-gray-800">
-              Are you an existing registered DEKUWEC member?
-            </p>
+            <p className="text-base font-semibold text-gray-800">Are you an existing registered DEKUWEC member?</p>
             <div className="flex flex-wrap gap-4">
-              <button
-                onClick={() => setIsRegisteredAnswer("yes")}
-                className="px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold transition shadow-sm"
-              >
-                Yes, I am registered
-              </button>
-              <button
-                onClick={() => setIsRegisteredAnswer("no")}
-                className="px-6 py-3 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-800 text-sm font-bold transition"
-              >
-                No, I am not registered
-              </button>
+              <button onClick={() => setIsRegisteredAnswer("yes")} className="px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold shadow-sm">Yes, I am registered</button>
+              <button onClick={() => setIsRegisteredAnswer("no")} className="px-6 py-3 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-800 text-sm font-bold">No, I am not registered</button>
             </div>
           </div>
         ) : isRegisteredAnswer === "yes" ? (
           <form onSubmit={handleClaimRoster} className="space-y-5 max-w-xl">
             <div>
-              <label className="block text-xs font-bold text-gray-700 mb-1 uppercase tracking-wider">
-                Select Your Name from the Official Roster
-              </label>
+              <label className="block text-xs font-bold text-gray-700 mb-1 uppercase tracking-wider">Select Your Name</label>
               <div className="relative mb-3">
                 <Search className="h-4 w-4 text-gray-400 absolute left-3.5 top-3" />
-                <input
-                  type="text"
-                  placeholder="Filter roster names..."
-                  value={rosterSearch}
-                  onChange={(e) => setRosterSearch(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 text-sm border rounded-xl border-gray-200 outline-none focus:border-emerald-600"
-                />
+                <input type="text" placeholder="Filter roster names..." value={rosterSearch} onChange={(e) => setRosterSearch(e.target.value)} className="w-full pl-10 pr-4 py-2 text-sm border rounded-xl border-gray-200 outline-none focus:border-emerald-600" />
               </div>
-              <select
-                size={6}
-                required
-                value={selectedRosterName}
-                onChange={(e) => setSelectedRosterName(e.target.value)}
-                className="w-full p-2 border rounded-xl border-gray-200 text-sm focus:border-emerald-600 outline-none bg-white"
-              >
-                {filteredRoster.map((name, idx) => (
-                  <option key={idx} value={name} className="p-2 hover:bg-emerald-50 rounded">
-                    {name}
-                  </option>
-                ))}
+              <select size={6} required value={selectedRosterName} onChange={(e) => setSelectedRosterName(e.target.value)} className="w-full p-2 border rounded-xl border-gray-200 text-sm focus:border-emerald-600 outline-none bg-white">
+                {filteredRoster.map((name, idx) => (<option key={idx} value={name} className="p-2 hover:bg-emerald-50 rounded">{name}</option>))}
               </select>
             </div>
-
             <div className="flex items-center gap-3">
-              <button
-                type="submit"
-                disabled={!selectedRosterName || isSubmitting}
-                className="px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm transition disabled:opacity-50 flex items-center gap-2"
-              >
-                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                {isSubmitting ? "Submitting..." : "Confirm Identity & Submit"}
+              <button type="submit" disabled={!selectedRosterName || isSubmitting} className="px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm disabled:opacity-50 flex items-center gap-2">
+                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Confirm Identity & Submit"}
               </button>
-              <button
-                type="button"
-                onClick={() => setIsRegisteredAnswer(null)}
-                className="px-4 py-3 rounded-xl text-gray-500 hover:text-gray-800 text-sm font-semibold"
-              >
-                Back
-              </button>
+              <button type="button" onClick={() => setIsRegisteredAnswer(null)} className="px-4 py-3 rounded-xl text-gray-500 hover:text-gray-800 text-sm font-semibold">Back</button>
             </div>
           </form>
         ) : wantsToRegister === null ? (
           <div className="space-y-4">
             <div className="flex items-center gap-2 text-amber-800 bg-amber-50 p-4 rounded-xl border border-amber-200">
               <AlertCircle className="h-5 w-5 shrink-0" />
-              <p className="text-sm font-medium">
-                You are currently not listed as a registered member.
-              </p>
+              <p className="text-sm font-medium">You are currently not listed as a registered member.</p>
             </div>
-            <p className="text-base font-semibold text-gray-800">
-              Do you want to register as a new DEKUWEC member?
-            </p>
+            <p className="text-base font-semibold text-gray-800">Do you want to register as a new DEKUWEC member?</p>
             <div className="flex flex-wrap gap-4">
-              <button
-                onClick={() => setWantsToRegister(true)}
-                className="px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold transition"
-              >
-                Yes, Register Now
-              </button>
-              <button
-                onClick={() => setIsRegisteredAnswer(null)}
-                className="px-6 py-3 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-800 text-sm font-bold transition"
-              >
-                Cancel
-              </button>
+              <button onClick={() => setWantsToRegister(true)} className="px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold">Yes, Register Now</button>
+              <button onClick={() => setIsRegisteredAnswer(null)} className="px-6 py-3 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-800 text-sm font-bold">Cancel</button>
             </div>
           </div>
         ) : (
@@ -307,78 +274,33 @@ export default function MembershipPortalPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold text-gray-700 mb-1">Official Name</label>
-                <input
-                  type="text"
-                  required
-                  value={regForm.name}
-                  onChange={(e) => setRegForm({ ...regForm, name: e.target.value })}
-                  placeholder="e.g. Kelvin Maina"
-                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-emerald-600 outline-none"
-                />
+                <input type="text" required value={regForm.name} onChange={(e) => setRegForm({ ...regForm, name: e.target.value })} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-emerald-600 outline-none" />
               </div>
-
               <div>
                 <label className="block text-xs font-bold text-gray-700 mb-1">Student Email</label>
-                <input
-                  type="email"
-                  required
-                  value={regForm.email}
-                  onChange={(e) => setRegForm({ ...regForm, email: e.target.value })}
-                  placeholder="student@students.dkut.ac.ke"
-                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-emerald-600 outline-none"
-                />
+                <input type="email" required value={regForm.email} onChange={(e) => setRegForm({ ...regForm, email: e.target.value })} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-emerald-600 outline-none" />
               </div>
-
               <div>
                 <label className="block text-xs font-bold text-gray-700 mb-1">Phone Number (M-Pesa)</label>
-                <input
-                  type="tel"
-                  required
-                  value={regForm.phone}
-                  onChange={(e) => setRegForm({ ...regForm, phone: e.target.value })}
-                  placeholder="07..."
-                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-emerald-600 outline-none"
-                />
+                <input type="tel" required value={regForm.phone} onChange={(e) => setRegForm({ ...regForm, phone: e.target.value })} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-emerald-600 outline-none" />
               </div>
-
               <div>
                 <label className="block text-xs font-bold text-gray-700 mb-1">Year of Study</label>
-                <select
-                  value={regForm.year}
-                  onChange={(e) => setRegForm({ ...regForm, year: e.target.value })}
-                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-emerald-600 outline-none bg-white"
-                >
-                  <option value="Year 1">Year 1</option>
-                  <option value="Year 2">Year 2</option>
-                  <option value="Year 3">Year 3</option>
-                  <option value="Year 4">Year 4</option>
-                  <option value="Year 5">Year 5</option>
+                <select value={regForm.year} onChange={(e) => setRegForm({ ...regForm, year: e.target.value })} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-emerald-600 outline-none bg-white">
+                  <option value="Year 1">Year 1</option><option value="Year 2">Year 2</option><option value="Year 3">Year 3</option><option value="Year 4">Year 4</option><option value="Year 5">Year 5</option>
                 </select>
               </div>
             </div>
-
             <div className="flex items-center gap-3 pt-2">
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm transition flex items-center gap-2 disabled:opacity-50"
-              >
-                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                {isSubmitting ? "Processing..." : "Submit Member Registration"}
+              <button type="submit" disabled={isSubmitting} className="px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm flex items-center gap-2 disabled:opacity-50">
+                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Submit Member Registration"}
               </button>
-              <button
-                type="button"
-                onClick={() => setWantsToRegister(null)}
-                className="px-4 py-3 rounded-xl text-gray-500 hover:text-gray-800 text-sm font-semibold"
-              >
-                Back
-              </button>
+              <button type="button" onClick={() => setWantsToRegister(null)} className="px-4 py-3 rounded-xl text-gray-500 hover:text-gray-800 text-sm font-semibold">Back</button>
             </div>
           </form>
         )}
       </section>
 
-      {/* Member Directory & Messaging Grid */}
       <section className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
@@ -387,13 +309,7 @@ export default function MembershipPortalPage() {
           </div>
           <div className="relative w-full sm:w-72">
             <Search className="h-4 w-4 text-gray-400 absolute left-3.5 top-3" />
-            <input
-              type="text"
-              placeholder="Search directory..."
-              value={directorySearch}
-              onChange={(e) => setDirectorySearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 text-sm border rounded-xl border-gray-200 outline-none focus:border-emerald-600 bg-white"
-            />
+            <input type="text" placeholder="Search directory..." value={directorySearch} onChange={(e) => setDirectorySearch(e.target.value)} className="w-full pl-10 pr-4 py-2.5 text-sm border rounded-xl border-gray-200 outline-none focus:border-emerald-600 bg-white" />
           </div>
         </div>
 
@@ -403,9 +319,7 @@ export default function MembershipPortalPage() {
              <p className="text-sm text-gray-500">Loading directory...</p>
            </div>
         ) : directoryMembers.length === 0 ? (
-           <div className="p-8 text-center text-gray-500">
-             <p>No members found in the directory yet.</p>
-           </div>
+           <div className="p-8 text-center text-gray-500"><p>No members found in the directory yet.</p></div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {filteredDirectory.map((member, index) => {
@@ -413,37 +327,23 @@ export default function MembershipPortalPage() {
               const firstName = (member.fullName || "Unknown").split(" ")[0];
 
               return (
-                <div 
-                  key={index}
-                  className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm hover:border-emerald-300 transition flex items-center justify-between"
-                >
+                <div key={index} className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm hover:border-emerald-300 transition flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="relative">
                       {member.imageUrl ? (
                         <img src={member.imageUrl} alt={firstName} className="h-10 w-10 rounded-full object-cover" />
                       ) : (
-                        <div className="h-10 w-10 rounded-full bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center">
-                          {firstName[0]}
-                        </div>
+                        <div className="h-10 w-10 rounded-full bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center">{firstName[0]}</div>
                       )}
                     </div>
                     <div>
                       <h3 className="text-sm font-bold text-gray-900 leading-tight">{member.fullName}</h3>
-                      <span className={`inline-block mt-1 text-[10px] font-bold px-2 py-0.5 rounded-md ${
-                        displayStatus === "Registered Member"
-                          ? "text-emerald-700 bg-emerald-50 border border-emerald-200" 
-                          : "text-amber-700 bg-amber-50 border border-amber-200"
-                      }`}>
+                      <span className={`inline-block mt-1 text-[10px] font-bold px-2 py-0.5 rounded-md ${displayStatus === "Registered Member" ? "text-emerald-700 bg-emerald-50 border border-emerald-200" : "text-amber-700 bg-amber-50 border border-amber-200"}`}>
                         {displayStatus}
                       </span>
                     </div>
                   </div>
-
-                  <button
-                    onClick={() => setMessagingTarget(member.fullName)}
-                    className="p-2.5 rounded-xl border border-gray-200 hover:border-emerald-600 hover:bg-emerald-50 text-gray-600 hover:text-emerald-700 transition shrink-0"
-                    title={`Message ${firstName}`}
-                  >
+                  <button onClick={() => setMessagingTarget(member)} className="p-2.5 rounded-xl border border-gray-200 hover:border-emerald-600 hover:bg-emerald-50 text-gray-600 hover:text-emerald-700 transition shrink-0" title={`Message ${firstName}`}>
                     <MessageSquare className="h-4 w-4" />
                   </button>
                 </div>
@@ -453,52 +353,69 @@ export default function MembershipPortalPage() {
         )}
       </section>
 
-      {/* Direct Messaging Modal */}
+      {/* Upgraded Direct Messaging Modal with Chat History */}
       {messagingTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl w-full max-w-md p-6 sm:p-8 shadow-2xl relative">
-            <button
-              onClick={() => setMessagingTarget(null)}
-              className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full transition"
-            >
-              <X className="h-5 w-5" />
-            </button>
-
-            {sentNotice ? (
-              <div className="text-center py-6 space-y-3">
-                <CheckCircle2 className="h-10 w-10 text-emerald-600 mx-auto" />
-                <h3 className="text-lg font-bold text-gray-900">Message Delivered</h3>
-                <p className="text-xs text-gray-500">
-                  Your message has been routed to {messagingTarget.split(" ")[0]}'s inbox.
-                </p>
+          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl relative overflow-hidden flex flex-col" style={{ maxHeight: '80vh' }}>
+            
+            {/* Modal Header */}
+            <div className="p-5 border-b border-gray-100 flex items-center justify-between bg-white shrink-0">
+              <div>
+                <h3 className="text-lg font-black text-emerald-950">
+                  {messagingTarget.fullName.split(" ")[0]}
+                </h3>
+                <p className="text-xs text-gray-500 mt-0.5">Direct Message</p>
               </div>
-            ) : (
-              <form onSubmit={handleSendMessage} className="space-y-4">
-                <div>
-                  <h3 className="text-lg font-black text-emerald-950">
-                    Message {messagingTarget.split(" ")[0]}
-                  </h3>
-                  <p className="text-xs text-gray-500 mt-0.5">Send a quick direct message to {messagingTarget}.</p>
-                </div>
+              <button onClick={() => setMessagingTarget(null)} className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full transition">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
 
-                <textarea
+            {/* Chat History Window */}
+            <div ref={chatScrollRef} className="p-5 flex-1 overflow-y-auto bg-gray-50 space-y-4 min-h-[250px]">
+              {isFetchingChat ? (
+                <div className="flex justify-center items-center h-full">
+                  <Loader2 className="h-6 w-6 animate-spin text-emerald-600" />
+                </div>
+              ) : chatHistory.length === 0 ? (
+                <div className="text-center text-gray-400 text-sm mt-10">
+                  No messages yet. Say hello!
+                </div>
+              ) : (
+                chatHistory.map((msg, i) => {
+                  const isMine = msg.senderId === user?.id;
+                  return (
+                    <div key={i} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm ${isMine ? 'bg-emerald-600 text-white rounded-br-sm' : 'bg-white border border-gray-200 text-gray-800 rounded-bl-sm'}`}>
+                        {msg.content}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Message Input Area */}
+            <div className="p-4 bg-white border-t border-gray-100 shrink-0">
+              <form onSubmit={handleSendMessage} className="flex gap-2">
+                <input
+                  type="text"
                   required
-                  rows={4}
-                  placeholder={`Write your message to ${messagingTarget.split(" ")[0]}...`}
+                  placeholder="Type a message..."
                   value={messageText}
                   onChange={(e) => setMessageText(e.target.value)}
-                  className="w-full p-3 rounded-xl border border-gray-200 text-sm focus:border-emerald-600 outline-none resize-none"
+                  className="flex-1 px-4 py-2.5 rounded-full border border-gray-200 text-sm focus:border-emerald-600 outline-none bg-gray-50 focus:bg-white"
                 />
-
                 <button
                   type="submit"
-                  className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm transition flex items-center justify-center gap-2"
+                  disabled={!messageText.trim()}
+                  className="p-3 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white transition disabled:opacity-50 shrink-0"
                 >
                   <Send className="h-4 w-4" />
-                  <span>Send Message</span>
                 </button>
               </form>
-            )}
+            </div>
+
           </div>
         </div>
       )}
