@@ -12,7 +12,8 @@ if (!cached) {
   cached = (global as any).mongoose = { conn: null, promise: null };
 }
 
-export async function connectToDatabase() {
+// Renamed to connectMongoDB to perfectly match your API routes
+export const connectMongoDB = async () => {
   if (cached.conn) {
     return cached.conn;
   }
