@@ -9,6 +9,8 @@ import NatureSnap from "@/models/NatureSnap";
 import Leader from "@/models/Leader";
 import Inquiry from "@/models/Inquiry";
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     await connectToDatabase();
