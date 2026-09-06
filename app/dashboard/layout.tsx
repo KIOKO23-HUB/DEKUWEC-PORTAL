@@ -19,7 +19,8 @@ import {
   X,
   Send,
   ChevronLeft,
-  Loader2
+  Loader2,
+  Menu // <-- Added the Menu icon for mobile
 } from "lucide-react";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -28,6 +29,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // UI Dropdown State
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isMessagesOpen, setIsMessagesOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // <-- Mobile menu state
   
   // Live Database State
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -50,6 +52,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       if (e.key === "Escape") {
         setIsNotifOpen(false);
         setIsMessagesOpen(false);
+        setIsMobileMenuOpen(false);
       }
     };
     window.addEventListener("keydown", handleEscape);
@@ -175,98 +178,103 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex min-h-screen bg-gray-50 font-sans overflow-hidden">
-      {/* Sidebar Navigation */}
-      <aside className="w-64 bg-[#064e3b] text-white flex flex-col h-screen sticky top-0 shrink-0">
-        <div className="p-6 flex items-center space-x-3">
-          <Image 
-            src="https://i.postimg.cc/qB9gLwmz/Whats-App-Image-2026-09-03-at-09-49-04.jpg" 
-            alt="DEKUWEC Logo" 
-            width={40} 
-            height={40} 
-            className="rounded-full bg-white p-0.5 object-cover"
-          />
-          <div>
-            <h2 className="font-black text-lg tracking-tight leading-none">DEKUWEC</h2>
-            <p className="text-[10px] text-emerald-200 mt-1">Dedan Kimathi University</p>
+      
+      {/* Mobile Menu Overlay */}
+      {isMobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-black/60 z-40 md:hidden backdrop-blur-sm"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
+      {/* Sidebar Navigation - Now Responsive */}
+      <aside className={`fixed md:relative inset-y-0 left-0 z-50 w-64 bg-[#064e3b] text-white flex flex-col h-screen transform transition-transform duration-300 ease-in-out md:translate-x-0 ${isMobileMenuOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full"}`}>
+        <div className="p-6 flex items-center justify-between space-x-3">
+          <div className="flex items-center space-x-3">
+            <Image 
+              src="https://i.postimg.cc/qB9gLwmz/Whats-App-Image-2026-09-03-at-09-49-04.jpg" 
+              alt="DEKUWEC Logo" 
+              width={40} 
+              height={40} 
+              className="rounded-full bg-white p-0.5 object-cover"
+            />
+            <div>
+              <h2 className="font-black text-lg tracking-tight leading-none">DEKUWEC</h2>
+              <p className="text-[10px] text-emerald-200 mt-1">Dedan Kimathi University</p>
+            </div>
           </div>
+          {/* Mobile Close Button */}
+          <button onClick={() => setIsMobileMenuOpen(false)} className="md:hidden text-emerald-200 hover:text-white">
+            <X className="h-6 w-6" />
+          </button>
         </div>
 
         <nav className="flex-1 px-4 py-2 space-y-1.5 overflow-y-auto">
           <p className="text-[10px] font-bold text-emerald-300 uppercase tracking-widest mb-3 px-2">Navigation Menu</p>
-          <Link href="/dashboard" className="flex items-center space-x-3 px-4 py-3 rounded-xl hover:bg-emerald-800/60 text-sm font-medium text-emerald-100 transition">
+          <Link href="/dashboard" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center space-x-3 px-4 py-3 rounded-xl hover:bg-emerald-800/60 text-sm font-medium text-emerald-100 transition">
             <Home className="h-4 w-4 text-emerald-300" /><span>Home</span>
           </Link>
-          <Link href="/dashboard/events" className="flex items-center space-x-3 px-4 py-3 rounded-xl hover:bg-emerald-800/60 text-sm font-medium text-emerald-100 transition">
+          <Link href="/dashboard/events" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center space-x-3 px-4 py-3 rounded-xl hover:bg-emerald-800/60 text-sm font-medium text-emerald-100 transition">
             <CalendarDays className="h-4 w-4 text-emerald-300" /><span>Events & Activities</span>
           </Link>
-          <Link href="/dashboard/dispatch" className="flex items-center space-x-3 px-4 py-3 rounded-xl hover:bg-emerald-800/60 text-sm font-medium text-emerald-100 transition">
+          <Link href="/dashboard/dispatch" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center space-x-3 px-4 py-3 rounded-xl hover:bg-emerald-800/60 text-sm font-medium text-emerald-100 transition">
             <Radio className="h-4 w-4 text-emerald-300" /><span>EcoPulse Dispatch</span>
           </Link>
-          <Link href="/dashboard/snaps" className="flex items-center space-x-3 px-4 py-3 rounded-xl hover:bg-emerald-800/60 text-sm font-medium text-emerald-100 transition">
+          <Link href="/dashboard/snaps" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center space-x-3 px-4 py-3 rounded-xl hover:bg-emerald-800/60 text-sm font-medium text-emerald-100 transition">
             <Camera className="h-4 w-4 text-emerald-300" /><span>Nature Snaps</span>
           </Link>
-          <Link href="/dashboard/membership" className="flex items-center space-x-3 px-4 py-3 rounded-xl hover:bg-emerald-800/60 text-sm font-medium text-emerald-100 transition">
+          <Link href="/dashboard/membership" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center space-x-3 px-4 py-3 rounded-xl hover:bg-emerald-800/60 text-sm font-medium text-emerald-100 transition">
             <Users className="h-4 w-4 text-emerald-300" /><span>Membership Portal</span>
           </Link>
-          <Link href="/dashboard/support" className="flex items-center space-x-3 px-4 py-3 rounded-xl hover:bg-emerald-800/60 text-sm font-medium text-emerald-100 transition">
+          <Link href="/dashboard/support" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center space-x-3 px-4 py-3 rounded-xl hover:bg-emerald-800/60 text-sm font-medium text-emerald-100 transition">
             <HelpCircle className="h-4 w-4 text-emerald-300" /><span>Support & Inquiries</span>
           </Link>
-          <Link href="/dashboard/wck-card" className="flex items-center space-x-3 px-4 py-3 rounded-xl hover:bg-emerald-800/60 text-sm font-medium text-emerald-100 transition">
+          <Link href="/dashboard/wck-card" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center space-x-3 px-4 py-3 rounded-xl hover:bg-emerald-800/60 text-sm font-medium text-emerald-100 transition">
             <CreditCard className="h-4 w-4 text-emerald-300" /><span>WCK Card Application</span>
           </Link>
         </nav>
 
         <div className="p-4 border-t border-emerald-800/60">
-          <Link href="/dashboard/account" className="flex items-center space-x-3 px-4 py-3 mb-3 rounded-xl border border-emerald-500/40 bg-emerald-900/60 hover:bg-emerald-800 transition text-sm font-bold text-emerald-100">
+          <Link href="/dashboard/account" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center space-x-3 px-4 py-3 mb-3 rounded-xl border border-emerald-500/40 bg-emerald-900/60 hover:bg-emerald-800 transition text-sm font-bold text-emerald-100">
             <UserCircle className="h-4 w-4 text-emerald-300" /><span>Account Dashboard</span>
           </Link>
-          
-          <p className="text-[10px] font-bold text-emerald-300 uppercase tracking-widest text-center mb-2">Follow Our Community</p>
-          <div className="flex justify-center gap-2">
-            <a href="https://www.instagram.com/wildlifeandenvironmentalclub/" target="_blank" rel="noreferrer" className="p-1.5 bg-white rounded-lg hover:scale-110 transition shadow-sm">
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="url(#igGrad)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><defs><linearGradient id="igGrad" x1="2" y1="2" x2="22" y2="22"><stop offset="0%" stopColor="#f9ce34" /><stop offset="50%" stopColor="#ee2a7b" /><stop offset="100%" stopColor="#6228d7" /></linearGradient></defs><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg>
-            </a>
-            <a href="https://www.tiktok.com/@dekuwec_dekut?_r=1&_t=ZS-99Q1Zs2LjYP" target="_blank" rel="noreferrer" className="p-1.5 bg-black rounded-lg hover:scale-110 transition shadow-sm flex items-center justify-center">
-              <svg className="h-4 w-4 fill-white" viewBox="0 0 448 512"><path d="M448,209.91a210.06,210.06,0,0,1-122.77-39.25V349.38A162.55,162.55,0,1,1,185,188.31V278.2a74.62,74.62,0,1,0,52.23,71.18V0l88,0a121.18,121.18,0,0,0,1.86,22.17h0A122.18,122.18,0,0,0,381,102.39a121.43,121.43,0,0,0,67,20.14Z"/></svg>
-            </a>
-            <a href="https://www.linkedin.com/in/dekut-wildlife-and-environment-club-dekuwec-99b43a341?utm_source=share_via&utm_content=profile&utm_medium=member_android" target="_blank" rel="noreferrer" className="p-1.5 bg-[#0A66C2] rounded-lg hover:scale-110 transition shadow-sm flex items-center justify-center">
-              <svg className="h-4 w-4 fill-white" viewBox="0 0 24 24"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/></svg>
-            </a>
-            <a href="https://x.com/Dekut_WEC" target="_blank" rel="noreferrer" className="p-1.5 bg-black rounded-lg hover:scale-110 transition shadow-sm flex items-center justify-center">
-              <svg className="h-4 w-4 fill-white" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 24.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
-            </a>
-          </div>
         </div>
       </aside>
 
-      {/* Right Side: Top Header + Main Content Area + Footer */}
-      <div className="flex-1 flex flex-col h-screen overflow-hidden relative">
+      {/* Right Side: Main Content Area */}
+      <div className="flex-1 flex flex-col h-screen overflow-hidden relative w-full">
         
-        <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-8 shrink-0 z-20 shadow-sm relative">
+        <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 md:px-8 shrink-0 z-20 shadow-sm relative">
           
-          <div className="w-32 hidden sm:block"></div>
+          {/* Hamburger Button for Mobile */}
+          <div className="flex items-center w-auto md:w-32">
+            <button onClick={() => setIsMobileMenuOpen(true)} className="md:hidden p-2 -ml-2 text-gray-600 hover:text-emerald-700">
+              <Menu className="h-6 w-6" />
+            </button>
+          </div>
 
-          {/* CENTER: The Like Button */}
+          {/* CENTER: The Like Button (Scaled for Mobile) */}
           <div className="flex justify-center flex-1">
             <button 
               onClick={handleLikePortal}
               disabled={hasLiked}
-              className={`flex items-center gap-2 px-5 py-2 rounded-full transition shadow-sm border font-bold text-sm ${
+              className={`flex items-center gap-1.5 md:gap-2 px-3 md:px-5 py-1.5 md:py-2 rounded-full transition shadow-sm border font-bold text-xs md:text-sm ${
                 hasLiked 
                   ? 'bg-rose-50 text-rose-600 border-rose-200 cursor-default' 
                   : 'bg-white text-gray-600 border-gray-200 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200'
               }`}
             >
-              <Heart className={`h-4 w-4 ${hasLiked ? 'fill-rose-500 text-rose-500' : ''}`} />
-              <span>Like our portal</span>
-              <span className="bg-gray-100 text-gray-700 px-2.5 py-0.5 rounded-full text-xs ml-1 font-black">
+              <Heart className={`h-3.5 w-3.5 md:h-4 md:w-4 ${hasLiked ? 'fill-rose-500 text-rose-500' : ''}`} />
+              <span className="hidden md:inline">Like our portal</span>
+              <span className="md:hidden">Like</span>
+              <span className="bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full text-[10px] md:text-xs ml-0.5 md:ml-1 font-black">
                 {likeCount}
               </span>
             </button>
           </div>
 
           {/* RIGHT SIDE: Icons & Profile */}
-          <div className="flex items-center space-x-3 sm:space-x-4 w-32 justify-end">
+          <div className="flex items-center space-x-2 md:space-x-4 w-auto md:w-32 justify-end">
             
             <button 
               onClick={() => { setIsMessagesOpen(!isMessagesOpen); setIsNotifOpen(false); }}
@@ -287,14 +295,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </button>
 
               {isNotifOpen && (
-                <div className="absolute right-0 mt-3 w-80 bg-white border border-gray-200 rounded-2xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="absolute right-0 sm:-right-4 mt-3 w-[280px] sm:w-80 bg-white border border-gray-200 rounded-2xl shadow-xl overflow-hidden z-50">
                   <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-                    <h3 className="font-bold text-gray-900">Notifications</h3>
+                    <h3 className="font-bold text-gray-900 text-sm">Notifications</h3>
                     {unreadNotifs > 0 && (
                       <button onClick={handleMarkAllRead} className="text-xs font-semibold text-emerald-600 hover:text-emerald-800">Mark all read</button>
                     )}
                   </div>
-                  <div className="max-h-[400px] overflow-y-auto">
+                  <div className="max-h-[300px] overflow-y-auto">
                     {notifications.length === 0 ? (
                       <p className="text-sm text-gray-400 text-center py-8">You have no new notifications.</p>
                     ) : (
@@ -313,15 +321,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               )}
             </div>
 
-            <div className="pl-2 border-l border-gray-200 flex items-center">
+            <div className="pl-1 md:pl-2 border-l border-gray-200 flex items-center">
               <UserButton />
             </div>
           </div>
         </header>
 
-        {/* LIVE Slide-out Messages Panel */}
+        {/* LIVE Slide-out Messages Panel (Scaled for Mobile) */}
         {isMessagesOpen && (
-          <div className="absolute right-0 top-16 bottom-0 w-80 sm:w-96 bg-white border-l border-gray-200 shadow-2xl z-30 flex flex-col animate-in slide-in-from-right duration-300">
+          <div className="absolute right-0 top-16 bottom-0 w-full sm:w-80 md:w-96 bg-white border-l border-gray-200 shadow-2xl z-30 flex flex-col animate-in slide-in-from-right duration-300">
             
             {!activeChat ? (
               <>
@@ -368,15 +376,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   <button onClick={() => { setActiveChat(null); setChatHistory([]); }} className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-full transition">
                     <ChevronLeft className="h-5 w-5" />
                   </button>
-                  <div className="flex items-center gap-2 flex-1">
-                    <div className="relative">
-                      <div className="h-8 w-8 bg-emerald-100 text-emerald-700 font-bold flex items-center justify-center rounded-full text-xs">
-                        {activeChat.name[0]}
-                      </div>
-                      <span className={`absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-white ${activeChat.isOnline ? 'bg-emerald-500' : 'bg-gray-300'}`}></span>
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <div className="h-8 w-8 bg-emerald-100 text-emerald-700 font-bold flex items-center justify-center rounded-full text-xs shrink-0">
+                      {activeChat.name[0]}
                     </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-gray-900 leading-tight">{activeChat.name}</h4>
+                    <div className="truncate">
+                      <h4 className="text-sm font-bold text-gray-900 truncate">{activeChat.name}</h4>
                       <p className="text-[10px] text-gray-500">{activeChat.isOnline ? 'Active now' : 'Offline'}</p>
                     </div>
                   </div>
@@ -447,12 +452,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <span className="text-sm font-bold text-emerald-950 leading-tight">
                 Dedan Kimathi Wildlife &<br />Environmental Club
               </span>
-            </div>
-            <div className="flex items-center gap-3">
-              <a href="https://www.instagram.com/wildlifeandenvironmentalclub/" target="_blank" rel="noreferrer" className="p-2 bg-gray-50 border border-gray-200 rounded-xl hover:bg-gray-100 transition shadow-sm"><svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="url(#igGrad2)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><defs><linearGradient id="igGrad2" x1="2" y1="2" x2="22" y2="22"><stop offset="0%" stopColor="#f9ce34" /><stop offset="50%" stopColor="#ee2a7b" /><stop offset="100%" stopColor="#6228d7" /></linearGradient></defs><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg></a>
-              <a href="https://www.tiktok.com/@dekuwec_dekut?_r=1&_t=ZS-99Q1Zs2LjYP" target="_blank" rel="noreferrer" className="p-2 bg-gray-50 border border-gray-200 rounded-xl hover:bg-gray-100 transition shadow-sm"><svg className="h-5 w-5 fill-black" viewBox="0 0 448 512"><path d="M448,209.91a210.06,210.06,0,0,1-122.77-39.25V349.38A162.55,162.55,0,1,1,185,188.31V278.2a74.62,74.62,0,1,0,52.23,71.18V0l88,0a121.18,121.18,0,0,0,1.86,22.17h0A122.18,122.18,0,0,0,381,102.39a121.43,121.43,0,0,0,67,20.14Z"/></svg></a>
-              <a href="https://www.linkedin.com/in/dekut-wildlife-and-environment-club-dekuwec-99b43a341?utm_source=share_via&utm_content=profile&utm_medium=member_android" target="_blank" rel="noreferrer" className="p-2 bg-gray-50 border border-gray-200 rounded-xl hover:bg-gray-100 transition shadow-sm"><svg className="h-5 w-5 fill-[#0A66C2]" viewBox="0 0 24 24"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/></svg></a>
-              <a href="https://x.com/Dekut_WEC" target="_blank" rel="noreferrer" className="p-2 bg-gray-50 border border-gray-200 rounded-xl hover:bg-gray-100 transition shadow-sm"><svg className="h-5 w-5 fill-black" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 24.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a>
             </div>
             <div className="text-xs text-gray-400 font-medium text-center md:text-right">&copy; 2026 DEKUWEC • Dedan Kimathi University of Technology. <br className="md:hidden" />All Rights Reserved.</div>
           </footer>
