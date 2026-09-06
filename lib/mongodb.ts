@@ -12,8 +12,8 @@ if (!cached) {
   cached = (global as any).mongoose = { conn: null, promise: null };
 }
 
-// Renamed to connectMongoDB to perfectly match your API routes
-export const connectMongoDB = async () => {
+// 1. Export as 'connectToDatabase' for your admin routes
+export const connectToDatabase = async () => {
   if (cached.conn) {
     return cached.conn;
   }
@@ -25,3 +25,9 @@ export const connectMongoDB = async () => {
   cached.conn = await cached.promise;
   return cached.conn;
 }
+
+// 2. Export as 'connectMongoDB' for your directory routes
+export const connectMongoDB = connectToDatabase;
+
+// 3. Default export for your clerk webhook route
+export default connectToDatabase;
