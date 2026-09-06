@@ -6,8 +6,21 @@ import {
   CheckCircle, ShieldCheck, Image as ImageIcon, Link as LinkIcon, 
   Send, List, Camera, Radio, Crown, Loader2, RefreshCw,
   Edit2, Trash2, X, Lock, KeyRound, Check, AlertCircle, Menu,
-  UploadCloud, Phone
+  UploadCloud, Phone, Video
 } from "lucide-react";
+
+const DEFAULT_LEADERS = [
+  { name: "Curtis Kioko", role: "Chairperson", phone: "0758638953", bio: "", imageUrl: "", order: 1 },
+  { name: "Grace Chebet", role: "Vice Chairperson", phone: "+254 7XX XXX XXX", bio: "", imageUrl: "", order: 2 },
+  { name: "Elizabeth Mwelu", role: "Club Secretary", phone: "+254 7XX XXX XXX", bio: "", imageUrl: "", order: 3 },
+  { name: "Joseph Mwendia", role: "Organising Secretary", phone: "+254 7XX XXX XXX", bio: "", imageUrl: "", order: 4 },
+  { name: "Melody Mbonne", role: "Public Representative (PR)", phone: "+254 7XX XXX XXX", bio: "", imageUrl: "", order: 5 },
+  { name: "Hannah Macharia", role: "Treasurer", phone: "+254 7XX XXX XXX", bio: "", imageUrl: "", order: 6 },
+  { name: "Zac", role: "Information Director", phone: "+254 7XX XXX XXX", bio: "", imageUrl: "", order: 7 },
+  { name: "Philip Theuri", role: "Assistant Leader", phone: "+254 7XX XXX XXX", bio: "", imageUrl: "", order: 8 },
+  { name: "Elias Tirop", role: "Assistant Leader", phone: "+254 7XX XXX XXX", bio: "", imageUrl: "", order: 9 },
+  { name: "Amos", role: "Assistant Leader", phone: "+254 7XX XXX XXX", bio: "", imageUrl: "", order: 10 },
+];
 
 export default function DekuwecAdminDashboard() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -39,7 +52,7 @@ export default function DekuwecAdminDashboard() {
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
 
   const [broadcastData, setBroadcastData] = useState({ title: "", message: "", imageUrl: "", link: "" });
-  const [eventForm, setEventForm] = useState({ title: "", category: "upcoming", date: "", time: "", location: "", imageUrl: "", galleryLink: "", description: "" });
+  const [eventForm, setEventForm] = useState({ title: "", category: "upcoming", date: "", time: "", location: "", imageUrl: "", galleryLink: "", description: "", media: [] as any[] });
   const [ecoType, setEcoType] = useState<"topic" | "quiz">("topic");
   const [ecoArticleForm, setEcoArticleForm] = useState({ title: "", category: "Conservation", imageUrl: "", link: "", content: "" });
   const [ecoQuizForm, setEcoQuizForm] = useState({ question: "", optionA: "", optionB: "", optionC: "", optionD: "", correctAnswer: "A", explanation: "" });
@@ -47,6 +60,9 @@ export default function DekuwecAdminDashboard() {
   const [leaderForm, setLeaderForm] = useState({ name: "", role: "", phone: "", bio: "", imageUrl: "", order: 1 });
   const [memberForm, setMemberForm] = useState({ fullName: "", email: "", course: "", status: "" });
 
+  const [uploadingMedia, setUploadingMedia] = useState(false);
+
+  // Fallback Base64 string uploader for standard single images
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, formSetter: React.Dispatch<React.SetStateAction<any>>, fieldName: string) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -59,6 +75,30 @@ export default function DekuwecAdminDashboard() {
         formSetter((prev: any) => ({ ...prev, [fieldName]: reader.result as string }));
       };
       reader.readAsDataURL(file);
+    }
+  };
+
+  // Cloudinary Uploader for Multiple Videos and Images (Events Gallery)
+  const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    setUploadingMedia(true);
+    try {
+      const uploadedMedia: any[] = [];
+      for (const file of files) {
+        const formData = new FormData();
+        formData.append("file", file);
+        const res = await fetch("/api/upload", { method: "POST", body: formData });
+        if (res.ok) {
+          const data = await res.json();
+          uploadedMedia.push({ url: data.url, type: data.resource_type });
+        }
+      }
+      setEventForm(prev => ({ ...prev, media: [...(prev.media || []), ...uploadedMedia] }));
+    } catch (err) {
+      alert("Media upload failed. Ensure Cloudinary keys are configured in .env.local");
+    } finally {
+      setUploadingMedia(false);
     }
   };
 
@@ -234,7 +274,7 @@ export default function DekuwecAdminDashboard() {
         if (isNew) triggerAutoNotification(`New Event: ${eventForm.title}`, `A new event has been scheduled for ${eventForm.date}. Tap to view details.`, "/dashboard/events");
         alert(isNew ? "New event published & Notification sent!" : "Event updated successfully!");
         setEditingEventId(null);
-        setEventForm({ title: "", category: "upcoming", date: "", time: "", location: "", imageUrl: "", galleryLink: "", description: "" });
+        setEventForm({ title: "", category: "upcoming", date: "", time: "", location: "", imageUrl: "", galleryLink: "", description: "", media: [] });
         fetchAllAdminData();
       } else {
         alert("Failed to save event.");
@@ -246,7 +286,17 @@ export default function DekuwecAdminDashboard() {
 
   const handleEditEvent = (evt: any) => {
     setEditingEventId(evt._id);
-    setEventForm({ title: evt.title, category: evt.category, date: evt.date, time: evt.time || "", location: evt.location || "", imageUrl: evt.imageUrl || "", galleryLink: evt.galleryLink || "", description: evt.description });
+    setEventForm({ 
+      title: evt.title, 
+      category: evt.category, 
+      date: evt.date, 
+      time: evt.time || "", 
+      location: evt.location || "", 
+      imageUrl: evt.imageUrl || "", 
+      galleryLink: evt.galleryLink || "", 
+      description: evt.description,
+      media: evt.media || [] 
+    });
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -354,6 +404,26 @@ export default function DekuwecAdminDashboard() {
   };
 
   // --- LEADERS ---
+  const importDefaultLeaders = async () => {
+    if (!confirm("This will initialize your database with the default executive board so you can easily edit them. Proceed?")) return;
+    setSubmitting(true);
+    try {
+      for (const ldr of DEFAULT_LEADERS) {
+        await fetch("/api/admin/leaders", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(ldr),
+        });
+      }
+      await fetchAllAdminData();
+      alert("Executive Board initialized successfully! You can now click 'Edit' to complete their profiles.");
+    } catch(err) {
+      alert("Failed to initialize leaders.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleLeaderSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
@@ -712,7 +782,7 @@ export default function DekuwecAdminDashboard() {
                     <button 
                       onClick={() => {
                         setEditingEventId(null);
-                        setEventForm({ title: "", category: "upcoming", date: "", time: "", location: "", imageUrl: "", galleryLink: "", description: "" });
+                        setEventForm({ title: "", category: "upcoming", date: "", time: "", location: "", imageUrl: "", galleryLink: "", description: "", media: [] });
                       }}
                       className="text-xs text-rose-600 font-bold hover:underline flex items-center gap-1 shrink-0"
                     >
@@ -788,6 +858,49 @@ export default function DekuwecAdminDashboard() {
                     </div>
                   </div>
 
+                  {/* Cloudinary Multi-Media Upload Section */}
+                  <div className="border border-emerald-100 rounded-xl p-4 bg-emerald-50/30">
+                    <label className="block text-xs font-bold uppercase text-emerald-800 mb-2 flex items-center gap-2">
+                      <Video className="h-4 w-4" /> Multi-Media Event Gallery (Videos & Extra Photos)
+                    </label>
+                    <p className="text-xs text-gray-500 mb-3">Select multiple files at once. These will be uploaded securely via Cloudinary to prevent crashing the database.</p>
+                    
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="file"
+                        accept="image/*,video/*"
+                        multiple
+                        onChange={handleMediaUpload}
+                        className="w-full py-1.5 text-sm outline-none file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-emerald-100 file:text-emerald-700 hover:file:bg-emerald-200 cursor-pointer"
+                      />
+                    </div>
+                    {uploadingMedia && (
+                      <p className="text-xs font-bold text-emerald-600 mt-2 flex items-center gap-1">
+                        <Loader2 className="h-3 w-3 animate-spin"/> Uploading to Cloudinary... Please wait.
+                      </p>
+                    )}
+                    {eventForm.media && eventForm.media.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mt-4">
+                        {eventForm.media.map((m, i) => (
+                          <div key={i} className="relative h-16 w-16 rounded-xl border border-gray-200 overflow-hidden bg-gray-200 shadow-sm">
+                            {m.type === 'video' ? (
+                              <video src={m.url} className="w-full h-full object-cover" />
+                            ) : (
+                              <img src={m.url} className="w-full h-full object-cover"/>
+                            )}
+                            <button 
+                              type="button" 
+                              onClick={() => setEventForm(prev => ({...prev, media: prev.media.filter((_, idx) => idx !== i)}))} 
+                              className="absolute top-0 right-0 bg-rose-500 text-white rounded-bl-lg p-1 transition hover:bg-rose-600"
+                            >
+                              <X className="h-2.5 w-2.5"/>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
                   {eventForm.category === "previous" && (
                     <input
                       type="url"
@@ -809,7 +922,7 @@ export default function DekuwecAdminDashboard() {
 
                   <button
                     type="submit"
-                    disabled={submitting}
+                    disabled={submitting || uploadingMedia}
                     className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white font-bold py-3.5 rounded-xl text-sm transition flex items-center justify-center gap-2"
                   >
                     {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
@@ -865,27 +978,32 @@ export default function DekuwecAdminDashboard() {
                     <table className="w-full text-left border-collapse min-w-[700px]">
                       <thead>
                         <tr className="bg-gray-50 text-xs uppercase text-gray-500 font-bold border-b border-gray-200">
-                          <th className="p-4">Participant Details</th>
+                          <th className="p-4">Participant Name</th>
+                          <th className="p-4">Phone Number</th>
                           <th className="p-4">DeKUT Reg No</th>
                           <th className="p-4">Event Name</th>
-                          <th className="p-4">Registered Date</th>
                           <th className="p-4 text-right">Action</th>
                         </tr>
                       </thead>
                       <tbody>
                         {eventRegistrations.map((reg) => {
-                          const displayName = reg.fullName || reg.name || reg.displayName || "Member";
-                          const displayRegNo = reg.registrationNumber || reg.regNo || reg.regNumber || reg.studentId || "—";
-                          const displayEvent = reg.eventName || reg.eventTitle || reg.event || "Upcoming Event";
-                          const displayDate = reg.createdAt ? new Date(reg.createdAt).toLocaleDateString() : "Recent";
+                          // Parse out the name and phone number from the combined string we saved earlier
+                          const parsedName = reg.fullName?.split(" (")[0] || reg.name || "Member";
+                          const parsedPhone = reg.fullName?.match(/\((.*?)\)/)?.[1] || "—";
+                          
+                          const displayRegNo = reg.registrationNumber || reg.regNo || "—";
+                          const displayEvent = reg.eventName || reg.eventTitle || "Upcoming Event";
 
                           return (
                             <tr key={reg._id} className="border-b border-gray-100 hover:bg-gray-50 text-sm">
                               <td className="p-4 font-bold text-gray-900">
-                                {displayName}
+                                {parsedName}
                                 {reg.email && (
                                   <span className="block text-xs font-normal text-gray-400 mt-0.5">{reg.email}</span>
                                 )}
+                              </td>
+                              <td className="p-4 font-semibold text-gray-600">
+                                {parsedPhone}
                               </td>
                               <td className="p-4 font-semibold text-emerald-700">
                                 <span className="bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg text-xs font-mono">
@@ -894,9 +1012,6 @@ export default function DekuwecAdminDashboard() {
                               </td>
                               <td className="p-4 font-bold text-gray-800">
                                 {displayEvent}
-                              </td>
-                              <td className="p-4 text-xs text-gray-400 whitespace-nowrap">
-                                {displayDate}
                               </td>
                               <td className="p-4 text-right">
                                 <button 
@@ -1303,36 +1418,50 @@ export default function DekuwecAdminDashboard() {
               {/* Manage Leaders List */}
               <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100">
                 <h3 className="text-xl font-bold text-emerald-950 mb-4">Current Executive Team</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {leaders.map((ldr) => (
-                    <div key={ldr._id} className="p-4 rounded-2xl border border-gray-200 bg-gray-50 flex items-center justify-between">
-                      <div className="flex items-center gap-3 overflow-hidden">
-                        <img 
-                          src={ldr.imageUrl || "https://i.postimg.cc/qB9gLwmz/Whats-App-Image-2026-09-03-at-09-49-04.jpg"} 
-                          alt={ldr.name} 
-                          className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-sm shrink-0"
-                        />
-                        <div className="truncate">
-                          <h4 className="font-bold text-sm text-gray-900 truncate">{ldr.name}</h4>
-                          <p className="text-[10px] text-emerald-700 font-bold uppercase tracking-wider truncate mb-0.5">{ldr.role}</p>
-                          {ldr.phone && (
-                            <p className="text-[10px] text-gray-500 flex items-center gap-1">
-                              <Phone className="h-2.5 w-2.5" /> {ldr.phone}
-                            </p>
-                          )}
+                
+                {leaders.length === 0 ? (
+                  <div className="text-center py-12 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+                    <p className="text-sm text-gray-500 mb-4">Your executive board database is currently empty.</p>
+                    <button 
+                      onClick={importDefaultLeaders} 
+                      disabled={submitting}
+                      className="bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white font-bold px-6 py-3 rounded-xl text-sm transition shadow-md"
+                    >
+                      {submitting ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "Auto-Import All 10 Leaders"}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {leaders.map((ldr) => (
+                      <div key={ldr._id} className="p-4 rounded-2xl border border-gray-200 bg-gray-50 flex items-center justify-between">
+                        <div className="flex items-center gap-3 overflow-hidden">
+                          <img 
+                            src={ldr.imageUrl || "https://i.postimg.cc/qB9gLwmz/Whats-App-Image-2026-09-03-at-09-49-04.jpg"} 
+                            alt={ldr.name} 
+                            className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-sm shrink-0"
+                          />
+                          <div className="truncate">
+                            <h4 className="font-bold text-sm text-gray-900 truncate">{ldr.name}</h4>
+                            <p className="text-[10px] text-emerald-700 font-bold uppercase tracking-wider truncate mb-0.5">{ldr.role}</p>
+                            {ldr.phone && (
+                              <p className="text-[10px] text-gray-500 flex items-center gap-1">
+                                <Phone className="h-2.5 w-2.5" /> {ldr.phone}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex gap-1 shrink-0 ml-2">
+                          <button onClick={() => handleEditLeader(ldr)} className="p-1.5 text-emerald-700 hover:bg-emerald-100 rounded-lg transition">
+                            <Edit2 className="h-3.5 w-3.5" />
+                          </button>
+                          <button onClick={() => handleDeleteLeader(ldr._id)} className="p-1.5 text-rose-600 hover:bg-rose-100 rounded-lg transition">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
                         </div>
                       </div>
-                      <div className="flex gap-1 shrink-0 ml-2">
-                        <button onClick={() => handleEditLeader(ldr)} className="p-1.5 text-emerald-700 hover:bg-emerald-100 rounded-lg transition">
-                          <Edit2 className="h-3.5 w-3.5" />
-                        </button>
-                        <button onClick={() => handleDeleteLeader(ldr._id)} className="p-1.5 text-rose-600 hover:bg-rose-100 rounded-lg transition">
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}

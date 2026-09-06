@@ -15,7 +15,7 @@ import {
   Loader2
 } from "lucide-react";
 
-// Fallback slides ensuring the UI always looks good even if the database is completely empty
+// Fallback slides in case the database is completely empty
 const FALLBACK_SLIDES = [
   {
     id: "fallback_1",
@@ -34,7 +34,7 @@ export default function DashboardHomePage() {
   const [slides, setSlides] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch LIVE Data from MongoDB (Only real posted things)
+  // Fetch LIVE Data from MongoDB (Pulls ALL items from ALL collections)
   useEffect(() => {
     async function fetchLiveHighlights() {
       try {
@@ -45,15 +45,20 @@ export default function DashboardHomePage() {
           user ? fetch(`/api/notifications?clerkId=${user.id}`).catch(() => null) : Promise.resolve(null)
         ]);
 
-        const eventsData = eventsRes?.ok ? await eventsRes.json() : { events: [] };
-        const ecoData = ecoRes?.ok ? await ecoRes.json() : [];
-        const snapsData = snapsRes?.ok ? await snapsRes.json() : [];
-        const notifData = notifRes?.ok ? await notifRes.json() : { notifications: [] };
+        const eventsData = eventsRes?.ok ? await eventsRes.json() : null;
+        const ecoData = ecoRes?.ok ? await ecoRes.json() : null;
+        const snapsData = snapsRes?.ok ? await snapsRes.json() : null;
+        const notifData = notifRes?.ok ? await notifRes.json() : null;
 
-        const fetchedSlides = [];
+        const eventsList = eventsData?.events || (Array.isArray(eventsData) ? eventsData : []);
+        const ecoList = ecoData?.posts || (Array.isArray(ecoData) ? ecoData : []);
+        const snapsList = snapsData?.snaps || (Array.isArray(snapsData) ? snapsData : []);
+        const notifList = notifData?.notifications || (Array.isArray(notifData) ? notifData : []);
 
-        // 1. Grab the latest Admin Broadcast Alert (Highest Priority)
-        const latestBroadcast = notifData.notifications?.find((n: any) => n.type === "admin_alert");
+        let fetchedSlides: any[] = [];
+
+        // 1. Grab the latest Admin Broadcast Alert (Highest Priority, just the newest one)
+        const latestBroadcast = notifList.find((n: any) => n.type === "admin_alert");
         if (latestBroadcast) {
           fetchedSlides.push({
             id: `brd_${latestBroadcast._id}`,
@@ -66,50 +71,53 @@ export default function DashboardHomePage() {
           });
         }
 
-        // 2. Grab the latest Event
-        const latestEvent = eventsData.events?.[0];
-        if (latestEvent) {
-          fetchedSlides.push({
-            id: `evt_${latestEvent._id}`,
-            category: "Events & Activities",
-            icon: <CalendarDays className="h-4 w-4" />,
-            title: latestEvent.title,
-            description: latestEvent.description,
-            image: latestEvent.imageUrl || "https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?q=80&w=2000",
-            link: "/dashboard/events",
-          });
-        }
+        // 2. Grab ALL active events (Upcoming and Projects)
+        eventsList.forEach((evt: any) => {
+          if (evt.category === 'upcoming' || evt.category === 'project') {
+            fetchedSlides.push({
+              id: `evt_${evt._id}`,
+              category: "Events & Activities",
+              icon: <CalendarDays className="h-4 w-4" />,
+              title: evt.title,
+              description: evt.description,
+              image: evt.imageUrl || "https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?q=80&w=2000&auto=format&fit=crop",
+              link: "/dashboard/events",
+            });
+          }
+        });
 
-        // 3. Grab the latest Nature Snap
-        if (snapsData.length > 0) {
+        // 3. Grab ALL Nature Snaps (Limit to 5 to prevent the slider from getting too long)
+        snapsList.slice(0, 5).forEach((snap: any) => {
           fetchedSlides.push({
-            id: `snp_${snapsData[0]._id}`,
+            id: `snp_${snap._id}`,
             category: "Nature Snaps",
             icon: <Camera className="h-4 w-4" />,
-            title: snapsData[0].title,
-            description: `Captured by ${snapsData[0].photographer}. ${snapsData[0].description}`,
-            image: snapsData[0].imageUrl,
+            title: snap.title,
+            description: `Captured by ${snap.photographer}. ${snap.description || ""}`,
+            image: snap.imageUrl || "https://images.unsplash.com/photo-1497436072909-60f360e1d4b1?q=80&w=2000&auto=format&fit=crop",
             link: "/dashboard/snaps",
           });
-        }
+        });
 
-        // 4. Grab the latest EcoPulse Post
-        if (ecoData.length > 0) {
+        // 4. Grab ALL EcoPulse Posts (Limit to 5)
+        ecoList.slice(0, 5).forEach((eco: any) => {
           fetchedSlides.push({
-            id: `eco_${ecoData[0]._id}`,
+            id: `eco_${eco._id}`,
             category: "EcoPulse Dispatch",
             icon: <Radio className="h-4 w-4" />,
-            title: ecoData[0].title,
-            description: ecoData[0].content,
-            image: ecoData[0].imageUrl || "https://images.unsplash.com/photo-1497436072909-60f360e1d4b1?q=80&w=2000",
+            title: eco.title,
+            description: eco.content,
+            image: eco.imageUrl || "https://images.unsplash.com/photo-1448375240586-882707db888b?q=80&w=2000&auto=format&fit=crop",
             link: "/dashboard/dispatch",
           });
-        }
+        });
 
+        // Finalize state
         if (fetchedSlides.length > 0) {
-          setSlides(fetchedSlides);
+          // Shuffle or just cap it at 15 slides so it doesn't freeze the browser
+          setSlides(fetchedSlides.slice(0, 15));
         } else {
-          setSlides(FALLBACK_SLIDES); // Show fallback if DB is completely empty
+          setSlides(FALLBACK_SLIDES);
         }
       } catch (error) {
         console.error("Failed to fetch live slides", error);
@@ -135,7 +143,7 @@ export default function DashboardHomePage() {
   const prevSlide = () => setCurrentSlide((prev) => (prev === 0 ? slides.length - 1 : prev - 1));
 
   return (
-    <div className="p-4 sm:p-8 lg:p-12 space-y-8 lg:space-y-12 max-w-[1400px] mx-auto">
+    <div className="p-4 sm:p-8 lg:p-12 space-y-8 lg:space-y-12 max-w-[1400px] mx-auto font-sans">
       
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4 border-b border-gray-200 pb-4">
@@ -149,9 +157,9 @@ export default function DashboardHomePage() {
       <div className="relative w-full h-[60vh] min-h-[350px] max-h-[500px] rounded-3xl overflow-hidden shadow-2xl group bg-emerald-950">
         
         {loading ? (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-100 z-30">
-            <Loader2 className="h-10 w-10 text-emerald-600 animate-spin mb-4" />
-            <p className="text-sm font-bold text-gray-500 uppercase tracking-widest">Loading Live Updates...</p>
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-emerald-900 z-30">
+            <Loader2 className="h-10 w-10 text-emerald-500 animate-spin mb-4" />
+            <p className="text-sm font-bold text-emerald-200 uppercase tracking-widest">Loading Club Highlights...</p>
           </div>
         ) : (
           <>
@@ -165,16 +173,16 @@ export default function DashboardHomePage() {
                 <img 
                   src={slide.image} 
                   alt={slide.title} 
-                  className="w-full h-full object-cover opacity-80"
+                  className="w-full h-full object-contain opacity-90 bg-emerald-950"
                 />
-                {/* Gradient Overlay for Text Readability */}
-                <div className="absolute inset-0 bg-gradient-to-t from-emerald-950 via-emerald-950/70 to-transparent"></div>
+                {/* Heavy Gradient Overlay for Text Readability */}
+                <div className="absolute inset-0 bg-gradient-to-t from-emerald-950 via-emerald-950/80 to-transparent"></div>
               </div>
             ))}
 
             {/* Content Overlay */}
-            <div className="absolute inset-0 z-20 flex flex-col justify-end p-6 sm:p-10">
-              <div className="max-w-3xl space-y-4">
+            <div className="absolute inset-0 z-20 flex flex-col justify-end p-6 sm:p-10 pointer-events-none">
+              <div className="max-w-3xl space-y-4 pointer-events-auto">
                 
                 <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-black/40 backdrop-blur-md border border-white/20 text-white text-xs font-bold uppercase tracking-wider">
                   {slides[currentSlide]?.icon}
@@ -217,13 +225,13 @@ export default function DashboardHomePage() {
                   <ChevronRight className="h-6 w-6" />
                 </button>
 
-                {/* Pagination Dots */}
-                <div className="absolute bottom-6 right-6 z-30 flex gap-2">
+                {/* Pagination Dots (Capped to prevent overcrowding if there are many slides) */}
+                <div className="absolute bottom-6 right-6 z-30 flex flex-wrap gap-2 max-w-[50%] justify-end">
                   {slides.map((_, index) => (
                     <button
                       key={index}
                       onClick={() => setCurrentSlide(index)}
-                      className={`transition-all duration-300 rounded-full ${index === currentSlide ? 'w-8 h-2 bg-emerald-400' : 'w-2 h-2 bg-white/50 hover:bg-white'}`}
+                      className={`transition-all duration-300 rounded-full ${index === currentSlide ? 'w-6 sm:w-8 h-2 bg-emerald-400' : 'w-2 h-2 bg-white/50 hover:bg-white'}`}
                     />
                   ))}
                 </div>

@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@clerk/nextjs": "^5.7.2",
+    "cloudinary": "^2.11.0",
     "lucide-react": "^1.41.0",
     "mongoose": "^8.9.5",
     "next": "^14.2.16",

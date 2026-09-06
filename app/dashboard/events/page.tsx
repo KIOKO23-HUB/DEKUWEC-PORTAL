@@ -13,7 +13,9 @@ import {
   X,
   CheckCircle,
   Send,
-  Loader2
+  Loader2,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 
 // Initial fallbacks so the UI remains complete while loading or if DB is empty
@@ -68,6 +70,72 @@ const otherEvents = [
   "Monthly Campus Clean-up Drives"
 ];
 
+// --- Cloudinary Multi-Media Carousel Component ---
+const EventMediaCarousel = ({ event, fallbackImage }: { event: any, fallbackImage: string }) => {
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  // Combine the main poster with any extra cloud media uploaded
+  const allMedia = [];
+  if (event.imageUrl) {
+    allMedia.push({ url: event.imageUrl, type: 'image' });
+  }
+  if (event.media && Array.isArray(event.media)) {
+    allMedia.push(...event.media);
+  }
+
+  if (allMedia.length === 0) {
+    return <img src={fallbackImage} alt="Event Cover" className="w-full h-full object-contain bg-emerald-50" />;
+  }
+
+  const currentMedia = allMedia[currentIndex];
+
+  return (
+    <div className="relative w-full h-full bg-emerald-50/50 flex items-center justify-center group overflow-hidden">
+      {currentMedia.type === 'video' ? (
+        <video 
+          src={currentMedia.url} 
+          autoPlay 
+          loop 
+          muted 
+          playsInline 
+          className="w-full h-full object-contain" 
+        />
+      ) : (
+        <img 
+          src={currentMedia.url} 
+          alt="Event Media" 
+          className="w-full h-full object-contain" 
+        />
+      )}
+
+      {allMedia.length > 1 && (
+        <>
+          <button 
+            onClick={(e) => { e.preventDefault(); setCurrentIndex(prev => prev === 0 ? allMedia.length - 1 : prev - 1); }}
+            className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/70 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition z-10"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <button 
+            onClick={(e) => { e.preventDefault(); setCurrentIndex(prev => prev === allMedia.length - 1 ? 0 : prev + 1); }}
+            className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/70 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition z-10"
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
+          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
+            {allMedia.map((_, idx) => (
+              <div 
+                key={idx} 
+                className={`h-1.5 rounded-full transition-all duration-300 ${idx === currentIndex ? 'w-4 bg-emerald-500' : 'w-1.5 bg-white/50'}`} 
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
 export default function EventsPage() {
   const { user, isLoaded } = useUser();
   const [events, setEvents] = useState<any[]>([]);
@@ -76,12 +144,10 @@ export default function EventsPage() {
   const [activeModalEvent, setActiveModalEvent] = useState<any | null>(null);
   const [rsvpedEventIds, setRsvpedEventIds] = useState<string[]>([]);
   
-  // Added "phone" field to the form data state
   const [formData, setFormData] = useState({ name: "", regNo: "", phone: "" });
   const [showSuccess, setShowSuccess] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Fetch Live Events from MongoDB API
   useEffect(() => {
     async function loadEvents() {
       try {
@@ -99,7 +165,6 @@ export default function EventsPage() {
     loadEvents();
   }, []);
 
-  // Pre-fill user data once Clerk loads
   useEffect(() => {
     if (user) {
       setFormData((prev) => ({
@@ -119,7 +184,7 @@ export default function EventsPage() {
     setFormData({ 
       name: user?.fullName || "", 
       regNo: "",
-      phone: "" // Reset phone field on close
+      phone: "" 
     });
   };
 
@@ -135,8 +200,8 @@ export default function EventsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           clerkId: user.id,
-          // We include the phone number in the fullName string so it saves smoothly
-          fullName: `${formData.name} (${formData.phone})`.trim(),
+          fullName: formData.name,
+          phone: formData.phone,
           registrationNumber: formData.regNo,
           email: user.primaryEmailAddress?.emailAddress || "",
           eventName: activeModalEvent.title,
@@ -164,7 +229,6 @@ export default function EventsPage() {
 
   if (!isLoaded) return null;
 
-  // Filter dynamic lists, falling back to initial data if none are added yet
   const dynamicUpcoming = events.filter((e) => e.category === "upcoming");
   const upcomingEvents = dynamicUpcoming.length > 0 ? dynamicUpcoming : FALLBACK_UPCOMING;
 
@@ -207,12 +271,8 @@ export default function EventsPage() {
                 return (
                   <div key={event._id} className="flex flex-col md:flex-row bg-white border border-gray-200 rounded-3xl overflow-hidden shadow-sm hover:shadow-md transition">
                     <div className="md:w-2/5 h-64 md:h-auto relative bg-gray-100">
-                      <img 
-                        src={event.imageUrl || "https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?q=80&w=1000"} 
-                        alt={event.title} 
-                        className="w-full h-full object-contain bg-emerald-50" 
-                      />
-                      <div className="absolute top-4 left-4 bg-emerald-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-md">
+                      <EventMediaCarousel event={event} fallbackImage="https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?q=80&w=1000" />
+                      <div className="absolute top-4 left-4 bg-emerald-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-md z-20">
                         {event.status || "Registration Open"}
                       </div>
                     </div>
@@ -272,23 +332,19 @@ export default function EventsPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {previousEvents.map((event) => (
                 <div key={event._id} className="bg-white border border-gray-200 rounded-3xl p-5 shadow-sm hover:shadow-md transition flex flex-col">
-                  <div className="h-48 w-full rounded-2xl overflow-hidden mb-5 bg-gray-100">
-                    <img 
-                      src={event.imageUrl || "https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?q=80&w=1000"} 
-                      alt={event.title} 
-                      className="w-full h-full object-cover hover:scale-105 transition duration-500" 
-                    />
+                  <div className="h-48 w-full rounded-2xl overflow-hidden mb-5 bg-gray-100 relative">
+                    <EventMediaCarousel event={event} fallbackImage="https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?q=80&w=1000" />
                   </div>
                   <h3 className="text-lg font-bold text-gray-900 mb-1">{event.title}</h3>
                   <p className="text-xs font-bold text-emerald-600 mb-3">{event.date}</p>
-                  <p className="text-sm text-gray-600 leading-relaxed mb-6 flex-grow">{event.description}</p>
+                  <p className="text-sm text-gray-600 leading-relaxed mb-6 flex-grow whitespace-pre-wrap">{event.description}</p>
                   
                   {event.galleryLink && (
                     <a 
                       href={event.galleryLink} 
                       target="_blank" 
                       rel="noopener noreferrer" 
-                      className="inline-flex items-center justify-center gap-2 w-full py-3 rounded-xl border-2 border-emerald-100 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs transition"
+                      className="inline-flex items-center justify-center gap-2 w-full py-3 rounded-xl border-2 border-emerald-100 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs transition mt-auto"
                     >
                       <ImageIcon className="h-4 w-4" />
                       <span>View Google Photos Gallery</span>
@@ -315,19 +371,15 @@ export default function EventsPage() {
               <div className="bg-emerald-950 text-white rounded-3xl overflow-hidden shadow-lg">
                 {ongoingProjects.map((project) => (
                   <div key={project._id} className="flex flex-col sm:flex-row border-b border-emerald-900 last:border-b-0">
-                    <div className="sm:w-1/2 h-56 sm:h-auto bg-emerald-900">
-                      <img 
-                        src={project.imageUrl || "https://images.unsplash.com/photo-1466692476868-aef1dfb1e735?q=80&w=1000"} 
-                        alt={project.title} 
-                        className="w-full h-full object-cover opacity-90" 
-                      />
+                    <div className="sm:w-1/2 h-56 sm:h-auto bg-emerald-900 relative">
+                      <EventMediaCarousel event={project} fallbackImage="https://images.unsplash.com/photo-1466692476868-aef1dfb1e735?q=80&w=1000" />
                     </div>
                     <div className="p-6 sm:p-8 sm:w-1/2 flex flex-col justify-center">
                       <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-800/50 border border-emerald-700 text-emerald-300 text-[10px] font-bold uppercase tracking-wider mb-4 w-max">
                         <Leaf className="h-3 w-3" /> Active Initiative
                       </div>
                       <h3 className="text-xl font-bold text-white mb-3">{project.title}</h3>
-                      <p className="text-sm text-emerald-100/80 leading-relaxed">
+                      <p className="text-sm text-emerald-100/80 leading-relaxed whitespace-pre-wrap">
                         {project.description}
                       </p>
                     </div>
