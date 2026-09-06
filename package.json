@@ -1,12 +1,27 @@
 {
+  "name": "dekuwec-portal",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
   "dependencies": {
-    "@clerk/nextjs": "^7.9.1",
+    "@clerk/nextjs": "^5.7.2",
     "lucide-react": "^1.41.0",
-    "mongoose": "^9.9.5"
+    "mongoose": "^8.9.5",
+    "next": "^14.2.16",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
-    "@types/node": "^26.4.1",
-    "@types/react": "^19.2.18",
-    "typescript": "^7.0.2"
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.3.1",
+    "@types/react-dom": "^18.3.1",
+    "postcss": "^8.5.28",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5.3.3"
   }
 }
