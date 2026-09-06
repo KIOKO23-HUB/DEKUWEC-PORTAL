@@ -2,6 +2,8 @@ import { Webhook } from 'svix';
 import { headers } from 'next/headers';
 import { WebhookEvent } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
+import connectMongoDB from '@/lib/mongodb';
+import Member from '@/models/Member';
 
 export async function POST(req: Request) {
   const headerPayload = await headers();
@@ -36,11 +38,30 @@ export async function POST(req: Request) {
   }
 
   const eventType = evt.type;
-  if (eventType === 'user.created') {
-    const { email_addresses, first_name } = evt.data as any;
+
+  // Handle Account Creation and Updates
+  if (eventType === 'user.created' || eventType === 'user.updated') {
+    const { id, email_addresses, first_name } = evt.data as any;
     const email = email_addresses[0]?.email_address;
 
-    if (email) {
+    // 1. Sync User to MongoDB using the unique Clerk ID
+    try {
+      await connectMongoDB();
+      await Member.findOneAndUpdate(
+        { clerkId: id }, // Strictly matches the exact user ID
+        {
+          clerkId: id,
+          email: email,
+          name: first_name || 'Member',
+        },
+        { upsert: true, new: true } // Creates new if missing, updates if exists
+      );
+    } catch (dbErr) {
+      console.error("Database sync failed:", dbErr);
+    }
+
+    // 2. Dispatch Welcome Email (Only on Creation)
+    if (eventType === 'user.created' && email) {
       try {
         await fetch('https://api.brevo.com/v3/smtp/email', {
           method: 'POST',
@@ -75,6 +96,17 @@ export async function POST(req: Request) {
       } catch (emailErr) {
         console.error("Failed to dispatch welcome email via Brevo:", emailErr);
       }
+    }
+  }
+
+  // Handle Account Deletion
+  if (eventType === 'user.deleted') {
+    const { id } = evt.data as any;
+    try {
+      await connectMongoDB();
+      await Member.findOneAndDelete({ clerkId: id });
+    } catch (dbErr) {
+      console.error("Failed to delete user from MongoDB:", dbErr);
     }
   }
 
