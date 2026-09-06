@@ -12,7 +12,7 @@ export async function POST(req: Request) {
     // 1. Update Member Status
     const member = await Member.findOneAndUpdate(
       { clerkId },
-      { status: "Approved" },
+      { status: "Registered Member" }, // Updated to match the frontend UI perfectly
       { new: true }
     );
 

@@ -17,4 +17,4 @@ const NatureSnapSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
-export default mongoose.models.NatureSnap || mongoose.model("NatureSnap", NatureSnapSchema);
+export default mongoose.models.NatureSnap || mongoose.model("NatureSnap", NatureSnapSchema)

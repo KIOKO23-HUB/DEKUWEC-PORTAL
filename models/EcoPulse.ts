@@ -8,11 +8,10 @@ const OptionSchema = new mongoose.Schema({
 const EcoPulseSchema = new mongoose.Schema({
   type: { type: String, enum: ["topic", "quiz"], required: true },
   title: { type: String, required: true },
-  content: { type: String, required: true }, // Explanation or Article Body
+  content: { type: String, required: true }, 
   category: { type: String, default: "Conservation" },
   imageUrl: { type: String, default: "" },
   link: { type: String, default: "" },
-  // Specific fields for Quiz type
   options: { type: [OptionSchema], default: [] },
   correctAnswer: { type: String, default: "A" },
   date: { 

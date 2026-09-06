@@ -75,7 +75,9 @@ export default function EventsPage() {
 
   const [activeModalEvent, setActiveModalEvent] = useState<any | null>(null);
   const [rsvpedEventIds, setRsvpedEventIds] = useState<string[]>([]);
-  const [formData, setFormData] = useState({ name: "", regNo: "" });
+  
+  // Added "phone" field to the form data state
+  const [formData, setFormData] = useState({ name: "", regNo: "", phone: "" });
   const [showSuccess, setShowSuccess] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -116,7 +118,8 @@ export default function EventsPage() {
     setActiveModalEvent(null);
     setFormData({ 
       name: user?.fullName || "", 
-      regNo: "" 
+      regNo: "",
+      phone: "" // Reset phone field on close
     });
   };
 
@@ -132,7 +135,9 @@ export default function EventsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           clerkId: user.id,
-          fullName: `${formData.name} (${formData.regNo})`.trim(),
+          // We include the phone number in the fullName string so it saves smoothly
+          fullName: `${formData.name} (${formData.phone})`.trim(),
+          registrationNumber: formData.regNo,
           email: user.primaryEmailAddress?.emailAddress || "",
           eventName: activeModalEvent.title,
         }),
@@ -205,7 +210,7 @@ export default function EventsPage() {
                       <img 
                         src={event.imageUrl || "https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?q=80&w=1000"} 
                         alt={event.title} 
-                        className="w-full h-full object-cover" 
+                        className="w-full h-full object-contain bg-emerald-50" 
                       />
                       <div className="absolute top-4 left-4 bg-emerald-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-md">
                         {event.status || "Registration Open"}
@@ -230,7 +235,7 @@ export default function EventsPage() {
                             </div>
                           )}
                         </div>
-                        <p className="text-sm text-gray-600 leading-relaxed">{event.description}</p>
+                        <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">{event.description}</p>
                       </div>
 
                       <div>
@@ -309,7 +314,7 @@ export default function EventsPage() {
               
               <div className="bg-emerald-950 text-white rounded-3xl overflow-hidden shadow-lg">
                 {ongoingProjects.map((project) => (
-                  <div key={project._id} className="flex flex-col sm:flex-row">
+                  <div key={project._id} className="flex flex-col sm:flex-row border-b border-emerald-900 last:border-b-0">
                     <div className="sm:w-1/2 h-56 sm:h-auto bg-emerald-900">
                       <img 
                         src={project.imageUrl || "https://images.unsplash.com/photo-1466692476868-aef1dfb1e735?q=80&w=1000"} 
@@ -391,6 +396,18 @@ export default function EventsPage() {
                       placeholder="e.g. Kelvin Maina"
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:border-emerald-600 outline-none transition"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-1">Phone Number</label>
+                    <input
+                      type="tel"
+                      required
+                      placeholder="e.g. 0712345678"
+                      value={formData.phone}
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                       className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:border-emerald-600 outline-none transition"
                     />
                   </div>

@@ -7,12 +7,22 @@ import Notification from "@/models/Notification";
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { clerkId, fullName, email, eventName } = body;
+    
+    // Extract the newly added registrationNumber field
+    const { clerkId, fullName, registrationNumber, email, eventName } = body;
+
+    if (!eventName || !fullName || !registrationNumber) {
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    }
 
     await connectToDatabase();
 
     // 1. Check if user is already registered for this specific event
-    const existingRegistration = await EventRegistration.findOne({ clerkId, eventName });
+    // Checks both clerkId AND registrationNumber to prevent duplicate signups
+    const existingRegistration = await EventRegistration.findOne({ 
+      $or: [{ clerkId: clerkId }, { registrationNumber: registrationNumber }],
+      eventName: eventName 
+    });
     
     if (existingRegistration) {
       return NextResponse.json(
@@ -24,7 +34,8 @@ export async function POST(req: Request) {
     // 2. Save Registration to MongoDB
     const newRegistration = new EventRegistration({
       clerkId,
-      fullName,
+      fullName, // Contains Name + Phone from frontend
+      registrationNumber, // Saves the DeKUT Reg Number for the admin panel
       email,
       eventName,
     });
@@ -32,10 +43,12 @@ export async function POST(req: Request) {
     await newRegistration.save();
 
     // 3. Draft Confirmation Email
+    // Splits the "Name (Phone)" string to only use the Name in the email greeting
+    const emailName = fullName.split(" (")[0];
     const emailHtml = `
       <div style="font-family: Arial, sans-serif; max-w: 600px; margin: 0 auto; color: #064e3b;">
         <h2 style="color: #059669;">Event Registration Confirmed! 🌳</h2>
-        <p>Hello ${fullName},</p>
+        <p>Hello ${emailName},</p>
         <p>You have successfully registered for the <strong>${eventName}</strong>.</p>
         
         <div style="background-color: #ecfdf5; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #34d399;">
@@ -50,12 +63,14 @@ export async function POST(req: Request) {
 
     // 4. Send Email via Brevo
     try {
-      await sendEmail({
-        to: email,
-        subject: `Registration Confirmed: ${eventName}`,
-        htmlContent: emailHtml,
-      });
-      console.log(`Event registration email dispatched to ${email}`);
+      if (email) {
+        await sendEmail({
+          to: email,
+          subject: `Registration Confirmed: ${eventName}`,
+          htmlContent: emailHtml,
+        });
+        console.log(`Event registration email dispatched to ${email}`);
+      }
     } catch (emailError) {
       console.error("Warning: Registration saved, but email failed.", emailError);
     }

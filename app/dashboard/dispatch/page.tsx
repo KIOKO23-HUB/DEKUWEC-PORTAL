@@ -189,8 +189,9 @@ export default function EcoPulseDispatchPage() {
                 {environmentTopics.map((topic) => (
                   <div key={topic._id} className="group bg-white border border-gray-100 rounded-3xl overflow-hidden shadow-sm hover:shadow-md transition cursor-pointer flex flex-col">
                     {topic.imageUrl && (
-                      <div className="h-48 w-full overflow-hidden">
-                        <img src={topic.imageUrl} alt={topic.title} className="w-full h-full object-cover group-hover:scale-105 transition duration-700" />
+                      <div className="h-48 w-full overflow-hidden bg-gray-100 flex items-center justify-center p-2">
+                        {/* Adjusted to object-contain to match admin panel upload scale */}
+                        <img src={topic.imageUrl} alt={topic.title} className="w-full h-full object-contain group-hover:scale-105 transition duration-700" />
                       </div>
                     )}
                     <div className="p-6 sm:p-8 flex flex-col flex-grow">
@@ -203,7 +204,7 @@ export default function EcoPulseDispatchPage() {
                       <h3 className="text-xl font-bold text-gray-900 mb-3 group-hover:text-emerald-700 transition">
                         {topic.title}
                       </h3>
-                      <p className="text-sm text-gray-500 leading-relaxed mb-6 flex-grow">
+                      <p className="text-sm text-gray-500 leading-relaxed mb-6 flex-grow whitespace-pre-wrap">
                         {topic.content}
                       </p>
                       {topic.link && (
@@ -230,8 +231,9 @@ export default function EcoPulseDispatchPage() {
                 {socioEconomicTopics.map((topic) => (
                   <div key={topic._id} className="group bg-white border border-gray-100 rounded-3xl overflow-hidden shadow-sm hover:shadow-md transition cursor-pointer flex flex-col">
                     {topic.imageUrl && (
-                      <div className="h-48 w-full overflow-hidden">
-                        <img src={topic.imageUrl} alt={topic.title} className="w-full h-full object-cover group-hover:scale-105 transition duration-700" />
+                      <div className="h-48 w-full overflow-hidden bg-gray-100 flex items-center justify-center p-2">
+                        {/* Adjusted to object-contain to match admin panel upload scale */}
+                        <img src={topic.imageUrl} alt={topic.title} className="w-full h-full object-contain group-hover:scale-105 transition duration-700" />
                       </div>
                     )}
                     <div className="p-6 sm:p-8 flex flex-col flex-grow">
@@ -244,7 +246,7 @@ export default function EcoPulseDispatchPage() {
                       <h3 className="text-xl font-bold text-gray-900 mb-3 group-hover:text-blue-700 transition">
                         {topic.title}
                       </h3>
-                      <p className="text-sm text-gray-500 leading-relaxed mb-6 flex-grow">
+                      <p className="text-sm text-gray-500 leading-relaxed mb-6 flex-grow whitespace-pre-wrap">
                         {topic.content}
                       </p>
                       {topic.link && (

@@ -1,17 +1,20 @@
 import mongoose from "mongoose";
 
-const EventRegistrationSchema = new mongoose.Schema(
-  {
-    clerkId: { type: String, required: true },
-    fullName: { type: String, required: true },
-    email: { type: String, required: true },
-    eventName: { type: String, required: true },
-    status: { type: String, default: "Registered" },
+const EventItemSchema = new mongoose.Schema({
+  title: { type: String, required: true },
+  category: { 
+    type: String, 
+    enum: ["upcoming", "previous", "project"], 
+    default: "upcoming" 
   },
-  { timestamps: true }
-);
+  date: { type: String, required: true },
+  time: { type: String, default: "" },
+  location: { type: String, default: "" },
+  description: { type: String, required: true },
+  imageUrl: { type: String, default: "" },
+  galleryLink: { type: String, default: "" },
+  status: { type: String, default: "Registration Open" },
+  createdAt: { type: Date, default: Date.now }
+});
 
-// Fallback for Next.js hot reloads
-const EventRegistration = mongoose.models.EventRegistration || mongoose.model("EventRegistration", EventRegistrationSchema);
-
-export default EventRegistration;
+export default mongoose.models.EventItem || mongoose.model("EventItem", EventItemSchema);
