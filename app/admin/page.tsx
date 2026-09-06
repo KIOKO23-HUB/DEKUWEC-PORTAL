@@ -5,7 +5,8 @@ import {
   Users, Calendar, Megaphone, MessageSquare, CreditCard, 
   CheckCircle, ShieldCheck, Image as ImageIcon, Link as LinkIcon, 
   Send, List, Camera, Radio, Crown, Loader2, RefreshCw,
-  Edit2, Trash2, X, Lock, KeyRound, Check, AlertCircle
+  Edit2, Trash2, X, Lock, KeyRound, Check, AlertCircle, Menu,
+  UploadCloud, Phone
 } from "lucide-react";
 
 export default function DekuwecAdminDashboard() {
@@ -21,6 +22,7 @@ export default function DekuwecAdminDashboard() {
   const [refreshing, setRefreshing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // --- Live Collections from MongoDB ---
   const [pendingMembers, setPendingMembers] = useState<any[]>([]);
@@ -33,13 +35,13 @@ export default function DekuwecAdminDashboard() {
   const [leaders, setLeaders] = useState<any[]>([]);
   const [feedbacks, setFeedbacks] = useState<any[]>([]);
 
-  // --- Active Edit Trackers (Null = Creating new item) ---
+  // --- Active Edit Trackers ---
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [editingEcoId, setEditingEcoId] = useState<string | null>(null);
   const [editingSnapId, setEditingSnapId] = useState<string | null>(null);
   const [editingLeaderId, setEditingLeaderId] = useState<string | null>(null);
 
-  // --- Form States ---
+  // --- Form States (Updated with Image Uploads & Leader Phone Number) ---
   const [broadcastData, setBroadcastData] = useState({ title: "", message: "", imageUrl: "", link: "" });
   
   const [eventForm, setEventForm] = useState({
@@ -59,8 +61,24 @@ export default function DekuwecAdminDashboard() {
   });
 
   const [leaderForm, setLeaderForm] = useState({
-    name: "", role: "", bio: "", imageUrl: "", order: 1
+    name: "", role: "", phone: "", bio: "", imageUrl: "", order: 1
   });
+
+  // --- Image Upload Converter (File to Base64) ---
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, formSetter: React.Dispatch<React.SetStateAction<any>>, fieldName: string) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        alert("Image is too large! Please select a file under 5MB.");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        formSetter((prev: any) => ({ ...prev, [fieldName]: reader.result as string }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   // --- Check Authentication on Mount ---
   useEffect(() => {
@@ -71,6 +89,14 @@ export default function DekuwecAdminDashboard() {
     } else {
       setLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setIsMobileMenuOpen(false);
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
   }, []);
 
   // --- Verify Admin Passcode ---
@@ -156,7 +182,7 @@ export default function DekuwecAdminDashboard() {
   };
 
   // ==========================================
-  // HANDLERS: EVENTS (CREATE / EDIT / DELETE)
+  // HANDLERS: EVENTS 
   // ==========================================
   const handleEventSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -206,7 +232,7 @@ export default function DekuwecAdminDashboard() {
   };
 
   // ==========================================
-  // HANDLERS: ECOPULSE (CREATE / EDIT / DELETE)
+  // HANDLERS: ECOPULSE
   // ==========================================
   const handleEcoPulseSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -294,7 +320,7 @@ export default function DekuwecAdminDashboard() {
   };
 
   // ==========================================
-  // HANDLERS: NATURE SNAPS (CREATE / EDIT / DELETE)
+  // HANDLERS: NATURE SNAPS
   // ==========================================
   const handleSnapSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -341,7 +367,7 @@ export default function DekuwecAdminDashboard() {
   };
 
   // ==========================================
-  // HANDLERS: LEADERS (CREATE / EDIT / DELETE)
+  // HANDLERS: LEADERS (EXECUTIVE BOARD)
   // ==========================================
   const handleLeaderSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -359,7 +385,7 @@ export default function DekuwecAdminDashboard() {
       if (res.ok) {
         alert(editingLeaderId ? "Leader updated!" : "New Leader added!");
         setEditingLeaderId(null);
-        setLeaderForm({ name: "", role: "", bio: "", imageUrl: "", order: 1 });
+        setLeaderForm({ name: "", role: "", phone: "", bio: "", imageUrl: "", order: 1 });
         fetchAllAdminData();
       } else {
         alert("Failed to save leader profile.");
@@ -374,6 +400,7 @@ export default function DekuwecAdminDashboard() {
     setLeaderForm({
       name: ldr.name,
       role: ldr.role,
+      phone: ldr.phone || "",
       bio: ldr.bio || "",
       imageUrl: ldr.imageUrl || "",
       order: ldr.order || 1,
@@ -426,7 +453,7 @@ export default function DekuwecAdminDashboard() {
             />
           </div>
           <div>
-            <h1 className="text-xl font-black text-emerald-950 tracking-tight">DEKUWEC ADMINS AND LEADERS</h1>
+            <h1 className="text-xl font-black text-emerald-950 tracking-tight">DEKUWEC ADMINS</h1>
             <p className="text-xs font-semibold text-gray-500 mt-1">Executive Portal Passcode Verification</p>
           </div>
 
@@ -484,28 +511,64 @@ export default function DekuwecAdminDashboard() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col md:flex-row font-sans">
       
-      {/* Sticky Sidebar Navigation */}
-      <aside className="w-full md:w-64 bg-emerald-950 text-white flex-shrink-0 flex flex-row md:flex-col overflow-x-auto md:overflow-y-auto z-20 sticky top-0 md:h-screen shadow-xl scrollbar-hide">
-        <div className="p-5 hidden md:flex items-center gap-3 border-b border-emerald-900/60">
+      {/* Mobile Top Header */}
+      <div className="md:hidden bg-emerald-950 text-white p-4 flex items-center justify-between sticky top-0 z-30 shadow-md">
+        <div className="flex items-center gap-3">
           <img 
             src="https://i.postimg.cc/qB9gLwmz/Whats-App-Image-2026-09-03-at-09-49-04.jpg" 
             alt="DEKUWEC Logo" 
-            className="w-10 h-10 rounded-full border-2 border-emerald-400 object-cover shrink-0"
+            className="w-8 h-8 rounded-full border border-emerald-400 object-cover"
           />
-          <div className="overflow-hidden">
-            <h1 className="text-xs font-black tracking-tight leading-tight text-white truncate">DEKUWEC ADMINS AND LEADERS</h1>
-            <span className="text-[10px] text-emerald-400 font-bold block">Executive Portal</span>
+          <div>
+            <h1 className="text-xs font-black tracking-tight leading-tight">DEKUWEC ADMINS</h1>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={fetchAllAdminData} className="p-2 text-emerald-200 hover:text-white transition">
+            <RefreshCw className={`h-5 w-5 ${refreshing ? "animate-spin" : ""}`} />
+          </button>
+          <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 text-emerald-200 hover:text-white transition">
+            <Menu className="h-6 w-6" />
+          </button>
+        </div>
+      </div>
+
+      {/* Mobile Overlay */}
+      {isMobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-black/60 z-40 md:hidden backdrop-blur-sm"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
+      {/* Responsive Sidebar Navigation */}
+      <aside className={`fixed md:relative inset-y-0 left-0 z-50 w-64 bg-emerald-950 text-white flex-shrink-0 flex flex-col h-screen transform transition-transform duration-300 ease-in-out md:translate-x-0 ${isMobileMenuOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full"}`}>
+        <div className="p-5 flex items-center justify-between md:justify-start gap-3 border-b border-emerald-900/60">
+          <div className="flex items-center gap-3 overflow-hidden">
+            <img 
+              src="https://i.postimg.cc/qB9gLwmz/Whats-App-Image-2026-09-03-at-09-49-04.jpg" 
+              alt="DEKUWEC Logo" 
+              className="w-10 h-10 rounded-full border-2 border-emerald-400 object-cover shrink-0 hidden md:block"
+            />
+            <div className="overflow-hidden hidden md:block">
+              <h1 className="text-xs font-black tracking-tight leading-tight text-white truncate">DEKUWEC ADMINS</h1>
+              <span className="text-[10px] text-emerald-400 font-bold block">Executive Portal</span>
+            </div>
+            <span className="md:hidden text-sm font-black tracking-widest text-emerald-300">ADMIN MENU</span>
           </div>
           <button 
             onClick={fetchAllAdminData} 
             title="Refresh All Collections"
-            className="ml-auto p-1.5 hover:bg-emerald-900 rounded-lg text-emerald-300 transition"
+            className="hidden md:block ml-auto p-1.5 hover:bg-emerald-900 rounded-lg text-emerald-300 transition"
           >
             <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
           </button>
+          <button onClick={() => setIsMobileMenuOpen(false)} className="md:hidden p-1 text-emerald-200 hover:text-white">
+            <X className="h-6 w-6" />
+          </button>
         </div>
 
-        <nav className="flex md:flex-col p-2 md:p-3 gap-1.5 flex-nowrap w-full">
+        <nav className="flex flex-col p-3 gap-1.5 flex-1 overflow-y-auto w-full">
           {[
             { id: "approvals", icon: CheckCircle, label: `Approvals (${pendingMembers.length})` },
             { id: "wck", icon: CreditCard, label: `WCK Cards (${wckApplicants.length})` },
@@ -519,14 +582,14 @@ export default function DekuwecAdminDashboard() {
           ].map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all whitespace-nowrap md:whitespace-normal font-bold text-xs ${
+              onClick={() => { setActiveTab(tab.id); setIsMobileMenuOpen(false); }}
+              className={`flex items-center gap-3 px-4 py-3 md:py-2.5 rounded-xl transition-all font-bold text-sm md:text-xs w-full ${
                 activeTab === tab.id 
                   ? "bg-emerald-600 text-white shadow-md" 
                   : "text-emerald-300 hover:bg-emerald-900/50 hover:text-white"
               }`}
             >
-              <tab.icon className="h-4 w-4 shrink-0" />
+              <tab.icon className="h-5 w-5 md:h-4 md:w-4 shrink-0" />
               <span>{tab.label}</span>
             </button>
           ))}
@@ -534,22 +597,22 @@ export default function DekuwecAdminDashboard() {
       </aside>
 
       {/* Main Content Workspace */}
-      <main className="flex-1 p-4 sm:p-8 lg:p-10 overflow-y-auto">
+      <main className="flex-1 p-4 sm:p-8 lg:p-10 overflow-y-auto md:h-screen">
         <div className="max-w-5xl mx-auto space-y-8 pb-20">
 
           {/* 1. APPROVALS TAB */}
           {activeTab === "approvals" && (
             <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100 animate-in fade-in">
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
                 <div>
                   <h2 className="text-2xl font-black text-emerald-950 flex items-center gap-2">
-                    <CheckCircle className="text-emerald-600" /> Pending Registrations
+                    <CheckCircle className="text-emerald-600 shrink-0" /> Pending Registrations
                   </h2>
                   <p className="text-sm text-gray-500 mt-1">Confirm student M-Pesa payments (0118506251) and activate membership access.</p>
                 </div>
                 <button 
                   onClick={fetchAllAdminData}
-                  className="text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-xl transition"
+                  className="hidden sm:inline-block text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-xl transition shrink-0"
                 >
                   Refresh
                 </button>
@@ -560,10 +623,10 @@ export default function DekuwecAdminDashboard() {
                   No members currently pending approval.
                 </div>
               ) : (
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto rounded-2xl border border-gray-100">
                   <table className="w-full text-left border-collapse min-w-[650px]">
                     <thead>
-                      <tr className="bg-gray-50 text-xs uppercase text-gray-500 font-bold border-y border-gray-200">
+                      <tr className="bg-gray-50 text-xs uppercase text-gray-500 font-bold border-b border-gray-200">
                         <th className="p-4">Applicant</th>
                         <th className="p-4">Contact</th>
                         <th className="p-4">Year / Type</th>
@@ -577,24 +640,24 @@ export default function DekuwecAdminDashboard() {
                           <td className="p-4 font-bold text-gray-900">
                             {member.fullName || member.displayName || "User"}
                             {member.claimedRosterName && (
-                              <span className="block text-[11px] text-amber-700 font-bold">Claim: {member.claimedRosterName}</span>
+                              <span className="block text-[11px] text-amber-700 font-bold mt-0.5">Claim: {member.claimedRosterName}</span>
                             )}
                           </td>
                           <td className="p-4 text-gray-600">
                             <div>{member.email}</div>
-                            {member.phone && <div className="text-xs text-gray-400 font-medium">{member.phone}</div>}
+                            {member.phone && <div className="text-xs text-gray-400 font-medium mt-0.5">{member.phone}</div>}
                           </td>
                           <td className="p-4 text-gray-600">
                             <div>{member.yearOfStudy || member.year || "Year 1"}</div>
                           </td>
                           <td className="p-4">
-                            <span className="bg-amber-100 text-amber-800 text-xs font-bold px-3 py-1 rounded-full">{member.status}</span>
+                            <span className="bg-amber-100 text-amber-800 text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap">{member.status}</span>
                           </td>
                           <td className="p-4 text-right">
                             <button
                               onClick={() => handleApproveMember(member)}
                               disabled={approvingId === member.clerkId}
-                              className="bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white font-bold px-4 py-2 rounded-xl text-xs transition flex items-center gap-1.5 ml-auto"
+                              className="bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white font-bold px-4 py-2 rounded-xl text-xs transition flex items-center gap-1.5 ml-auto whitespace-nowrap"
                             >
                               {approvingId === member.clerkId ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                               Approve
@@ -613,7 +676,7 @@ export default function DekuwecAdminDashboard() {
           {activeTab === "wck" && (
             <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100 animate-in fade-in">
               <h2 className="text-2xl font-black text-emerald-950 mb-2 flex items-center gap-2">
-                <CreditCard className="text-emerald-600" /> Wildlife Clubs of Kenya (WCK) Card Roster
+                <CreditCard className="text-emerald-600 shrink-0" /> WCK Card Roster
               </h2>
               <p className="text-sm text-gray-500 mb-6">List of students requesting national park affiliate cards.</p>
 
@@ -622,10 +685,10 @@ export default function DekuwecAdminDashboard() {
                   No WCK applications logged yet.
                 </div>
               ) : (
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto rounded-2xl border border-gray-100">
                   <table className="w-full text-left border-collapse min-w-[650px]">
                     <thead>
-                      <tr className="bg-gray-50 text-xs uppercase text-gray-500 font-bold border-y border-gray-200">
+                      <tr className="bg-gray-50 text-xs uppercase text-gray-500 font-bold border-b border-gray-200">
                         <th className="p-4">Full Name</th>
                         <th className="p-4">Email</th>
                         <th className="p-4">Phone</th>
@@ -642,7 +705,7 @@ export default function DekuwecAdminDashboard() {
                           <td className="p-4 font-semibold text-emerald-700">{app.phone || "—"}</td>
                           <td className="p-4 text-gray-600">{app.yearOfStudy || "—"}</td>
                           <td className="p-4 font-medium text-gray-500">{app.ageBracket || "—"}</td>
-                          <td className="p-4 text-xs text-gray-400">{app.createdAt ? new Date(app.createdAt).toLocaleDateString() : "Recent"}</td>
+                          <td className="p-4 text-xs text-gray-400 whitespace-nowrap">{app.createdAt ? new Date(app.createdAt).toLocaleDateString() : "Recent"}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -656,14 +719,14 @@ export default function DekuwecAdminDashboard() {
           {activeTab === "members" && (
             <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100 animate-in fade-in">
               <h2 className="text-2xl font-black text-emerald-950 mb-2 flex items-center gap-2">
-                <Users className="text-emerald-600" /> Master Registered Portal Accounts
+                <Users className="text-emerald-600 shrink-0" /> Master Member Directory
               </h2>
               <p className="text-sm text-gray-500 mb-6">Complete master list of student signups in the database.</p>
 
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto rounded-2xl border border-gray-100">
                 <table className="w-full text-left border-collapse min-w-[650px]">
                   <thead>
-                    <tr className="bg-gray-50 text-xs uppercase text-gray-500 font-bold border-y border-gray-200">
+                    <tr className="bg-gray-50 text-xs uppercase text-gray-500 font-bold border-b border-gray-200">
                       <th className="p-4">Name</th>
                       <th className="p-4">Email</th>
                       <th className="p-4">Course</th>
@@ -677,7 +740,7 @@ export default function DekuwecAdminDashboard() {
                         <td className="p-4 text-gray-600">{member.email}</td>
                         <td className="p-4 text-gray-600">{member.course || "General"}</td>
                         <td className="p-4">
-                          <span className={`text-xs font-bold px-3 py-1 rounded-full ${
+                          <span className={`text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap ${
                             member.status === "Approved" ? "bg-emerald-100 text-emerald-800" : "bg-gray-100 text-gray-700"
                           }`}>
                             {member.status || "Unregistered"}
@@ -691,13 +754,13 @@ export default function DekuwecAdminDashboard() {
             </div>
           )}
 
-          {/* 4. EVENTS TAB (WITH EDIT / DELETE) */}
+          {/* 4. EVENTS TAB */}
           {activeTab === "events" && (
             <div className="space-y-8 animate-in fade-in">
               <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-2xl font-black text-emerald-950 flex items-center gap-2">
-                    <Calendar className="text-emerald-600" /> {editingEventId ? "Edit Event" : "Post New Event / Activity"}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-4">
+                  <h2 className="text-xl sm:text-2xl font-black text-emerald-950 flex items-center gap-2">
+                    <Calendar className="text-emerald-600 shrink-0" /> {editingEventId ? "Edit Event" : "Post New Event / Activity"}
                   </h2>
                   {editingEventId && (
                     <button 
@@ -705,7 +768,7 @@ export default function DekuwecAdminDashboard() {
                         setEditingEventId(null);
                         setEventForm({ title: "", category: "upcoming", date: "", time: "", location: "", imageUrl: "", galleryLink: "", description: "" });
                       }}
-                      className="text-xs text-rose-600 font-bold hover:underline flex items-center gap-1"
+                      className="text-xs text-rose-600 font-bold hover:underline flex items-center gap-1 shrink-0"
                     >
                       <X className="h-3 w-3" /> Cancel Edit
                     </button>
@@ -761,13 +824,21 @@ export default function DekuwecAdminDashboard() {
                       onChange={(e) => setEventForm({ ...eventForm, location: e.target.value })}
                       className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-emerald-600"
                     />
-                    <input
-                      type="url"
-                      placeholder="Image Flyer URL (https://...)"
-                      value={eventForm.imageUrl}
-                      onChange={(e) => setEventForm({ ...eventForm, imageUrl: e.target.value })}
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-emerald-600"
-                    />
+                    
+                    {/* Replaced URL input with File Upload */}
+                    <div className="w-full flex flex-col justify-center">
+                      <div className="flex items-center gap-3">
+                        {eventForm.imageUrl && (
+                          <img src={eventForm.imageUrl} alt="Preview" className="h-10 w-10 rounded-lg object-cover border border-gray-200 shrink-0" />
+                        )}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handleImageUpload(e, setEventForm, "imageUrl")}
+                          className="w-full px-2 py-1.5 text-sm outline-none focus:border-emerald-600 bg-white file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100"
+                        />
+                      </div>
+                    </div>
                   </div>
 
                   {eventForm.category === "previous" && (
@@ -808,16 +879,16 @@ export default function DekuwecAdminDashboard() {
                 ) : (
                   <div className="space-y-3">
                     {events.map((evt) => (
-                      <div key={evt._id} className="p-4 rounded-2xl border border-gray-200 bg-gray-50 flex items-center justify-between">
-                        <div>
-                          <h4 className="font-bold text-sm text-gray-900">{evt.title}</h4>
+                      <div key={evt._id} className="p-4 rounded-2xl border border-gray-200 bg-gray-50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <h4 className="font-bold text-sm text-gray-900 truncate">{evt.title}</h4>
                           <span className="text-xs text-emerald-700 font-semibold uppercase">{evt.category} • {evt.date}</span>
                         </div>
-                        <div className="flex gap-2">
-                          <button onClick={() => handleEditEvent(evt)} className="p-2 text-emerald-700 hover:bg-emerald-100 rounded-lg">
+                        <div className="flex gap-2 shrink-0">
+                          <button onClick={() => handleEditEvent(evt)} className="p-2 text-emerald-700 hover:bg-emerald-100 rounded-lg transition">
                             <Edit2 className="h-4 w-4" />
                           </button>
-                          <button onClick={() => handleDeleteEvent(evt._id)} className="p-2 text-rose-600 hover:bg-rose-100 rounded-lg">
+                          <button onClick={() => handleDeleteEvent(evt._id)} className="p-2 text-rose-600 hover:bg-rose-100 rounded-lg transition">
                             <Trash2 className="h-4 w-4" />
                           </button>
                         </div>
@@ -830,10 +901,10 @@ export default function DekuwecAdminDashboard() {
               {/* Event RSVPs Master Table */}
               <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100">
                 <h3 className="text-xl font-bold text-emerald-950 mb-4">Event Registrations / Participants ({eventRegistrations.length})</h3>
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto rounded-2xl border border-gray-100">
                   <table className="w-full text-left border-collapse min-w-[600px]">
                     <thead>
-                      <tr className="bg-gray-50 text-xs uppercase text-gray-500 font-bold border-y border-gray-200">
+                      <tr className="bg-gray-50 text-xs uppercase text-gray-500 font-bold border-b border-gray-200">
                         <th className="p-4">Participant</th>
                         <th className="p-4">Email</th>
                         <th className="p-4">Event</th>
@@ -846,7 +917,7 @@ export default function DekuwecAdminDashboard() {
                           <td className="p-4 font-bold text-gray-900">{reg.fullName}</td>
                           <td className="p-4 text-gray-600">{reg.email}</td>
                           <td className="p-4 font-bold text-emerald-700">{reg.eventName}</td>
-                          <td className="p-4 text-xs text-gray-400">{new Date(reg.createdAt).toLocaleDateString()}</td>
+                          <td className="p-4 text-xs text-gray-400 whitespace-nowrap">{new Date(reg.createdAt).toLocaleDateString()}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -856,13 +927,13 @@ export default function DekuwecAdminDashboard() {
             </div>
           )}
 
-          {/* 5. ECOPULSE TAB (STRUCTURED 4-OPTION QUIZ & ARTICLES) */}
+          {/* 5. ECOPULSE TAB */}
           {activeTab === "ecopulse" && (
             <div className="space-y-8 animate-in fade-in">
               <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-2xl font-black text-emerald-950 flex items-center gap-2">
-                    <Radio className="text-emerald-600" /> {editingEcoId ? "Edit EcoPulse Entry" : "Post to EcoPulse Dispatch"}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-4">
+                  <h2 className="text-xl sm:text-2xl font-black text-emerald-950 flex items-center gap-2">
+                    <Radio className="text-emerald-600 shrink-0" /> {editingEcoId ? "Edit EcoPulse Entry" : "Post to EcoPulse"}
                   </h2>
                   {editingEcoId && (
                     <button 
@@ -871,31 +942,31 @@ export default function DekuwecAdminDashboard() {
                         setEcoArticleForm({ title: "", category: "Conservation", imageUrl: "", link: "", content: "" });
                         setEcoQuizForm({ question: "", optionA: "", optionB: "", optionC: "", optionD: "", correctAnswer: "A", explanation: "" });
                       }}
-                      className="text-xs text-rose-600 font-bold hover:underline flex items-center gap-1"
+                      className="text-xs text-rose-600 font-bold hover:underline flex items-center gap-1 shrink-0"
                     >
                       <X className="h-3 w-3" /> Cancel Edit
                     </button>
                   )}
                 </div>
 
-                <div className="flex gap-3 mb-6">
+                <div className="flex flex-wrap gap-2 sm:gap-3 mb-6">
                   <button
                     type="button"
                     onClick={() => setEcoType("topic")}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold transition ${
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition flex-1 sm:flex-none ${
                       ecoType === "topic" ? "bg-emerald-600 text-white shadow-sm" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                     }`}
                   >
-                    Weekly Article / Topic
+                    Weekly Article
                   </button>
                   <button
                     type="button"
                     onClick={() => setEcoType("quiz")}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold transition ${
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition flex-1 sm:flex-none ${
                       ecoType === "quiz" ? "bg-emerald-600 text-white shadow-sm" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                     }`}
                   >
-                    Question of the Week (4-Option Quiz)
+                    4-Option Quiz
                   </button>
                 </div>
 
@@ -923,13 +994,20 @@ export default function DekuwecAdminDashboard() {
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <input
-                          type="url"
-                          placeholder="Thumbnail Image URL"
-                          value={ecoArticleForm.imageUrl}
-                          onChange={(e) => setEcoArticleForm({ ...ecoArticleForm, imageUrl: e.target.value })}
-                          className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-emerald-600"
-                        />
+                        {/* Replaced URL input with File Upload */}
+                        <div className="w-full flex flex-col justify-center border border-gray-200 rounded-xl px-2">
+                          <div className="flex items-center gap-3">
+                            {ecoArticleForm.imageUrl && (
+                              <img src={ecoArticleForm.imageUrl} alt="Preview" className="h-10 w-10 rounded-lg object-cover border border-gray-200 shrink-0" />
+                            )}
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => handleImageUpload(e, setEcoArticleForm, "imageUrl")}
+                              className="w-full py-1.5 text-sm outline-none file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100"
+                            />
+                          </div>
+                        </div>
                         <input
                           type="url"
                           placeholder="External Discussion Link (Optional)"
@@ -965,74 +1043,32 @@ export default function DekuwecAdminDashboard() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <label className="block text-xs font-bold text-gray-600 mb-1">Option A</label>
-                          <input
-                            type="text"
-                            required
-                            placeholder="Option A..."
-                            value={ecoQuizForm.optionA}
-                            onChange={(e) => setEcoQuizForm({ ...ecoQuizForm, optionA: e.target.value })}
-                            className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-emerald-600"
-                          />
+                          <input type="text" required placeholder="Option A..." value={ecoQuizForm.optionA} onChange={(e) => setEcoQuizForm({ ...ecoQuizForm, optionA: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-emerald-600" />
                         </div>
                         <div>
                           <label className="block text-xs font-bold text-gray-600 mb-1">Option B</label>
-                          <input
-                            type="text"
-                            required
-                            placeholder="Option B..."
-                            value={ecoQuizForm.optionB}
-                            onChange={(e) => setEcoQuizForm({ ...ecoQuizForm, optionB: e.target.value })}
-                            className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-emerald-600"
-                          />
+                          <input type="text" required placeholder="Option B..." value={ecoQuizForm.optionB} onChange={(e) => setEcoQuizForm({ ...ecoQuizForm, optionB: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-emerald-600" />
                         </div>
                         <div>
                           <label className="block text-xs font-bold text-gray-600 mb-1">Option C</label>
-                          <input
-                            type="text"
-                            required
-                            placeholder="Option C..."
-                            value={ecoQuizForm.optionC}
-                            onChange={(e) => setEcoQuizForm({ ...ecoQuizForm, optionC: e.target.value })}
-                            className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-emerald-600"
-                          />
+                          <input type="text" required placeholder="Option C..." value={ecoQuizForm.optionC} onChange={(e) => setEcoQuizForm({ ...ecoQuizForm, optionC: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-emerald-600" />
                         </div>
                         <div>
                           <label className="block text-xs font-bold text-gray-600 mb-1">Option D</label>
-                          <input
-                            type="text"
-                            required
-                            placeholder="Option D..."
-                            value={ecoQuizForm.optionD}
-                            onChange={(e) => setEcoQuizForm({ ...ecoQuizForm, optionD: e.target.value })}
-                            className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-emerald-600"
-                          />
+                          <input type="text" required placeholder="Option D..." value={ecoQuizForm.optionD} onChange={(e) => setEcoQuizForm({ ...ecoQuizForm, optionD: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-emerald-600" />
                         </div>
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <label className="block text-xs font-bold text-emerald-800 mb-1">Correct Answer</label>
-                          <select
-                            value={ecoQuizForm.correctAnswer}
-                            onChange={(e) => setEcoQuizForm({ ...ecoQuizForm, correctAnswer: e.target.value })}
-                            className="w-full px-4 py-3 rounded-xl border border-emerald-300 bg-emerald-50 text-emerald-900 font-bold text-sm outline-none"
-                          >
-                            <option value="A">Option A</option>
-                            <option value="B">Option B</option>
-                            <option value="C">Option C</option>
-                            <option value="D">Option D</option>
+                          <select value={ecoQuizForm.correctAnswer} onChange={(e) => setEcoQuizForm({ ...ecoQuizForm, correctAnswer: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-emerald-300 bg-emerald-50 text-emerald-900 font-bold text-sm outline-none">
+                            <option value="A">Option A</option><option value="B">Option B</option><option value="C">Option C</option><option value="D">Option D</option>
                           </select>
                         </div>
                         <div>
                           <label className="block text-xs font-bold text-gray-700 mb-1">Answer Explanation</label>
-                          <input
-                            type="text"
-                            required
-                            placeholder="Why is this the answer? (Revealed after submission)"
-                            value={ecoQuizForm.explanation}
-                            onChange={(e) => setEcoQuizForm({ ...ecoQuizForm, explanation: e.target.value })}
-                            className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-emerald-600"
-                          />
+                          <input type="text" required placeholder="Why is this the answer? (Revealed after submission)" value={ecoQuizForm.explanation} onChange={(e) => setEcoQuizForm({ ...ecoQuizForm, explanation: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-emerald-600" />
                         </div>
                       </div>
                     </>
@@ -1053,16 +1089,16 @@ export default function DekuwecAdminDashboard() {
                 <h3 className="text-xl font-bold text-emerald-950 mb-4">Manage EcoPulse Posts</h3>
                 <div className="space-y-3">
                   {ecoPulsePosts.map((post) => (
-                    <div key={post._id} className="p-4 rounded-2xl border border-gray-200 bg-gray-50 flex items-center justify-between">
-                      <div>
-                        <h4 className="font-bold text-sm text-gray-900">{post.title}</h4>
+                    <div key={post._id} className="p-4 rounded-2xl border border-gray-200 bg-gray-50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <h4 className="font-bold text-sm text-gray-900 truncate">{post.title}</h4>
                         <span className="text-xs text-emerald-700 font-semibold uppercase">{post.type} • {post.category || "General"}</span>
                       </div>
-                      <div className="flex gap-2">
-                        <button onClick={() => handleEditEco(post)} className="p-2 text-emerald-700 hover:bg-emerald-100 rounded-lg">
+                      <div className="flex gap-2 shrink-0">
+                        <button onClick={() => handleEditEco(post)} className="p-2 text-emerald-700 hover:bg-emerald-100 rounded-lg transition">
                           <Edit2 className="h-4 w-4" />
                         </button>
-                        <button onClick={() => handleDeleteEco(post._id)} className="p-2 text-rose-600 hover:bg-rose-100 rounded-lg">
+                        <button onClick={() => handleDeleteEco(post._id)} className="p-2 text-rose-600 hover:bg-rose-100 rounded-lg transition">
                           <Trash2 className="h-4 w-4" />
                         </button>
                       </div>
@@ -1073,13 +1109,13 @@ export default function DekuwecAdminDashboard() {
             </div>
           )}
 
-          {/* 6. NATURE SNAPS TAB (WITH EDIT / DELETE) */}
+          {/* 6. NATURE SNAPS TAB */}
           {activeTab === "snaps" && (
             <div className="space-y-8 animate-in fade-in">
               <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-2xl font-black text-emerald-950 flex items-center gap-2">
-                    <Camera className="text-emerald-600" /> {editingSnapId ? "Edit Nature Snap" : "Post Nature Snap Feature"}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-4">
+                  <h2 className="text-xl sm:text-2xl font-black text-emerald-950 flex items-center gap-2">
+                    <Camera className="text-emerald-600 shrink-0" /> {editingSnapId ? "Edit Nature Snap" : "Post Nature Snap Feature"}
                   </h2>
                   {editingSnapId && (
                     <button 
@@ -1087,7 +1123,7 @@ export default function DekuwecAdminDashboard() {
                         setEditingSnapId(null);
                         setSnapForm({ title: "", photographer: "", imageUrl: "", type: "winner", description: "" });
                       }}
-                      className="text-xs text-rose-600 font-bold hover:underline flex items-center gap-1"
+                      className="text-xs text-rose-600 font-bold hover:underline flex items-center gap-1 shrink-0"
                     >
                       <X className="h-3 w-3" /> Cancel Edit
                     </button>
@@ -1123,14 +1159,22 @@ export default function DekuwecAdminDashboard() {
                       onChange={(e) => setSnapForm({ ...snapForm, photographer: e.target.value })}
                       className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-emerald-600"
                     />
-                    <input
-                      type="url"
-                      required
-                      placeholder="Direct Image URL (https://...)"
-                      value={snapForm.imageUrl}
-                      onChange={(e) => setSnapForm({ ...snapForm, imageUrl: e.target.value })}
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-emerald-600"
-                    />
+                    
+                    {/* Replaced URL input with File Upload */}
+                    <div className="w-full flex flex-col justify-center border border-gray-200 rounded-xl px-2">
+                      <div className="flex items-center gap-3">
+                        {snapForm.imageUrl && (
+                          <img src={snapForm.imageUrl} alt="Preview" className="h-10 w-10 rounded-lg object-cover border border-gray-200 shrink-0" />
+                        )}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          required={!snapForm.imageUrl}
+                          onChange={(e) => handleImageUpload(e, setSnapForm, "imageUrl")}
+                          className="w-full py-1.5 text-sm outline-none file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100"
+                        />
+                      </div>
+                    </div>
                   </div>
 
                   <textarea
@@ -1156,16 +1200,16 @@ export default function DekuwecAdminDashboard() {
                 <h3 className="text-xl font-bold text-emerald-950 mb-4">Manage Nature Snaps</h3>
                 <div className="space-y-3">
                   {snaps.map((snap) => (
-                    <div key={snap._id} className="p-4 rounded-2xl border border-gray-200 bg-gray-50 flex items-center justify-between">
-                      <div>
-                        <h4 className="font-bold text-sm text-gray-900">{snap.title}</h4>
+                    <div key={snap._id} className="p-4 rounded-2xl border border-gray-200 bg-gray-50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <h4 className="font-bold text-sm text-gray-900 truncate">{snap.title}</h4>
                         <span className="text-xs text-emerald-700 font-semibold">{snap.photographer} • {snap.type}</span>
                       </div>
-                      <div className="flex gap-2">
-                        <button onClick={() => handleEditSnap(snap)} className="p-2 text-emerald-700 hover:bg-emerald-100 rounded-lg">
+                      <div className="flex gap-2 shrink-0">
+                        <button onClick={() => handleEditSnap(snap)} className="p-2 text-emerald-700 hover:bg-emerald-100 rounded-lg transition">
                           <Edit2 className="h-4 w-4" />
                         </button>
-                        <button onClick={() => handleDeleteSnap(snap._id)} className="p-2 text-rose-600 hover:bg-rose-100 rounded-lg">
+                        <button onClick={() => handleDeleteSnap(snap._id)} className="p-2 text-rose-600 hover:bg-rose-100 rounded-lg transition">
                           <Trash2 className="h-4 w-4" />
                         </button>
                       </div>
@@ -1176,21 +1220,21 @@ export default function DekuwecAdminDashboard() {
             </div>
           )}
 
-          {/* 7. LEADERS TAB (WITH EDIT / DELETE) */}
+          {/* 7. LEADERS TAB (UPDATED TO MATCH SUPPORT PAGE) */}
           {activeTab === "leaders" && (
             <div className="space-y-8 animate-in fade-in">
               <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-2xl font-black text-emerald-950 flex items-center gap-2">
-                    <Crown className="text-emerald-600" /> {editingLeaderId ? "Edit Leader Profile" : "Add Executive Leader"}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-4">
+                  <h2 className="text-xl sm:text-2xl font-black text-emerald-950 flex items-center gap-2">
+                    <Crown className="text-emerald-600 shrink-0" /> {editingLeaderId ? "Edit Leader Profile" : "Add Executive Leader"}
                   </h2>
                   {editingLeaderId && (
                     <button 
                       onClick={() => {
                         setEditingLeaderId(null);
-                        setLeaderForm({ name: "", role: "", bio: "", imageUrl: "", order: 1 });
+                        setLeaderForm({ name: "", role: "", phone: "", bio: "", imageUrl: "", order: 1 });
                       }}
-                      className="text-xs text-rose-600 font-bold hover:underline flex items-center gap-1"
+                      className="text-xs text-rose-600 font-bold hover:underline flex items-center gap-1 shrink-0"
                     >
                       <X className="h-3 w-3" /> Cancel Edit
                     </button>
@@ -1202,7 +1246,7 @@ export default function DekuwecAdminDashboard() {
                     <input
                       type="text"
                       required
-                      placeholder="Full Name (e.g. Victor, Grace, Hannah)"
+                      placeholder="Full Name (e.g. Curtis Kioko)"
                       value={leaderForm.name}
                       onChange={(e) => setLeaderForm({ ...leaderForm, name: e.target.value })}
                       className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-emerald-600"
@@ -1210,7 +1254,7 @@ export default function DekuwecAdminDashboard() {
                     <input
                       type="text"
                       required
-                      placeholder="Role (e.g. Chairman, Treasurer, PR Leader)"
+                      placeholder="Role (e.g. Chairperson, Treasurer)"
                       value={leaderForm.role}
                       onChange={(e) => setLeaderForm({ ...leaderForm, role: e.target.value })}
                       className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-emerald-600"
@@ -1218,11 +1262,12 @@ export default function DekuwecAdminDashboard() {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Added Phone Number Field */}
                     <input
-                      type="url"
-                      placeholder="Profile Photo URL (https://...)"
-                      value={leaderForm.imageUrl}
-                      onChange={(e) => setLeaderForm({ ...leaderForm, imageUrl: e.target.value })}
+                      type="text"
+                      placeholder="Phone Number (e.g. 0758638953)"
+                      value={leaderForm.phone}
+                      onChange={(e) => setLeaderForm({ ...leaderForm, phone: e.target.value })}
                       className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-emerald-600"
                     />
                     <input
@@ -1234,13 +1279,25 @@ export default function DekuwecAdminDashboard() {
                     />
                   </div>
 
-                  <textarea
-                    rows={3}
-                    placeholder="Short bio, responsibilities, or vision..."
-                    value={leaderForm.bio}
-                    onChange={(e) => setLeaderForm({ ...leaderForm, bio: e.target.value })}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-emerald-600"
-                  />
+                  {/* Replaced Link Input with Direct Image Upload */}
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Upload Profile Photo</label>
+                    <div className="flex items-center gap-4 bg-gray-50 p-2 rounded-xl border border-gray-200 border-dashed">
+                      {leaderForm.imageUrl ? (
+                        <img src={leaderForm.imageUrl} alt="Preview" className="h-16 w-16 rounded-full object-cover border-2 border-white shadow-sm shrink-0" />
+                      ) : (
+                        <div className="h-16 w-16 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 shrink-0">
+                          <UploadCloud className="h-6 w-6" />
+                        </div>
+                      )}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleImageUpload(e, setLeaderForm, "imageUrl")}
+                        className="w-full text-sm outline-none file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-emerald-100 file:text-emerald-700 hover:file:bg-emerald-200 transition cursor-pointer"
+                      />
+                    </div>
+                  </div>
 
                   <button
                     type="submit"
@@ -1255,25 +1312,30 @@ export default function DekuwecAdminDashboard() {
               {/* Manage Leaders List */}
               <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100">
                 <h3 className="text-xl font-bold text-emerald-950 mb-4">Current Executive Team</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {leaders.map((ldr) => (
                     <div key={ldr._id} className="p-4 rounded-2xl border border-gray-200 bg-gray-50 flex items-center justify-between">
                       <div className="flex items-center gap-3 overflow-hidden">
                         <img 
                           src={ldr.imageUrl || "https://i.postimg.cc/qB9gLwmz/Whats-App-Image-2026-09-03-at-09-49-04.jpg"} 
                           alt={ldr.name} 
-                          className="w-10 h-10 rounded-full object-cover border shrink-0"
+                          className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-sm shrink-0"
                         />
                         <div className="truncate">
                           <h4 className="font-bold text-sm text-gray-900 truncate">{ldr.name}</h4>
-                          <p className="text-xs text-emerald-700 font-semibold truncate">{ldr.role}</p>
+                          <p className="text-[10px] text-emerald-700 font-bold uppercase tracking-wider truncate mb-0.5">{ldr.role}</p>
+                          {ldr.phone && (
+                            <p className="text-[10px] text-gray-500 flex items-center gap-1">
+                              <Phone className="h-2.5 w-2.5" /> {ldr.phone}
+                            </p>
+                          )}
                         </div>
                       </div>
                       <div className="flex gap-1 shrink-0 ml-2">
-                        <button onClick={() => handleEditLeader(ldr)} className="p-1.5 text-emerald-700 hover:bg-emerald-100 rounded-lg">
+                        <button onClick={() => handleEditLeader(ldr)} className="p-1.5 text-emerald-700 hover:bg-emerald-100 rounded-lg transition">
                           <Edit2 className="h-3.5 w-3.5" />
                         </button>
-                        <button onClick={() => handleDeleteLeader(ldr._id)} className="p-1.5 text-rose-600 hover:bg-rose-100 rounded-lg">
+                        <button onClick={() => handleDeleteLeader(ldr._id)} className="p-1.5 text-rose-600 hover:bg-rose-100 rounded-lg transition">
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       </div>
@@ -1287,8 +1349,8 @@ export default function DekuwecAdminDashboard() {
           {/* 8. BROADCASTS TAB */}
           {activeTab === "broadcast" && (
             <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100 animate-in fade-in">
-              <h2 className="text-2xl font-black text-emerald-950 mb-2 flex items-center gap-2">
-                <Megaphone className="text-emerald-600" /> Mass Broadcast Announcement
+              <h2 className="text-xl sm:text-2xl font-black text-emerald-950 mb-2 flex items-center gap-2">
+                <Megaphone className="text-emerald-600 shrink-0" /> Mass Broadcast Announcement
               </h2>
               <p className="text-sm text-gray-500 mb-6">Dispatches an announcement to every member's student email and in-app notification bell.</p>
 
@@ -1312,13 +1374,20 @@ export default function DekuwecAdminDashboard() {
                 />
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <input
-                    type="url"
-                    placeholder="Accompanying Flyer/Image URL"
-                    value={broadcastData.imageUrl}
-                    onChange={(e) => setBroadcastData({ ...broadcastData, imageUrl: e.target.value })}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-emerald-600"
-                  />
+                  {/* Replaced URL input with File Upload */}
+                  <div className="w-full flex flex-col justify-center border border-gray-200 rounded-xl px-2">
+                    <div className="flex items-center gap-3">
+                      {broadcastData.imageUrl && (
+                        <img src={broadcastData.imageUrl} alt="Preview" className="h-10 w-10 rounded-lg object-cover border border-gray-200 shrink-0" />
+                      )}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleImageUpload(e, setBroadcastData, "imageUrl")}
+                        className="w-full py-1.5 text-sm outline-none file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100"
+                      />
+                    </div>
+                  </div>
                   <input
                     type="url"
                     placeholder="Action Link (https://...)"
@@ -1343,8 +1412,8 @@ export default function DekuwecAdminDashboard() {
           {/* 9. FEEDBACK & INQUIRIES TAB */}
           {activeTab === "feedback" && (
             <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100 animate-in fade-in">
-              <h2 className="text-2xl font-black text-emerald-950 mb-2 flex items-center gap-2">
-                <MessageSquare className="text-emerald-600" /> Student Inquiries & Support Messages
+              <h2 className="text-xl sm:text-2xl font-black text-emerald-950 mb-2 flex items-center gap-2">
+                <MessageSquare className="text-emerald-600 shrink-0" /> Student Inquiries & Support
               </h2>
               <p className="text-sm text-gray-500 mb-6">Direct student feedback and inquiries logged from the support form.</p>
 
