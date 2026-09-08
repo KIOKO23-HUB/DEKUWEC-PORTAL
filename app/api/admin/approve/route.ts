@@ -3,6 +3,9 @@ import { connectToDatabase } from "@/lib/mongodb";
 import Member from "@/models/Member";
 import Notification from "@/models/Notification";
 import { sendEmail } from "@/lib/brevo";
+//next.js
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 export async function POST(req: Request) {
   try {

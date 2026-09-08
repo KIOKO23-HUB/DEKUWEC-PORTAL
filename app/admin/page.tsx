@@ -62,19 +62,28 @@ export default function DekuwecAdminDashboard() {
 
   const [uploadingMedia, setUploadingMedia] = useState(false);
 
-  // Fallback Base64 string uploader for standard single images
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, formSetter: React.Dispatch<React.SetStateAction<any>>, fieldName: string) => {
+  // Secure Cloudinary Uploader for Single Images
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, formSetter: React.Dispatch<React.SetStateAction<any>>, fieldName: string) => {
     const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        alert("Image is too large! Please select a file under 5MB.");
-        return;
+    if (!file) return;
+    
+    setUploadingMedia(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      if (res.ok) {
+        const data = await res.json();
+        formSetter((prev: any) => ({ ...prev, [fieldName]: data.url }));
+      } else {
+        const err = await res.json().catch(()=>({}));
+        alert(`Image upload failed: ${err.error || res.statusText}`);
       }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        formSetter((prev: any) => ({ ...prev, [fieldName]: reader.result as string }));
-      };
-      reader.readAsDataURL(file);
+    } catch (err) {
+      alert("Error uploading image. Check Cloudinary settings.");
+    } finally {
+      setUploadingMedia(false);
+      e.target.value = ""; // Clear buffer so the same file can be re-selected if deleted
     }
   };
 
@@ -82,6 +91,7 @@ export default function DekuwecAdminDashboard() {
   const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
+    
     setUploadingMedia(true);
     try {
       const uploadedMedia: any[] = [];
@@ -99,6 +109,7 @@ export default function DekuwecAdminDashboard() {
       alert("Media upload failed. Ensure Cloudinary keys are configured in .env.local");
     } finally {
       setUploadingMedia(false);
+      e.target.value = ""; // Clear buffer
     }
   };
 
@@ -236,7 +247,6 @@ export default function DekuwecAdminDashboard() {
     if (res.ok) fetchAllAdminData();
   };
 
-  // --- INDIVIDUAL DELETIONS ---
   const handleDeleteWck = async (id: string) => {
     if (!confirm("Delete this WCK Application?")) return;
     const res = await fetch(`/api/admin/wck?id=${id}`, { method: "DELETE" });
@@ -277,8 +287,11 @@ export default function DekuwecAdminDashboard() {
         setEventForm({ title: "", category: "upcoming", date: "", time: "", location: "", imageUrl: "", galleryLink: "", description: "", media: [] });
         fetchAllAdminData();
       } else {
-        alert("Failed to save event.");
+        const errData = await res.json().catch(()=>({}));
+        alert(`Backend Error: ${errData.error || "Failed to save event. Check API logs."}`);
       }
+    } catch(err) {
+      alert("Failed to connect to the server.");
     } finally {
       setSubmitting(false);
     }
@@ -336,7 +349,8 @@ export default function DekuwecAdminDashboard() {
         setEcoQuizForm({ question: "", optionA: "", optionB: "", optionC: "", optionD: "", correctAnswer: "A", explanation: "" });
         fetchAllAdminData();
       } else {
-        alert("Failed to save EcoPulse entry.");
+        const errData = await res.json().catch(()=>({}));
+        alert(`Backend Error: ${errData.error || "Failed to save EcoPulse entry."}`);
       }
     } finally {
       setSubmitting(false);
@@ -384,7 +398,8 @@ export default function DekuwecAdminDashboard() {
         setSnapForm({ title: "", photographer: "", imageUrl: "", type: "winner", description: "" });
         fetchAllAdminData();
       } else {
-        alert("Failed to save snap.");
+        const errData = await res.json().catch(()=>({}));
+        alert(`Backend Error: ${errData.error || "Failed to save snap."}`);
       }
     } finally {
       setSubmitting(false);
@@ -443,7 +458,8 @@ export default function DekuwecAdminDashboard() {
         setLeaderForm({ name: "", role: "", phone: "", bio: "", imageUrl: "", order: 1 });
         fetchAllAdminData();
       } else {
-        alert("Failed to save leader profile.");
+        const errData = await res.json().catch(()=>({}));
+        alert(`Backend Error: ${errData.error || "Failed to save leader profile."}`);
       }
     } finally {
       setSubmitting(false);
@@ -477,7 +493,8 @@ export default function DekuwecAdminDashboard() {
         alert("Broadcast dispatched via mass email and notification bell to all members!");
         setBroadcastData({ title: "", message: "", imageUrl: "", link: "" });
       } else {
-        alert("Failed to dispatch broadcast.");
+        const errData = await res.json().catch(()=>({}));
+        alert(`Backend Error: ${errData.error || "Failed to dispatch broadcast."}`);
       }
     } finally {
       setSubmitting(false);
@@ -844,15 +861,20 @@ export default function DekuwecAdminDashboard() {
                     <div className="w-full flex flex-col justify-center border border-gray-200 rounded-xl px-2">
                       <div className="flex items-center gap-3">
                         {eventForm.imageUrl && (
-                          <div className="h-12 w-16 bg-gray-100 rounded-lg flex items-center justify-center shrink-0 p-1">
-                            <img src={eventForm.imageUrl} alt="Preview" className="h-full w-full object-contain" />
+                          <div className="relative h-12 w-16 bg-gray-100 rounded-lg flex items-center justify-center shrink-0 p-1 border border-gray-200 shadow-sm">
+                            <img src={eventForm.imageUrl} alt="Preview" className="h-full w-full object-contain rounded-md" />
+                            <button type="button" onClick={() => setEventForm({...eventForm, imageUrl: ""})} className="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full p-1 shadow-md hover:bg-rose-600 transition z-10">
+                              <X className="h-3 w-3" />
+                            </button>
                           </div>
                         )}
                         <input
+                          key={eventForm.imageUrl ? "has-img" : "no-img"}
                           type="file"
                           accept="image/*"
+                          disabled={uploadingMedia}
                           onChange={(e) => handleImageUpload(e, setEventForm, "imageUrl")}
-                          className="w-full py-1.5 text-sm outline-none focus:border-emerald-600 bg-white file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100"
+                          className="w-full py-1.5 text-sm outline-none focus:border-emerald-600 bg-white file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 disabled:opacity-50 cursor-pointer"
                         />
                       </div>
                     </div>
@@ -870,8 +892,9 @@ export default function DekuwecAdminDashboard() {
                         type="file"
                         accept="image/*,video/*"
                         multiple
+                        disabled={uploadingMedia}
                         onChange={handleMediaUpload}
-                        className="w-full py-1.5 text-sm outline-none file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-emerald-100 file:text-emerald-700 hover:file:bg-emerald-200 cursor-pointer"
+                        className="w-full py-1.5 text-sm outline-none file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-emerald-100 file:text-emerald-700 hover:file:bg-emerald-200 cursor-pointer disabled:opacity-50"
                       />
                     </div>
                     {uploadingMedia && (
@@ -880,20 +903,20 @@ export default function DekuwecAdminDashboard() {
                       </p>
                     )}
                     {eventForm.media && eventForm.media.length > 0 && (
-                      <div className="flex flex-wrap gap-2 mt-4">
+                      <div className="flex flex-wrap gap-3 mt-4">
                         {eventForm.media.map((m, i) => (
-                          <div key={i} className="relative h-16 w-16 rounded-xl border border-gray-200 overflow-hidden bg-gray-200 shadow-sm">
+                          <div key={i} className="relative h-20 w-20 rounded-xl border border-gray-200 overflow-hidden bg-gray-900 shadow-sm">
                             {m.type === 'video' ? (
-                              <video src={m.url} className="w-full h-full object-cover" />
+                              <video src={m.url} className="w-full h-full object-cover opacity-80" />
                             ) : (
-                              <img src={m.url} className="w-full h-full object-cover"/>
+                              <img src={m.url} className="w-full h-full object-cover opacity-80"/>
                             )}
                             <button 
                               type="button" 
                               onClick={() => setEventForm(prev => ({...prev, media: prev.media.filter((_, idx) => idx !== i)}))} 
-                              className="absolute top-0 right-0 bg-rose-500 text-white rounded-bl-lg p-1 transition hover:bg-rose-600"
+                              className="absolute top-1 right-1 bg-rose-500 text-white rounded-full p-1 shadow-md transition hover:bg-rose-600 z-10"
                             >
-                              <X className="h-2.5 w-2.5"/>
+                              <X className="h-3 w-3"/>
                             </button>
                           </div>
                         ))}
@@ -987,7 +1010,6 @@ export default function DekuwecAdminDashboard() {
                       </thead>
                       <tbody>
                         {eventRegistrations.map((reg) => {
-                          // Parse out the name and phone number from the combined string we saved earlier
                           const parsedName = reg.fullName?.split(" (")[0] || reg.name || "Member";
                           const parsedPhone = reg.fullName?.match(/\((.*?)\)/)?.[1] || "—";
                           
@@ -1103,15 +1125,20 @@ export default function DekuwecAdminDashboard() {
                         <div className="w-full flex flex-col justify-center border border-gray-200 rounded-xl px-2">
                           <div className="flex items-center gap-3">
                             {ecoArticleForm.imageUrl && (
-                              <div className="h-10 w-12 bg-gray-100 rounded-lg flex items-center justify-center shrink-0 p-0.5">
-                                <img src={ecoArticleForm.imageUrl} alt="Preview" className="h-full w-full object-contain" />
+                              <div className="relative h-12 w-16 bg-gray-100 rounded-lg flex items-center justify-center shrink-0 p-1 border border-gray-200 shadow-sm">
+                                <img src={ecoArticleForm.imageUrl} alt="Preview" className="h-full w-full object-contain rounded-md" />
+                                <button type="button" onClick={() => setEcoArticleForm({...ecoArticleForm, imageUrl: ""})} className="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full p-1 shadow-md hover:bg-rose-600 transition z-10">
+                                  <X className="h-3 w-3" />
+                                </button>
                               </div>
                             )}
                             <input
+                              key={ecoArticleForm.imageUrl ? "has-img" : "no-img"}
                               type="file"
                               accept="image/*"
+                              disabled={uploadingMedia}
                               onChange={(e) => handleImageUpload(e, setEcoArticleForm, "imageUrl")}
-                              className="w-full py-1.5 text-sm outline-none file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100"
+                              className="w-full py-1.5 text-sm outline-none file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 disabled:opacity-50 cursor-pointer"
                             />
                           </div>
                         </div>
@@ -1183,7 +1210,7 @@ export default function DekuwecAdminDashboard() {
 
                   <button
                     type="submit"
-                    disabled={submitting}
+                    disabled={submitting || uploadingMedia}
                     className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white font-bold py-3.5 rounded-xl text-sm transition"
                   >
                     {submitting ? "Publishing..." : editingEcoId ? "Save EcoPulse Changes" : "Publish to EcoPulse"}
@@ -1270,16 +1297,21 @@ export default function DekuwecAdminDashboard() {
                     <div className="w-full flex flex-col justify-center border border-gray-200 rounded-xl px-2">
                       <div className="flex items-center gap-3">
                         {snapForm.imageUrl && (
-                          <div className="h-10 w-12 bg-gray-100 rounded-lg flex items-center justify-center shrink-0 p-0.5">
-                            <img src={snapForm.imageUrl} alt="Preview" className="h-full w-full object-contain" />
+                          <div className="relative h-12 w-16 bg-gray-100 rounded-lg flex items-center justify-center shrink-0 p-1 border border-gray-200 shadow-sm">
+                            <img src={snapForm.imageUrl} alt="Preview" className="h-full w-full object-contain rounded-md" />
+                            <button type="button" onClick={() => setSnapForm({...snapForm, imageUrl: ""})} className="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full p-1 shadow-md hover:bg-rose-600 transition z-10">
+                              <X className="h-3 w-3" />
+                            </button>
                           </div>
                         )}
                         <input
+                          key={snapForm.imageUrl ? "has-img" : "no-img"}
                           type="file"
                           accept="image/*"
                           required={!snapForm.imageUrl}
+                          disabled={uploadingMedia}
                           onChange={(e) => handleImageUpload(e, setSnapForm, "imageUrl")}
-                          className="w-full py-1.5 text-sm outline-none file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100"
+                          className="w-full py-1.5 text-sm outline-none file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 disabled:opacity-50 cursor-pointer"
                         />
                       </div>
                     </div>
@@ -1295,7 +1327,7 @@ export default function DekuwecAdminDashboard() {
 
                   <button
                     type="submit"
-                    disabled={submitting}
+                    disabled={submitting || uploadingMedia}
                     className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white font-bold py-3.5 rounded-xl text-sm transition"
                   >
                     {submitting ? "Processing..." : editingSnapId ? "Save Snap Changes" : "Publish to Nature Snaps"}
@@ -1390,24 +1422,31 @@ export default function DekuwecAdminDashboard() {
                     <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Upload Profile Photo</label>
                     <div className="flex items-center gap-4 bg-gray-50 p-2 rounded-xl border border-gray-200 border-dashed">
                       {leaderForm.imageUrl ? (
-                        <img src={leaderForm.imageUrl} alt="Preview" className="h-16 w-16 rounded-full object-cover border-2 border-white shadow-sm shrink-0" />
+                        <div className="relative group shrink-0">
+                          <img src={leaderForm.imageUrl} alt="Preview" className="h-16 w-16 rounded-full object-cover border-2 border-white shadow-sm" />
+                          <button type="button" onClick={() => setLeaderForm({...leaderForm, imageUrl: ""})} className="absolute -top-1 -right-1 bg-rose-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition shadow-sm z-10">
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
                       ) : (
                         <div className="h-16 w-16 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 shrink-0">
                           <UploadCloud className="h-6 w-6" />
                         </div>
                       )}
                       <input
+                        key={leaderForm.imageUrl ? "has-img" : "no-img"}
                         type="file"
                         accept="image/*"
+                        disabled={uploadingMedia}
                         onChange={(e) => handleImageUpload(e, setLeaderForm, "imageUrl")}
-                        className="w-full text-sm outline-none file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-emerald-100 file:text-emerald-700 hover:file:bg-emerald-200 transition cursor-pointer"
+                        className="w-full text-sm outline-none file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-emerald-100 file:text-emerald-700 hover:file:bg-emerald-200 transition cursor-pointer disabled:opacity-50"
                       />
                     </div>
                   </div>
 
                   <button
                     type="submit"
-                    disabled={submitting}
+                    disabled={submitting || uploadingMedia}
                     className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white font-bold py-3.5 rounded-xl text-sm transition"
                   >
                     {submitting ? "Processing..." : editingLeaderId ? "Save Leader Changes" : "Save Leader Profile"}
@@ -1497,15 +1536,20 @@ export default function DekuwecAdminDashboard() {
                   <div className="w-full flex flex-col justify-center border border-gray-200 rounded-xl px-2">
                     <div className="flex items-center gap-3">
                       {broadcastData.imageUrl && (
-                        <div className="h-10 w-12 bg-gray-100 rounded-lg flex items-center justify-center shrink-0 p-0.5">
-                          <img src={broadcastData.imageUrl} alt="Preview" className="h-full w-full object-contain" />
+                        <div className="relative h-12 w-16 bg-gray-100 rounded-lg flex items-center justify-center shrink-0 p-1 border border-gray-200 shadow-sm group">
+                          <img src={broadcastData.imageUrl} alt="Preview" className="h-full w-full object-contain rounded-md" />
+                          <button type="button" onClick={() => setBroadcastData({...broadcastData, imageUrl: ""})} className="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full p-1 shadow-md hover:bg-rose-600 transition z-10 opacity-0 group-hover:opacity-100">
+                            <X className="h-3 w-3" />
+                          </button>
                         </div>
                       )}
                       <input
+                        key={broadcastData.imageUrl ? "has-img" : "no-img"}
                         type="file"
                         accept="image/*"
+                        disabled={uploadingMedia}
                         onChange={(e) => handleImageUpload(e, setBroadcastData, "imageUrl")}
-                        className="w-full py-1.5 text-sm outline-none file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100"
+                        className="w-full py-1.5 text-sm outline-none file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 disabled:opacity-50 cursor-pointer"
                       />
                     </div>
                   </div>
@@ -1520,7 +1564,7 @@ export default function DekuwecAdminDashboard() {
 
                 <button
                   type="submit"
-                  disabled={submitting}
+                  disabled={submitting || uploadingMedia}
                   className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white font-bold py-3.5 rounded-xl text-sm transition flex items-center justify-center gap-2 shadow-md"
                 >
                   {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
