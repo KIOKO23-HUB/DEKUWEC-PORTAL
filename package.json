@@ -2,6 +2,7 @@
   "name": "dekuwec-portal",
   "version": "0.1.0",
   "private": true,
+  "description": "Trigger Cloudflare Sync",
   "scripts": {
     "build": "next build",
     "dev": "next dev",
