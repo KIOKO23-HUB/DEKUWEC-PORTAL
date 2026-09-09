@@ -62,7 +62,7 @@ export default function DekuwecAdminDashboard() {
 
   const [uploadingMedia, setUploadingMedia] = useState(false);
 
-  // Secure Cloudinary Uploader for Single Images
+  // Secure Cloudinary Uploader for Single Images (FIXED: forces secure_url)
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, formSetter: React.Dispatch<React.SetStateAction<any>>, fieldName: string) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -74,7 +74,8 @@ export default function DekuwecAdminDashboard() {
       const res = await fetch("/api/upload", { method: "POST", body: formData });
       if (res.ok) {
         const data = await res.json();
-        formSetter((prev: any) => ({ ...prev, [fieldName]: data.url }));
+        const secureImageUrl = data.secure_url || data.url;
+        formSetter((prev: any) => ({ ...prev, [fieldName]: secureImageUrl }));
       } else {
         const err = await res.json().catch(()=>({}));
         alert(`Image upload failed: ${err.error || res.statusText}`);
@@ -101,7 +102,7 @@ export default function DekuwecAdminDashboard() {
         const res = await fetch("/api/upload", { method: "POST", body: formData });
         if (res.ok) {
           const data = await res.json();
-          uploadedMedia.push({ url: data.url, type: data.resource_type });
+          uploadedMedia.push({ url: data.secure_url || data.url, type: data.resource_type });
         }
       }
       setEventForm(prev => ({ ...prev, media: [...(prev.media || []), ...uploadedMedia] }));

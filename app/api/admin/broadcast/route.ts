@@ -3,22 +3,38 @@ import { connectToDatabase } from "@/lib/mongodb";
 import Member from "@/models/Member";
 import Notification from "@/models/Notification";
 import { sendEmail } from "@/lib/brevo";
+import { clerkClient } from "@clerk/nextjs/server";
 
 export async function POST(req: Request) {
   try {
     const { title, message, imageUrl, link } = await req.json();
     await connectToDatabase();
 
-    const allMembers = await Member.find({}, 'clerkId email displayName');
+    // 1. Fetch ALL users who have ever signed in directly from Clerk
+    const client = await clerkClient();
+    const userList = await client.users.getUserList();
+    
+    // 2. Extract their emails and format them exactly how the Brevo API requires
+    const validEmails = userList.data
+      .map(user => user.emailAddresses[0]?.emailAddress)
+      .filter(Boolean);
 
-    const notifications = allMembers.map(member => ({
-      clerkId: member.clerkId,
-      title: `📢 ${title}`,
-      message: message,
-      type: "admin_alert"
-    }));
-    await Notification.insertMany(notifications);
+    // Brevo requires BCC as an array of objects: [{ email: "..." }]
+    const bccList = validEmails.map(email => ({ email }));
 
+    // 3. Send the In-App Notifications (using MongoDB Members)
+    const registeredMembers = await Member.find({}, 'clerkId');
+    if (registeredMembers.length > 0) {
+      const notifications = registeredMembers.map(member => ({
+        clerkId: member.clerkId,
+        title: `📢 ${title}`,
+        message: message,
+        type: "admin_alert"
+      }));
+      await Notification.insertMany(notifications);
+    }
+
+    // 4. Construct and Send the Mass Email
     const emailHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #064e3b;">
         <h2 style="color: #059669;">${title}</h2>
@@ -30,11 +46,10 @@ export async function POST(req: Request) {
       </div>
     `;
 
-    const emails = allMembers.map(m => m.email).filter(Boolean);
-    if (emails.length > 0) {
+    if (bccList.length > 0) {
       await sendEmail({
-        to: "wildlifeandenvironmentalclub@students.dekut.ac.ke",
-        bcc: emails, 
+        to: [{ email: "wildlifeandenvironmentalclub@students.dekut.ac.ke", name: "DEKUWEC Members" }],
+        bcc: bccList, 
         subject: `DEKUWEC Update: ${title}`,
         htmlContent: emailHtml,
       } as any);

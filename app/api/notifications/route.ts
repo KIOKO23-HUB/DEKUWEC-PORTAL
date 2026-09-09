@@ -24,15 +24,22 @@ export async function GET(req: Request) {
   }
 }
 
-// Mark all unread notifications as "read"
+// Mark specific notification or all notifications as "read"
 export async function PATCH(req: Request) {
   try {
-    const { clerkId } = await req.json();
+    const body = await req.json();
+    const { clerkId, notificationId } = body;
     await connectToDatabase();
     
-    await Notification.updateMany({ clerkId, isRead: false }, { isRead: true });
+    if (notificationId) {
+      // Mark a single specific notification as read when clicked
+      await Notification.findByIdAndUpdate(notificationId, { isRead: true });
+    } else if (clerkId) {
+      // Mark all unread notifications as read when the user clicks "Mark all read"
+      await Notification.updateMany({ clerkId, isRead: false }, { isRead: true });
+    }
     
-    return NextResponse.json({ message: "Notifications marked as read" }, { status: 200 });
+    return NextResponse.json({ message: "Notifications updated successfully" }, { status: 200 });
   } catch (error) {
     console.error("Notifications PATCH Error:", error);
     return NextResponse.json({ error: "Failed to update notifications" }, { status: 500 });

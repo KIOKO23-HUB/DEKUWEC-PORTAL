@@ -7,31 +7,19 @@ import {
   MapPin, 
   Mail, 
   Send, 
-  User, 
   Phone,
   HelpCircle,
   CheckCircle2,
   Loader2
 } from "lucide-react";
 
-// Mock Data for Executive Board (To be managed via Admin Page later)
-const executiveBoard = [
-  { id: 1, name: "Curtis Kioko", role: "Chairperson", phone: "0758638953", image: null },
-  { id: 2, name: "Grace Chebet", role: "Vice Chairperson", phone: "+254 7XX XXX XXX", image: null },
-  { id: 3, name: "Elizabeth Mwelu", role: "Club Secretary", phone: "+254 7XX XXX XXX", image: null },
-  { id: 4, name: "Joseph Mwendia", role: "Organising Secretary", phone: "+254 7XX XXX XXX", image: null },
-  { id: 5, name: "Melody Mbonne", role: "Public Representative (PR)", phone: "+254 7XX XXX XXX", image: null },
-  { id: 6, name: "Hannah Macharia", role: "Treasurer", phone: "+254 7XX XXX XXX", image: null },
-  { id: 7, name: "Zac", role: "Information Director", phone: "+254 7XX XXX XXX", image: null },
-  { id: 8, name: "Philip Theuri", role: "Assistant Leader", phone: "+254 7XX XXX XXX", image: null },
-  { id: 9, name: "Elias Tirop", role: "Assistant Leader", phone: "+254 7XX XXX XXX", image: null },
-  { id: 10, name: "Amos", role: "Assistant Leader", phone: "+254 7XX XXX XXX", image: null },
-];
-
 export default function SupportPage() {
-  const { user, isLoaded } = useUser(); // Added isLoaded here
+  const { user, isLoaded } = useUser();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [leaders, setLeaders] = useState<any[]>([]);
+  const [loadingLeaders, setLoadingLeaders] = useState(true);
+  
   const [formData, setFormData] = useState({ 
     name: "", 
     email: "", 
@@ -49,6 +37,24 @@ export default function SupportPage() {
       }));
     }
   }, [user]);
+
+  // Fetch real, live leaders from MongoDB securely
+  useEffect(() => {
+    const fetchLeaders = async () => {
+      try {
+        const res = await fetch("/api/leaders", { cache: "no-store" });
+        if (res.ok) {
+          const data = await res.json();
+          setLeaders(data);
+        }
+      } catch (error) {
+        console.error("Failed to fetch leaders", error);
+      } finally {
+        setLoadingLeaders(false);
+      }
+    };
+    fetchLeaders();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,7 +75,7 @@ export default function SupportPage() {
 
       if (res.ok) {
         setSubmitted(true);
-        setFormData({ ...formData, subject: "", message: "" }); // Reset subject/message but keep name/email
+        setFormData({ ...formData, subject: "", message: "" });
         setTimeout(() => {
           setSubmitted(false);
         }, 4000);
@@ -84,7 +90,6 @@ export default function SupportPage() {
     }
   };
 
-  // Prevent rendering until Clerk has loaded the user data so the form pre-fills correctly
   if (!isLoaded) return null;
 
   return (
@@ -250,29 +255,43 @@ export default function SupportPage() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-          {executiveBoard.map((leader) => {
-            const initials = leader.name.split(" ").map((n) => n[0]).join("");
-            return (
-              <div key={leader.id} className="bg-white border border-gray-200 rounded-2xl p-5 flex flex-col items-center text-center shadow-sm hover:border-emerald-300 transition">
-                <div className="h-20 w-20 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xl font-black mb-4 border-4 border-emerald-50">
-                  {leader.image ? (
-                    <img src={leader.image} alt={leader.name} className="h-full w-full rounded-full object-cover" />
-                  ) : (
-                    initials
+          {loadingLeaders ? (
+            <div className="col-span-full py-12 flex flex-col items-center justify-center gap-3 text-emerald-700">
+              <Loader2 className="h-8 w-8 animate-spin" />
+              <p className="text-sm font-bold">Syncing Executive Board...</p>
+            </div>
+          ) : leaders.length === 0 ? (
+            <div className="col-span-full py-12 text-center text-gray-400 font-medium bg-white rounded-3xl border border-gray-100">
+              Executive board profiles are currently being updated.
+            </div>
+          ) : (
+            leaders.map((leader) => {
+              const initials = leader.name.split(" ").map((n: string) => n[0]).join("");
+              return (
+                <div key={leader._id} className="bg-white border border-gray-200 rounded-2xl p-5 flex flex-col items-center text-center shadow-sm hover:border-emerald-300 transition">
+                  <div className="h-20 w-20 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xl font-black mb-4 border-4 border-emerald-50 overflow-hidden">
+                    {leader.imageUrl ? (
+                      <img src={leader.imageUrl} alt={leader.name} className="h-full w-full object-cover" />
+                    ) : (
+                      initials
+                    )}
+                  </div>
+                  <h3 className="text-base font-bold text-gray-900 leading-tight mb-1">{leader.name}</h3>
+                  <p className="text-xs font-bold text-emerald-600 uppercase tracking-wider mb-3">{leader.role}</p>
+                  
+                  {leader.phone && (
+                    <a 
+                      href={`tel:${leader.phone}`}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 border border-gray-200 text-xs font-semibold text-gray-700 transition"
+                    >
+                      <Phone className="h-3.5 w-3.5 text-emerald-600" />
+                      {leader.phone}
+                    </a>
                   )}
                 </div>
-                <h3 className="text-base font-bold text-gray-900 leading-tight mb-1">{leader.name}</h3>
-                <p className="text-xs font-bold text-emerald-600 uppercase tracking-wider mb-3">{leader.role}</p>
-                <a 
-                  href={`tel:${leader.phone}`}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 border border-gray-200 text-xs font-semibold text-gray-700 transition"
-                >
-                  <Phone className="h-3.5 w-3.5 text-emerald-600" />
-                  {leader.phone}
-                </a>
-              </div>
-            );
-          })}
+              );
+            })
+          )}
         </div>
       </section>
 

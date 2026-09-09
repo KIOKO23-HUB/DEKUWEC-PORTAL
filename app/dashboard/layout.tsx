@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { UserButton, useUser } from "@clerk/nextjs";
 import { 
   Home, 
@@ -20,16 +21,17 @@ import {
   Send,
   ChevronLeft,
   Loader2,
-  Menu // <-- Added the Menu icon for mobile
+  Menu 
 } from "lucide-react";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, isLoaded } = useUser();
+  const router = useRouter(); // Hook for smart programmatic navigation
   
   // UI Dropdown State
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isMessagesOpen, setIsMessagesOpen] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // <-- Mobile menu state
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); 
   
   // Live Database State
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -111,6 +113,44 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   }, [user, activeChat]);
 
+  // Mark a single notification as read and route the user
+  const handleNotificationClick = async (notif: any) => {
+    setIsNotifOpen(false); // Close dropdown immediately
+
+    // Mark as read locally and in the DB if it is unread
+    if (!notif.isRead) {
+      setNotifications(prev => prev.map(n => n._id === notif._id ? { ...n, isRead: true } : n));
+      try {
+        await fetch("/api/notifications", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ notificationId: notif._id }) // Tell backend to mark specific notification
+        });
+      } catch (error) {
+        console.error("Failed to mark as read", error);
+      }
+    }
+
+    // Smart Routing Logic based on notification content
+    let destination = "/dashboard"; 
+    const titleLower = (notif.title || "").toLowerCase();
+    
+    if (notif.link) {
+      destination = notif.link; // Explicit link provided by admin
+    } else if (notif.type === "support" || titleLower.includes("support") || titleLower.includes("inquiry")) {
+      destination = "/dashboard/support";
+    } else if (titleLower.includes("event") || titleLower.includes("hike") || titleLower.includes("excursion")) {
+      destination = "/dashboard/events";
+    } else if (titleLower.includes("ecopulse") || titleLower.includes("article") || titleLower.includes("quiz")) {
+      destination = "/dashboard/dispatch";
+    } else if (titleLower.includes("snap") || titleLower.includes("photo")) {
+      destination = "/dashboard/snaps";
+    }
+
+    // Redirect the user
+    router.push(destination);
+  };
+
   // Handle Mark All Read in Database
   const handleMarkAllRead = async () => {
     if (!user) return;
@@ -122,7 +162,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       });
       setNotifications(notifications.map(n => ({ ...n, isRead: true })));
     } catch (error) {
-      console.error("Failed to mark notifications as read", error);
+      console.error("Failed to mark all notifications as read", error);
     }
   };
 
@@ -307,7 +347,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                       <p className="text-sm text-gray-400 text-center py-8">You have no new notifications.</p>
                     ) : (
                       notifications.map((notif) => (
-                        <div key={notif._id} className={`p-4 border-b border-gray-50 hover:bg-gray-50 transition cursor-pointer ${!notif.isRead ? 'bg-emerald-50/30' : ''}`}>
+                        <div 
+                          key={notif._id} 
+                          onClick={() => handleNotificationClick(notif)}
+                          className={`p-4 border-b border-gray-50 hover:bg-emerald-50 transition cursor-pointer ${!notif.isRead ? 'bg-emerald-50/30' : ''}`}
+                        >
                           <div className="flex justify-between items-start mb-1">
                             <h4 className={`text-sm ${!notif.isRead ? 'font-bold text-gray-900' : 'font-semibold text-gray-700'}`}>{notif.title}</h4>
                             {!notif.isRead && <span className="h-2 w-2 bg-emerald-500 rounded-full mt-1.5 shrink-0"></span>}
