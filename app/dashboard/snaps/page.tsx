@@ -128,7 +128,8 @@ export default function NatureSnapsPage() {
       let newLikes = snap.likes.filter((id: string) => id !== user.id);
       let newDislikes = snap.dislikes.filter((id: string) => id !== user.id);
 
-      let finalAction = currentAction;
+      // FIX: Added 'remove' to the explicit type definition
+      let finalAction: "like" | "dislike" | "remove" = currentAction;
       
       if (currentAction === "like") {
         if (hasLiked) finalAction = "remove"; 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useUser } from "@clerk/nextjs";
 import { UploadCloud, Mail, BookOpen, GraduationCap, Loader2, Save, Calendar, Camera, CreditCard, Award, CheckCircle } from "lucide-react";
 
@@ -12,8 +12,8 @@ export default function ComprehensiveAccountPage() {
   
   const [member, setMember] = useState({ email: "", course: "", year: "Year 1", photoURL: "", status: "Unregistered" });
   
-  // FIX: Added explicit TypeScript types so Vercel doesn't infer 'never' and crash
-  const [activityData, setActivityData] = useState<{ rsvps: any[]; wck: any | null; snaps: any[] }>({ rsvps: [], wck: null, snaps: [] });
+  // FIX 1: Added <any> here to stop Vercel from crashing with a 'never' type error
+  const [activityData, setActivityData] = useState<any>({ rsvps: [], wck: null, snaps: [] });
 
   useEffect(() => {
     if (!isLoaded || !user) return;
@@ -200,8 +200,10 @@ export default function ComprehensiveAccountPage() {
               {activityData.wck ? (
                 <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
                   <p className="text-sm font-bold text-emerald-900 mb-1">Application Submitted</p>
-                  {/* FIX applied here using optional chaining */}
+                  
+                  {/* FIX 2: Safely parse the date with optional chaining */}
                   <p className="text-xs text-emerald-700">Applied on: {activityData.wck?.createdAt ? new Date(activityData.wck.createdAt).toLocaleDateString() : "Recently"}</p>
+                  
                   <span className="inline-block mt-3 bg-emerald-600 text-white text-[10px] font-bold px-2 py-1 rounded-md uppercase tracking-wide">Processing</span>
                 </div>
               ) : (
