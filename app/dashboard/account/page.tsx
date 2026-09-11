@@ -12,7 +12,7 @@ export default function ComprehensiveAccountPage() {
   
   const [member, setMember] = useState({ email: "", course: "", year: "Year 1", photoURL: "", status: "Unregistered" });
   
-  // FIX 1: Added <any> here to stop Vercel from crashing with a 'never' type error
+  // Explicitly typed as <any> to prevent the 'never' type error
   const [activityData, setActivityData] = useState<any>({ rsvps: [], wck: null, snaps: [] });
 
   useEffect(() => {
@@ -201,8 +201,8 @@ export default function ComprehensiveAccountPage() {
                 <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
                   <p className="text-sm font-bold text-emerald-900 mb-1">Application Submitted</p>
                   
-                  {/* FIX 2: Safely parse the date with optional chaining */}
-                  <p className="text-xs text-emerald-700">Applied on: {activityData.wck?.createdAt ? new Date(activityData.wck.createdAt).toLocaleDateString() : "Recently"}</p>
+                  {/* Forcefully typed as any to prevent build crash */}
+                  <p className="text-xs text-emerald-700">Applied on: {(activityData?.wck as any)?.createdAt ? new Date((activityData.wck as any).createdAt).toLocaleDateString() : "Recently"}</p>
                   
                   <span className="inline-block mt-3 bg-emerald-600 text-white text-[10px] font-bold px-2 py-1 rounded-md uppercase tracking-wide">Processing</span>
                 </div>
