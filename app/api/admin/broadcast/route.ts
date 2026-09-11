@@ -68,10 +68,10 @@ export async function POST(req: Request) {
       if (userEmail) {
         emailPromises.push(
           sendEmail({
-            to: [{ email: userEmail, name: user.firstName || "Member" }], // Brevo strict array requirement
+            to: userEmail, // Reverted to a string so the Brevo wrapper handles it correctly
             subject: `DEKUWEC Update: ${title}`,
             htmlContent: emailHtml,
-          } as any)
+          })
         );
       }
     });
