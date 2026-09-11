@@ -8,10 +8,10 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     
-    // Extract the newly added registrationNumber field
-    const { clerkId, fullName, registrationNumber, email, eventName } = body;
+    // Extract the fields including the newly added phoneNumber
+    const { clerkId, fullName, phoneNumber, registrationNumber, email, eventName } = body;
 
-    if (!eventName || !fullName || !registrationNumber) {
+    if (!eventName || !fullName || !phoneNumber || !registrationNumber) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
@@ -34,8 +34,9 @@ export async function POST(req: Request) {
     // 2. Save Registration to MongoDB
     const newRegistration = new EventRegistration({
       clerkId,
-      fullName, // Contains Name + Phone from frontend
-      registrationNumber, // Saves the DeKUT Reg Number for the admin panel
+      fullName, 
+      phoneNumber, // Saves as a dedicated database column now
+      registrationNumber, 
       email,
       eventName,
     });
@@ -43,12 +44,10 @@ export async function POST(req: Request) {
     await newRegistration.save();
 
     // 3. Draft Confirmation Email
-    // Splits the "Name (Phone)" string to only use the Name in the email greeting
-    const emailName = fullName.split(" (")[0];
     const emailHtml = `
       <div style="font-family: Arial, sans-serif; max-w: 600px; margin: 0 auto; color: #064e3b;">
         <h2 style="color: #059669;">Event Registration Confirmed! 🌳</h2>
-        <p>Hello ${emailName},</p>
+        <p>Hello ${fullName},</p>
         <p>You have successfully registered for the <strong>${eventName}</strong>.</p>
         
         <div style="background-color: #ecfdf5; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #34d399;">

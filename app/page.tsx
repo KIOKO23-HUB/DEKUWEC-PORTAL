@@ -1,6 +1,5 @@
 import { auth } from "@clerk/nextjs/server";
 import Link from "next/link";
-import Image from "next/image";
 
 export default async function Home() {
   const { userId } = await auth();
@@ -40,12 +39,10 @@ export default async function Home() {
 
       <div className="flex flex-col items-center text-center my-auto max-w-2xl">
         <div className="w-24 h-24 relative mb-6 rounded-full border-2 border-emerald-800 overflow-hidden shadow-md flex items-center justify-center bg-white">
-          <Image 
-            src="https://i.postimg.cc/qB9gLwmz/Whats-App-Image-2026-09-03-at-09-49-04.jpg" 
+          <img 
+            src="https://res.cloudinary.com/dnipaby6h/image/upload/v1789108366/WhatsApp_Image_2026-09-03_at_09.49.04_q31jcg.jpg" 
             alt="DEKUWEC Logo" 
-            fill
-            sizes="96px"
-            className="object-cover"
+            className="w-full h-full object-cover"
           />
         </div>
         <h1 className="text-3xl lg:text-5xl font-black tracking-tight mb-4 text-emerald-950">

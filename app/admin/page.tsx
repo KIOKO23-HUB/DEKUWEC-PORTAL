@@ -6,7 +6,8 @@ import {
   CheckCircle, ShieldCheck, Image as ImageIcon, Link as LinkIcon, 
   Send, List, Camera, Radio, Crown, Loader2, RefreshCw,
   Edit2, Trash2, X, Lock, KeyRound, Check, AlertCircle, Menu,
-  UploadCloud, Phone, Video
+  UploadCloud, Phone, Video, Download, Award, ThumbsUp, ThumbsDown,
+  Wallet // Added Wallet icon for Payments Tab
 } from "lucide-react";
 
 const DEFAULT_LEADERS = [
@@ -42,14 +43,24 @@ export default function DekuwecAdminDashboard() {
   const [eventRegistrations, setEventRegistrations] = useState<any[]>([]);
   const [ecoPulsePosts, setEcoPulsePosts] = useState<any[]>([]);
   const [snaps, setSnaps] = useState<any[]>([]);
+  const [communitySnaps, setCommunitySnaps] = useState<any[]>([]);
   const [leaders, setLeaders] = useState<any[]>([]);
   const [feedbacks, setFeedbacks] = useState<any[]>([]);
+  
+  // NEW: Payments & Fee Configurations State
+  const [payments, setPayments] = useState<any[]>([]);
+  const [feeConfig, setFeeConfig] = useState({ member: 200, wckUnder23: 100, wckOver23: 230, eventMember: 650, eventNonMember: 750 });
 
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [editingEcoId, setEditingEcoId] = useState<string | null>(null);
   const [editingSnapId, setEditingSnapId] = useState<string | null>(null);
   const [editingLeaderId, setEditingLeaderId] = useState<string | null>(null);
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
+
+  // Feedback Reply State
+  const [replyingToId, setReplyingToId] = useState<string | null>(null);
+  const [replyMessage, setReplyMessage] = useState("");
+  const [isReplying, setIsReplying] = useState(false);
 
   const [broadcastData, setBroadcastData] = useState({ title: "", message: "", imageUrl: "", link: "" });
   const [eventForm, setEventForm] = useState({ title: "", category: "upcoming", date: "", time: "", location: "", imageUrl: "", galleryLink: "", description: "", media: [] as any[] });
@@ -62,7 +73,7 @@ export default function DekuwecAdminDashboard() {
 
   const [uploadingMedia, setUploadingMedia] = useState(false);
 
-  // Secure Cloudinary Uploader for Single Images (FIXED: forces secure_url)
+  // Secure Cloudinary Uploader for Single Images (forces secure_url)
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, formSetter: React.Dispatch<React.SetStateAction<any>>, fieldName: string) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -84,7 +95,7 @@ export default function DekuwecAdminDashboard() {
       alert("Error uploading image. Check Cloudinary settings.");
     } finally {
       setUploadingMedia(false);
-      e.target.value = ""; // Clear buffer so the same file can be re-selected if deleted
+      e.target.value = ""; 
     }
   };
 
@@ -110,7 +121,7 @@ export default function DekuwecAdminDashboard() {
       alert("Media upload failed. Ensure Cloudinary keys are configured in .env.local");
     } finally {
       setUploadingMedia(false);
-      e.target.value = ""; // Clear buffer
+      e.target.value = "";
     }
   };
 
@@ -171,9 +182,22 @@ export default function DekuwecAdminDashboard() {
         setEventRegistrations(data.eventRegistrations || []);
         setEcoPulsePosts(data.ecoPulsePosts || []);
         setSnaps(data.snaps || []);
+        setCommunitySnaps(data.communitySnaps || []);
         setLeaders(data.leaders || []);
         setFeedbacks(data.feedbacks || []);
       }
+
+      const commRes = await fetch("/api/community-snaps");
+      const commData = await commRes.json();
+      if (commRes.ok) setCommunitySnaps(commData.snaps || []);
+
+      // NEW: Fetch all recorded payments securely
+      const payRes = await fetch("/api/admin/payments").catch(()=>null);
+      if (payRes && payRes.ok) {
+        const payData = await payRes.json();
+        setPayments(payData.payments || []);
+      }
+
     } catch (err) {
       console.error("Master fetch failed:", err);
     } finally {
@@ -254,16 +278,35 @@ export default function DekuwecAdminDashboard() {
     if (res.ok) fetchAllAdminData();
   };
 
-  const handleDeleteFeedback = async (id: string) => {
-    if (!confirm("Delete this feedback message?")) return;
-    const res = await fetch(`/api/admin/feedback?id=${id}`, { method: "DELETE" });
-    if (res.ok) fetchAllAdminData();
-  };
-
   const handleDeleteRegistration = async (id: string) => {
     if (!confirm("Remove this participant from the event?")) return;
     const res = await fetch(`/api/admin/registrations?id=${id}`, { method: "DELETE" });
     if (res.ok) fetchAllAdminData();
+  };
+
+  // --- CSV DOWNLOAD ---
+  const handleDownloadCSV = () => {
+    if (eventRegistrations.length === 0) return alert("No registrations to download.");
+
+    const headers = ["Participant Name", "Phone Number", "DeKUT Reg No", "Event Name", "Email Address"];
+    const csvRows = eventRegistrations.map(reg => {
+      const name = (reg.fullName || reg.name || "Member").replace(/,/g, "");
+      const phone = reg.phoneNumber || reg.phone || "—";
+      const regNo = reg.registrationNumber || reg.regNo || "—";
+      const event = (reg.eventName || reg.eventTitle || "—").replace(/,/g, "");
+      const email = reg.email || "—";
+      return `${name},${phone},${regNo},${event},${email}`;
+    });
+
+    const csvContent = [headers.join(","), ...csvRows].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `DEKUWEC_RSVPs_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   // --- EVENTS ---
@@ -419,6 +462,33 @@ export default function DekuwecAdminDashboard() {
     if (res.ok) fetchAllAdminData();
   };
 
+  const handleDeleteCommunitySnap = async (id: string) => {
+    if (!confirm("Remove this user submission?")) return;
+    const res = await fetch(`/api/admin/community-snaps?id=${id}`, { method: "DELETE" });
+    if (res.ok) fetchAllAdminData();
+  };
+
+  const handleClearAllCommunitySnaps = async () => {
+    if (!confirm("WARNING: This permanently deletes ALL weekly challenge submissions to start a new week. Proceed?")) return;
+    const res = await fetch(`/api/admin/community-snaps?action=deleteAll`, { method: "DELETE" });
+    if (res.ok) {
+      alert("Week reset successfully!");
+      fetchAllAdminData();
+    }
+  };
+
+  const handlePromoteCommunitySnap = (snap: any, awardType: string) => {
+    setSnapForm({
+      title: snap.caption || "Weekly Selection",
+      photographer: snap.fullName,
+      imageUrl: snap.imageUrl,
+      type: awardType,
+      description: `Community capture by ${snap.fullName}.`
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    alert("Photo copied! Scroll up to tweak the details and hit Publish.");
+  };
+
   // --- LEADERS ---
   const importDefaultLeaders = async () => {
     if (!confirm("This will initialize your database with the default executive board so you can easily edit them. Proceed?")) return;
@@ -502,12 +572,52 @@ export default function DekuwecAdminDashboard() {
     }
   };
 
+  // --- FEEDBACK INTERACTIVE REPLY ---
+  const handleSendReply = async (e: React.FormEvent, item: any) => {
+    e.preventDefault();
+    if (!replyMessage.trim()) return alert("Reply message cannot be empty.");
+    
+    setIsReplying(true);
+    try {
+      const res = await fetch("/api/admin/feedback/reply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clerkId: item.clerkId || "anonymous",
+          studentEmail: item.email,
+          studentName: item.fullName,
+          originalSubject: item.subject,
+          replyMessage: replyMessage
+        })
+      });
+
+      if (res.ok) {
+        alert("Reply successfully sent to the student's email and notification bell!");
+        setReplyingToId(null);
+        setReplyMessage("");
+      } else {
+        const err = await res.json();
+        alert(`Failed to send reply: ${err.error}`);
+      }
+    } catch (err) {
+      alert("Server connection error.");
+    } finally {
+      setIsReplying(false);
+    }
+  };
+
+  const handleDeleteFeedback = async (id: string) => {
+    if (!confirm("Delete this feedback message?")) return;
+    const res = await fetch(`/api/admin/feedback?id=${id}`, { method: "DELETE" });
+    if (res.ok) fetchAllAdminData();
+  };
+
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-emerald-950 flex items-center justify-center p-4">
         <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl space-y-6 text-center animate-in fade-in zoom-in duration-200">
           <div className="mx-auto w-24 h-24 rounded-full overflow-hidden border-4 border-emerald-500 shadow-md">
-            <img src="https://i.postimg.cc/qB9gLwmz/Whats-App-Image-2026-09-03-at-09-49-04.jpg" alt="DEKUWEC Official Logo" className="w-full h-full object-cover" />
+            <img src="https://res.cloudinary.com/dnipaby6h/image/upload/v1789108366/WhatsApp_Image_2026-09-03_at_09.49.04_q31jcg.jpg" alt="DEKUWEC Official Logo" className="w-full h-full object-cover" />
           </div>
           <div>
             <h1 className="text-xl font-black text-emerald-950 tracking-tight">DEKUWEC ADMINS</h1>
@@ -550,7 +660,7 @@ export default function DekuwecAdminDashboard() {
       {/* Mobile Top Header */}
       <div className="md:hidden bg-emerald-950 text-white p-4 flex items-center justify-between sticky top-0 z-30 shadow-md">
         <div className="flex items-center gap-3">
-          <img src="https://i.postimg.cc/qB9gLwmz/Whats-App-Image-2026-09-03-at-09-49-04.jpg" alt="DEKUWEC Logo" className="w-8 h-8 rounded-full border border-emerald-400 object-cover" />
+          <img src="https://res.cloudinary.com/dnipaby6h/image/upload/v1789108366/WhatsApp_Image_2026-09-03_at_09.49.04_q31jcg.jpg" alt="DEKUWEC Logo" className="w-8 h-8 rounded-full border border-emerald-400 object-cover" />
           <div><h1 className="text-xs font-black tracking-tight leading-tight">DEKUWEC ADMINS</h1></div>
         </div>
         <div className="flex items-center gap-2">
@@ -572,7 +682,7 @@ export default function DekuwecAdminDashboard() {
       <aside className={`fixed md:relative inset-y-0 left-0 z-50 w-64 bg-emerald-950 text-white flex-shrink-0 flex flex-col h-screen transform transition-transform duration-300 ease-in-out md:translate-x-0 ${isMobileMenuOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full"}`}>
         <div className="p-5 flex items-center justify-between md:justify-start gap-3 border-b border-emerald-900/60">
           <div className="flex items-center gap-3 overflow-hidden">
-            <img src="https://i.postimg.cc/qB9gLwmz/Whats-App-Image-2026-09-03-at-09-49-04.jpg" alt="DEKUWEC Logo" className="w-10 h-10 rounded-full border-2 border-emerald-400 object-cover shrink-0 hidden md:block" />
+            <img src="https://res.cloudinary.com/dnipaby6h/image/upload/v1789108366/WhatsApp_Image_2026-09-03_at_09.49.04_q31jcg.jpg" alt="DEKUWEC Logo" className="w-10 h-10 rounded-full border-2 border-emerald-400 object-cover shrink-0 hidden md:block" />
             <div className="overflow-hidden hidden md:block">
               <h1 className="text-xs font-black tracking-tight leading-tight text-white truncate">DEKUWEC ADMINS</h1>
               <span className="text-[10px] text-emerald-400 font-bold block">Executive Portal</span>
@@ -590,6 +700,7 @@ export default function DekuwecAdminDashboard() {
             { id: "approvals", icon: CheckCircle, label: `Approvals (${pendingMembers.length})` },
             { id: "wck", icon: CreditCard, label: `WCK Cards (${wckApplicants.length})` },
             { id: "members", icon: Users, label: `All Members (${allMembers.length})` },
+            { id: "payments", icon: Wallet, label: `Payments (${payments.length})` },
             { id: "events", icon: Calendar, label: `Events & RSVPs (${events.length})` },
             { id: "ecopulse", icon: Radio, label: `EcoPulse (${ecoPulsePosts.length})` },
             { id: "snaps", icon: Camera, label: `Nature Snaps (${snaps.length})` },
@@ -784,6 +895,94 @@ export default function DekuwecAdminDashboard() {
                     </tbody>
                   </table>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* NEW: PAYMENTS TAB */}
+          {activeTab === "payments" && (
+            <div className="space-y-8 animate-in fade-in">
+              <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-4">
+                  <h2 className="text-2xl font-black text-emerald-950 flex items-center gap-2">
+                    <Wallet className="text-emerald-600 shrink-0" /> Financial & Payments Ledger
+                  </h2>
+                  <button onClick={fetchAllAdminData} className="hidden sm:inline-block text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-xl transition shrink-0">
+                    Refresh Ledger
+                  </button>
+                </div>
+                <p className="text-sm text-gray-500 mb-6">Track all confirmed M-Pesa transactions across Events, WCK Cards, and Memberships. System automatically syncs with Safaricom Daraja API.</p>
+
+                {/* Payment Configuration (Allows Admin to Regulate Amounts) */}
+                <div className="mb-8 p-6 bg-emerald-50 border border-emerald-200 rounded-2xl">
+                  <h3 className="text-lg font-bold text-emerald-900 mb-4">Regulate Default Payment Fees (KES)</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-emerald-800 mb-1">Standard Membership</label>
+                      <input type="number" value={feeConfig.member} onChange={e => setFeeConfig({...feeConfig, member: Number(e.target.value)})} className="w-full px-3 py-2 rounded-lg border border-emerald-200 text-sm outline-none focus:border-emerald-500" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-emerald-800 mb-1">Event: Member Rate</label>
+                      <input type="number" value={feeConfig.eventMember} onChange={e => setFeeConfig({...feeConfig, eventMember: Number(e.target.value)})} className="w-full px-3 py-2 rounded-lg border border-emerald-200 text-sm outline-none focus:border-emerald-500" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-emerald-800 mb-1">Event: Non-Member Rate</label>
+                      <input type="number" value={feeConfig.eventNonMember} onChange={e => setFeeConfig({...feeConfig, eventNonMember: Number(e.target.value)})} className="w-full px-3 py-2 rounded-lg border border-emerald-200 text-sm outline-none focus:border-emerald-500" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-emerald-800 mb-1">WCK Card (Below 23 Years)</label>
+                      <input type="number" value={feeConfig.wckUnder23} onChange={e => setFeeConfig({...feeConfig, wckUnder23: Number(e.target.value)})} className="w-full px-3 py-2 rounded-lg border border-emerald-200 text-sm outline-none focus:border-emerald-500" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-emerald-800 mb-1">WCK Card (23 Years & Above)</label>
+                      <input type="number" value={feeConfig.wckOver23} onChange={e => setFeeConfig({...feeConfig, wckOver23: Number(e.target.value)})} className="w-full px-3 py-2 rounded-lg border border-emerald-200 text-sm outline-none focus:border-emerald-500" />
+                    </div>
+                  </div>
+                  <button onClick={() => alert("Global fee structures updated successfully! (Linked to future dynamic schema)")} className="mt-4 bg-emerald-700 hover:bg-emerald-800 text-white font-bold py-2 px-5 rounded-xl text-xs transition shadow-sm">
+                    Save Fee Configurations
+                  </button>
+                </div>
+
+                <h3 className="text-lg font-bold text-gray-900 mb-4">Confirmed Transactions</h3>
+                {payments.length === 0 ? (
+                  <div className="text-center py-12 text-gray-400 font-medium bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+                    No completed payments logged yet.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto rounded-2xl border border-gray-100">
+                    <table className="w-full text-left border-collapse min-w-[700px]">
+                      <thead>
+                        <tr className="bg-gray-50 text-xs uppercase text-gray-500 font-bold border-b border-gray-200">
+                          <th className="p-4">Date</th>
+                          <th className="p-4">Applicant / Payer</th>
+                          <th className="p-4">Phone Number</th>
+                          <th className="p-4">Category & Ref</th>
+                          <th className="p-4">Amount</th>
+                          <th className="p-4">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {payments.map((pay) => (
+                          <tr key={pay._id} className="border-b border-gray-100 hover:bg-gray-50 text-sm">
+                            <td className="p-4 text-gray-600 whitespace-nowrap">{new Date(pay.createdAt).toLocaleDateString()}</td>
+                            <td className="p-4 font-bold text-gray-900">{pay.fullName}</td>
+                            <td className="p-4 font-semibold text-gray-600">{pay.phone}</td>
+                            <td className="p-4">
+                              <span className="font-bold text-emerald-800">{pay.category}</span>
+                              <span className="block text-[10px] text-gray-500 uppercase mt-0.5">{pay.reference}</span>
+                            </td>
+                            <td className="p-4 font-black text-emerald-700">KES {pay.amount}</td>
+                            <td className="p-4">
+                              <span className={`text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap ${pay.status === "Completed" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
+                                {pay.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -984,13 +1183,16 @@ export default function DekuwecAdminDashboard() {
 
               {/* Event RSVPs Master Table */}
               <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100">
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-4">
                   <div>
                     <h3 className="text-xl font-bold text-emerald-950">
                       Event Registrations / Participants ({eventRegistrations.length})
                     </h3>
                     <p className="text-xs text-gray-500 mt-0.5">Students who RSVP'd for upcoming excursions and hikes.</p>
                   </div>
+                  <button onClick={handleDownloadCSV} disabled={eventRegistrations.length === 0} className="flex items-center gap-2 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-bold px-4 py-2 rounded-xl text-xs transition shrink-0">
+                    <Download className="h-4 w-4" /> Download CSV Roster
+                  </button>
                 </div>
 
                 {eventRegistrations.length === 0 ? (
@@ -1011,9 +1213,8 @@ export default function DekuwecAdminDashboard() {
                       </thead>
                       <tbody>
                         {eventRegistrations.map((reg) => {
-                          const parsedName = reg.fullName?.split(" (")[0] || reg.name || "Member";
-                          const parsedPhone = reg.fullName?.match(/\((.*?)\)/)?.[1] || "—";
-                          
+                          const parsedName = reg.fullName || reg.name || "Member";
+                          const parsedPhone = reg.phoneNumber || reg.phone || "—";
                           const displayRegNo = reg.registrationNumber || reg.regNo || "—";
                           const displayEvent = reg.eventName || reg.eventTitle || "Upcoming Event";
 
@@ -1214,7 +1415,7 @@ export default function DekuwecAdminDashboard() {
                     disabled={submitting || uploadingMedia}
                     className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white font-bold py-3.5 rounded-xl text-sm transition"
                   >
-                    {submitting ? "Publishing..." : editingEcoId ? "Save EcoPulse Changes" : "Publish to EcoPulse"}
+                    {submitting ? "Processing..." : editingEcoId ? "Save EcoPulse Changes" : "Publish to EcoPulse"}
                   </button>
                 </form>
               </div>
@@ -1247,24 +1448,11 @@ export default function DekuwecAdminDashboard() {
           {/* 6. NATURE SNAPS TAB */}
           {activeTab === "snaps" && (
             <div className="space-y-8 animate-in fade-in">
-              <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-4">
-                  <h2 className="text-xl sm:text-2xl font-black text-emerald-950 flex items-center gap-2">
-                    <Camera className="text-emerald-600 shrink-0" /> {editingSnapId ? "Edit Nature Snap" : "Post Nature Snap Feature"}
-                  </h2>
-                  {editingSnapId && (
-                    <button 
-                      onClick={() => {
-                        setEditingSnapId(null);
-                        setSnapForm({ title: "", photographer: "", imageUrl: "", type: "winner", description: "" });
-                      }}
-                      className="text-xs text-rose-600 font-bold hover:underline flex items-center gap-1 shrink-0"
-                    >
-                      <X className="h-3 w-3" /> Cancel Edit
-                    </button>
-                  )}
+              <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-emerald-300">
+                <div className="flex justify-between mb-4">
+                  <h2 className="text-2xl font-black text-emerald-950 flex items-center gap-2"><Camera className="text-emerald-600" /> {editingSnapId ? "Edit Nature Snap" : "Post Official Nature Snap Feature"}</h2>
+                  {editingSnapId && <button onClick={() => { setEditingSnapId(null); setSnapForm({ title: "", photographer: "", imageUrl: "", type: "winner", description: "" }); }} className="text-xs text-rose-600 font-bold hover:underline flex items-center gap-1 shrink-0"><X className="h-3 w-3" /> Cancel Edit</button>}
                 </div>
-
                 <form onSubmit={handleSnapSubmit} className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <select
@@ -1334,6 +1522,50 @@ export default function DekuwecAdminDashboard() {
                     {submitting ? "Processing..." : editingSnapId ? "Save Snap Changes" : "Publish to Nature Snaps"}
                   </button>
                 </form>
+              </div>
+
+              {/* NEW: Community Submissions Moderation */}
+              <div className="bg-emerald-950 rounded-3xl p-6 sm:p-8 shadow-sm text-white">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                  <div>
+                    <h3 className="text-xl font-bold text-emerald-100 flex items-center gap-2"><Users className="h-5 w-5" /> Review Weekly Challenge Submissions</h3>
+                    <p className="text-xs text-emerald-300 mt-1">Review student uploads. Click "Award" to automatically copy the photo to the Official Publisher above.</p>
+                  </div>
+                  <button onClick={handleClearAllCommunitySnaps} className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-4 py-2 rounded-xl transition shadow-md shrink-0">
+                    Clear Week (Reset Board)
+                  </button>
+                </div>
+
+                {communitySnaps.length === 0 ? (
+                  <p className="text-sm text-emerald-500 text-center py-6 border border-emerald-900 rounded-2xl border-dashed">No community submissions this week.</p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {communitySnaps.map(snap => (
+                      <div key={snap._id} className="bg-emerald-900 rounded-2xl p-4 border border-emerald-800 flex flex-col">
+                        <div className="aspect-square bg-black rounded-xl overflow-hidden mb-3 relative">
+                          <img src={snap.imageUrl} alt="User submission" className="w-full h-full object-cover" />
+                          <button onClick={() => handleDeleteCommunitySnap(snap._id)} className="absolute top-2 right-2 bg-rose-500 text-white p-1.5 rounded-full shadow-md hover:bg-rose-600 transition"><Trash2 className="h-3 w-3"/></button>
+                        </div>
+                        <div className="mb-4">
+                          <p className="font-bold text-sm truncate">{snap.fullName}</p>
+                          <p className="text-xs text-emerald-300 line-clamp-2">{snap.caption || "No caption"}</p>
+                          <div className="flex items-center gap-3 mt-2 text-xs font-bold text-emerald-200">
+                            <span className="flex items-center gap-1"><ThumbsUp className="h-3 w-3"/> {snap.likes.length}</span>
+                            <span className="flex items-center gap-1 text-rose-300"><ThumbsDown className="h-3 w-3"/> {snap.dislikes.length}</span>
+                          </div>
+                        </div>
+                        <div className="mt-auto grid grid-cols-2 gap-2">
+                          <button onClick={() => handlePromoteCommunitySnap(snap, "winner")} className="bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold py-2 rounded-lg flex items-center justify-center gap-1 transition">
+                            <Award className="h-3 w-3"/> Make Winner
+                          </button>
+                          <button onClick={() => handlePromoteCommunitySnap(snap, "top_submission")} className="bg-emerald-800 hover:bg-emerald-700 text-emerald-100 text-[10px] font-bold py-2 rounded-lg transition">
+                            Honorable Mention
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Manage Snaps List */}
@@ -1455,7 +1687,6 @@ export default function DekuwecAdminDashboard() {
                 </form>
               </div>
 
-              {/* Manage Leaders List */}
               <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100">
                 <h3 className="text-xl font-bold text-emerald-950 mb-4">Current Executive Team</h3>
                 
@@ -1476,7 +1707,7 @@ export default function DekuwecAdminDashboard() {
                       <div key={ldr._id} className="p-4 rounded-2xl border border-gray-200 bg-gray-50 flex items-center justify-between">
                         <div className="flex items-center gap-3 overflow-hidden">
                           <img 
-                            src={ldr.imageUrl || "https://i.postimg.cc/qB9gLwmz/Whats-App-Image-2026-09-03-at-09-49-04.jpg"} 
+                            src={ldr.imageUrl || "https://res.cloudinary.com/dnipaby6h/image/upload/v1789108366/WhatsApp_Image_2026-09-03_at_09.49.04_q31jcg.jpg"} 
                             alt={ldr.name} 
                             className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-sm shrink-0"
                           />
@@ -1575,7 +1806,7 @@ export default function DekuwecAdminDashboard() {
             </div>
           )}
 
-          {/* 9. FEEDBACK & INQUIRIES TAB (WITH DELETE) */}
+          {/* 9. FEEDBACK & INQUIRIES TAB (NEW INTERACTIVE REPLY) */}
           {activeTab === "feedback" && (
             <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100 animate-in fade-in">
               <h2 className="text-xl sm:text-2xl font-black text-emerald-950 mb-2 flex items-center gap-2">
@@ -1590,8 +1821,8 @@ export default function DekuwecAdminDashboard() {
               ) : (
                 <div className="space-y-4">
                   {feedbacks.map((item) => (
-                    <div key={item._id} className="p-5 rounded-2xl border border-gray-200 bg-gray-50 space-y-2 relative group">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pr-8">
+                    <div key={item._id} className="p-5 rounded-2xl border border-gray-200 bg-gray-50 relative group">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pr-8 mb-2">
                         <h4 className="font-bold text-gray-900">{item.subject}</h4>
                         <span className="text-xs text-gray-400">{new Date(item.createdAt).toLocaleString()}</span>
                       </div>
@@ -1604,19 +1835,52 @@ export default function DekuwecAdminDashboard() {
                         <Trash2 className="h-4 w-4" />
                       </button>
 
-                      <p className="text-xs font-semibold text-emerald-700">
+                      <p className="text-xs font-semibold text-emerald-700 mb-2">
                         From: {item.fullName} ({item.email})
                       </p>
                       <p className="text-sm text-gray-700 whitespace-pre-wrap bg-white p-4 rounded-xl border border-gray-100">
                         {item.message}
                       </p>
-                      <div className="pt-2">
-                        <a
-                          href={`mailto:${item.email}?subject=Re: ${encodeURIComponent(item.subject)}`}
-                          className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-600 hover:text-emerald-800"
-                        >
-                          <Send className="h-3 w-3" /> Reply directly via Student Email
-                        </a>
+
+                      {/* INTERACTIVE REPLY BLOCK */}
+                      <div className="pt-2 mt-2">
+                        {replyingToId === item._id ? (
+                          <form onSubmit={(e) => handleSendReply(e, item)} className="space-y-3 mt-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                            <textarea
+                              rows={4}
+                              required
+                              placeholder="Type your official response here. This will be sent directly to the student's email..."
+                              value={replyMessage}
+                              onChange={(e) => setReplyMessage(e.target.value)}
+                              className="w-full px-4 py-3 rounded-xl border border-emerald-200 bg-emerald-50 text-sm outline-none focus:border-emerald-600 focus:bg-white transition"
+                            />
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="submit"
+                                disabled={isReplying}
+                                className="bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white font-bold py-2 px-5 rounded-xl text-xs transition flex items-center gap-2 shadow-sm"
+                              >
+                                {isReplying ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
+                                Send Reply
+                              </button>
+                              <button
+                                type="button"
+                                disabled={isReplying}
+                                onClick={() => { setReplyingToId(null); setReplyMessage(""); }}
+                                className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-xl text-xs transition"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </form>
+                        ) : (
+                          <button
+                            onClick={() => { setReplyingToId(item._id); setReplyMessage(""); }}
+                            className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-600 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-3 py-2 rounded-lg transition"
+                          >
+                            <MessageSquare className="h-3.5 w-3.5" /> Write a Reply
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))}

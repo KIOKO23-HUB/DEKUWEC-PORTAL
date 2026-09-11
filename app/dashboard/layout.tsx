@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { UserButton, useUser } from "@clerk/nextjs";
 import { 
@@ -47,6 +46,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [chatInput, setChatInput] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [isLoadingChat, setIsLoadingChat] = useState(false);
+
+  // Reliable Cloudinary Logo URL
+  const logoUrl = "https://res.cloudinary.com/dnipaby6h/image/upload/v1789108366/WhatsApp_Image_2026-09-03_at_09.49.04_q31jcg.jpg";
 
   // Close menus when hitting Escape
   useEffect(() => {
@@ -227,16 +229,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         />
       )}
 
-      {/* Sidebar Navigation - Now Responsive */}
-      <aside className={`fixed md:relative inset-y-0 left-0 z-50 w-64 bg-[#064e3b] text-white flex flex-col h-screen transform transition-transform duration-300 ease-in-out md:translate-x-0 ${isMobileMenuOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full"}`}>
-        <div className="p-6 flex items-center justify-between space-x-3">
+      {/* Sidebar Navigation - Now Responsive with 100dvh for proper mobile height */}
+      <aside className={`fixed md:relative inset-y-0 left-0 z-50 w-64 bg-[#064e3b] text-white flex flex-col h-[100dvh] transform transition-transform duration-300 ease-in-out md:translate-x-0 ${isMobileMenuOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full"}`}>
+        <div className="p-6 flex items-center justify-between space-x-3 shrink-0">
           <div className="flex items-center space-x-3">
-            <Image 
-              src="https://i.postimg.cc/qB9gLwmz/Whats-App-Image-2026-09-03-at-09-49-04.jpg" 
+            <img 
+              src={logoUrl} 
               alt="DEKUWEC Logo" 
-              width={40} 
-              height={40} 
-              className="rounded-full bg-white p-0.5 object-cover"
+              className="w-10 h-10 rounded-full bg-white p-0.5 object-cover shrink-0"
             />
             <div>
               <h2 className="font-black text-lg tracking-tight leading-none">DEKUWEC</h2>
@@ -274,7 +274,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </Link>
         </nav>
 
-        <div className="p-4 border-t border-emerald-800/60">
+        {/* Added pb-8 on mobile to ensure the button clears iOS toolbars */}
+        <div className="p-4 border-t border-emerald-800/60 shrink-0 pb-8 md:pb-4 bg-[#064e3b]">
           <Link href="/dashboard/account" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center space-x-3 px-4 py-3 mb-3 rounded-xl border border-emerald-500/40 bg-emerald-900/60 hover:bg-emerald-800 transition text-sm font-bold text-emerald-100">
             <UserCircle className="h-4 w-4 text-emerald-300" /><span>Account Dashboard</span>
           </Link>
@@ -282,7 +283,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </aside>
 
       {/* Right Side: Main Content Area */}
-      <div className="flex-1 flex flex-col h-screen overflow-hidden relative w-full">
+      <div className="flex-1 flex flex-col h-[100dvh] overflow-hidden relative w-full">
         
         <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 md:px-8 shrink-0 z-20 shadow-sm relative">
           
@@ -398,9 +399,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                       className="flex items-center gap-3 p-3 rounded-xl hover:bg-emerald-50 cursor-pointer transition border border-transparent hover:border-emerald-100 mb-1"
                     >
                       <div className="relative shrink-0">
-                        <div className="h-10 w-10 bg-emerald-100 text-emerald-700 font-bold flex items-center justify-center rounded-full">
-                          {(contact.fullName || "U")[0]}
-                        </div>
+                        {contact.imageUrl ? (
+                          <img src={contact.imageUrl} alt="Profile" className="h-10 w-10 rounded-full object-cover" />
+                        ) : (
+                          <div className="h-10 w-10 bg-emerald-100 text-emerald-700 font-bold flex items-center justify-center rounded-full">
+                            {(contact.fullName || "U")[0]}
+                          </div>
+                        )}
                         <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-emerald-500"></span>
                       </div>
                       <div className="flex-1 min-w-0">
@@ -486,12 +491,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="flex-1">{children}</div>
           <footer className="bg-white border-t border-gray-200 py-6 px-8 mt-auto shrink-0 flex flex-col md:flex-row items-center justify-between gap-6 z-10 shadow-sm">
             <div className="flex items-center gap-4">
-              <Image 
-                src="https://i.postimg.cc/qB9gLwmz/Whats-App-Image-2026-09-03-at-09-49-04.jpg" 
+              <img 
+                src={logoUrl} 
                 alt="DEKUWEC Logo" 
-                width={36} 
-                height={36} 
-                className="rounded-full bg-white object-cover shadow-sm border border-gray-100"
+                className="w-9 h-9 rounded-full bg-white object-cover shadow-sm border border-gray-100"
               />
               <span className="text-sm font-bold text-emerald-950 leading-tight">
                 Dedan Kimathi Wildlife &<br />Environmental Club

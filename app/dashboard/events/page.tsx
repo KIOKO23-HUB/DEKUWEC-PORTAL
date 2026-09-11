@@ -15,7 +15,10 @@ import {
   Send,
   Loader2,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Smartphone,
+  CreditCard,
+  AlertCircle
 } from "lucide-react";
 
 // Initial fallbacks so the UI remains complete while loading or if DB is empty
@@ -70,18 +73,32 @@ const otherEvents = [
   "Monthly Campus Clean-up Drives"
 ];
 
-// --- Cloudinary Multi-Media Carousel Component ---
+// --- Smart Multi-Media Carousel Component ---
 const EventMediaCarousel = ({ event, fallbackImage }: { event: any, fallbackImage: string }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
 
-  // Combine the main poster with any extra cloud media uploaded
-  const allMedia = [];
+  const allMedia: any[] = [];
   if (event.imageUrl) {
     allMedia.push({ url: event.imageUrl, type: 'image' });
   }
   if (event.media && Array.isArray(event.media)) {
     allMedia.push(...event.media);
   }
+
+  const handleNext = () => setCurrentIndex(prev => prev === allMedia.length - 1 ? 0 : prev + 1);
+  const handlePrev = () => setCurrentIndex(prev => prev === 0 ? allMedia.length - 1 : prev - 1);
+
+  useEffect(() => {
+    if (allMedia.length <= 1) return;
+    const currentMedia = allMedia[currentIndex];
+    
+    if (currentMedia.type === 'image') {
+      const timer = setTimeout(() => {
+        handleNext();
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [currentIndex, allMedia.length, allMedia]);
 
   if (allMedia.length === 0) {
     return <img src={fallbackImage} alt="Event Cover" className="w-full h-full object-contain bg-emerald-50" />;
@@ -93,11 +110,13 @@ const EventMediaCarousel = ({ event, fallbackImage }: { event: any, fallbackImag
     <div className="relative w-full h-full bg-emerald-50/50 flex items-center justify-center group overflow-hidden">
       {currentMedia.type === 'video' ? (
         <video 
+          key={currentMedia.url}
           src={currentMedia.url} 
           autoPlay 
-          loop 
           muted 
+          controls 
           playsInline 
+          onEnded={handleNext} 
           className="w-full h-full object-contain" 
         />
       ) : (
@@ -111,13 +130,13 @@ const EventMediaCarousel = ({ event, fallbackImage }: { event: any, fallbackImag
       {allMedia.length > 1 && (
         <>
           <button 
-            onClick={(e) => { e.preventDefault(); setCurrentIndex(prev => prev === 0 ? allMedia.length - 1 : prev - 1); }}
+            onClick={(e) => { e.preventDefault(); handlePrev(); }}
             className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/70 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition z-10"
           >
             <ChevronLeft className="h-5 w-5" />
           </button>
           <button 
-            onClick={(e) => { e.preventDefault(); setCurrentIndex(prev => prev === allMedia.length - 1 ? 0 : prev + 1); }}
+            onClick={(e) => { e.preventDefault(); handleNext(); }}
             className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/70 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition z-10"
           >
             <ChevronRight className="h-5 w-5" />
@@ -141,29 +160,83 @@ export default function EventsPage() {
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // User RSVP statuses: map of eventId -> "Paid" | "Not Yet Paid"
+  const [userRsvpStatus, setUserRsvpStatus] = useState<{ [eventId: string]: string }>({});
+
+  // Modal Flow States
   const [activeModalEvent, setActiveModalEvent] = useState<any | null>(null);
-  const [rsvpedEventIds, setRsvpedEventIds] = useState<string[]>([]);
+  const [modalStep, setModalStep] = useState<"form" | "ask_pay" | "checkout" | "polling" | "success">("form");
   
+  // Form & Payment Inputs
   const [formData, setFormData] = useState({ name: "", regNo: "", phone: "" });
-  const [showSuccess, setShowSuccess] = useState(false);
+  const [paymentPhone, setPaymentPhone] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // NEW: Dynamic Array Fee Configuration State (Admin can set 1, 2, or more tiers)
+  const [paymentOptions, setPaymentOptions] = useState([
+    { id: "member", label: "Registered Club Member", amount: 650 },
+    { id: "first_year", label: "First Year Student", amount: 650 },
+    { id: "non_member", label: "Non-Member / Associate", amount: 750 }
+  ]);
+  const [selectedTier, setSelectedTier] = useState<string>("member");
+  const [selectedAmount, setSelectedAmount] = useState<number>(650);
+
   useEffect(() => {
-    async function loadEvents() {
+    async function loadData() {
       try {
         const res = await fetch("/api/admin/events");
         const data = await res.json();
         if (data.events && data.events.length > 0) {
           setEvents(data.events);
         }
+
+        // Fetch User Registrations to check payment states
+        if (user) {
+          const userActivity = await fetch(`/api/account/activity?clerkId=${user.id}`);
+          const actData = await userActivity.json();
+          if (actData.rsvps) {
+            const statusMap: { [key: string]: string } = {};
+            actData.rsvps.forEach((r: any) => {
+              statusMap[r.eventName] = r.paymentStatus || "Not Yet Paid";
+            });
+            setUserRsvpStatus(statusMap);
+          }
+        }
       } catch (err) {
-        console.error("Failed to load events:", err);
+        console.error("Failed to load events data:", err);
+      }
+
+      // Fetch dynamic fee structures set by Admin
+      try {
+        const feeRes = await fetch("/api/admin/fees");
+        if (feeRes.ok) {
+          const feeData = await feeRes.json();
+          // If admin has defined dynamic tiers array (e.g. 1 flat fee, 4 tiers, etc)
+          if (feeData && feeData.eventTiers && Array.isArray(feeData.eventTiers) && feeData.eventTiers.length > 0) {
+            setPaymentOptions(feeData.eventTiers);
+            setSelectedTier(feeData.eventTiers[0].id);
+            setSelectedAmount(feeData.eventTiers[0].amount);
+          } 
+          // Legacy Fallback to existing config if array doesn't exist yet
+          else if (feeData && feeData.eventMember) {
+            const legacyOptions = [
+              { id: "member", label: "Registered Club Member", amount: feeData.eventMember },
+              { id: "first_year", label: "First Year Student", amount: feeData.eventMember },
+              { id: "non_member", label: "Non-Member / Associate", amount: feeData.eventNonMember }
+            ];
+            setPaymentOptions(legacyOptions);
+            setSelectedTier(legacyOptions[0].id);
+            setSelectedAmount(legacyOptions[0].amount);
+          }
+        }
+      } catch (error) {
+        console.log("Using fallback default fee structures.");
       } finally {
         setLoading(false);
       }
     }
-    loadEvents();
-  }, []);
+    loadData();
+  }, [user]);
 
   useEffect(() => {
     if (user) {
@@ -174,57 +247,81 @@ export default function EventsPage() {
     }
   }, [user]);
 
-  const handleOpenModal = (event: any) => {
+  // Adjust amount dynamically based on selected array tier
+  const handleTierChange = (tierId: string) => {
+    setSelectedTier(tierId);
+    const selectedOption = paymentOptions.find(opt => opt.id === tierId);
+    if (selectedOption) {
+      setSelectedAmount(selectedOption.amount);
+    }
+  };
+
+  const handleOpenModal = (event: any, directToPay: boolean = false) => {
     setActiveModalEvent(event);
-    setShowSuccess(false);
+    if (directToPay) {
+      setPaymentPhone(formData.phone);
+      setModalStep("checkout");
+    } else {
+      setModalStep("form");
+    }
   };
 
   const handleCloseModal = () => {
     setActiveModalEvent(null);
-    setFormData({ 
-      name: user?.fullName || "", 
-      regNo: "",
-      phone: "" 
-    });
+    setModalStep("form");
   };
 
-  const handleSubmitRSVP = async (e: React.FormEvent) => {
+  // Step 1: Submit Event Application Form
+  const handleSubmitApplication = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeModalEvent || !user) return;
-
     setIsSubmitting(true);
 
     try {
-      const res = await fetch("/api/events", {
+      const isFreeEvent = activeModalEvent.isFree || false;
+
+      const res = await fetch("/api/admin/registrations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           clerkId: user.id,
           fullName: formData.name,
           phone: formData.phone,
+          phoneNumber: formData.phone,
           registrationNumber: formData.regNo,
           email: user.primaryEmailAddress?.emailAddress || "",
           eventName: activeModalEvent.title,
+          paymentStatus: isFreeEvent ? "Paid" : "Not Yet Paid",
+          amountPaid: isFreeEvent ? 0 : 0
         }),
       });
 
-      const data = await res.json();
-
       if (res.ok) {
-        setRsvpedEventIds((prev) => [...prev, activeModalEvent._id]);
-        setShowSuccess(true);
-        setTimeout(() => {
-          handleCloseModal();
-        }, 2200);
+        setPaymentPhone(formData.phone); // Copy the phone used in application
+        if (isFreeEvent) {
+          setUserRsvpStatus(prev => ({ ...prev, [activeModalEvent.title]: "Paid" }));
+          setModalStep("success");
+          setTimeout(() => handleCloseModal(), 2000);
+        } else {
+          setUserRsvpStatus(prev => ({ ...prev, [activeModalEvent.title]: "Not Yet Paid" }));
+          setModalStep("ask_pay"); // Ask if they want to pay now
+        }
       } else {
-        alert(data.error || "Failed to register. Please try again.");
+        const errData = await res.json().catch(() => ({}));
+        alert(`Failed to submit application: ${errData.error || "Please try again."}`);
       }
     } catch (error) {
-      console.error("RSVP Error:", error);
-      alert("An error occurred while submitting your registration.");
+      alert("An error occurred during submission.");
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Trigger M-Pesa Prompt (MAINTENANCE MODE)
+  const handleInitiatePayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    alert("Payment system is currently under maintenance. Please try again later.");
+    setModalStep("ask_pay"); // Route them back to the options
   };
 
   if (!isLoaded) return null;
@@ -241,11 +338,11 @@ export default function EventsPage() {
   return (
     <div className="p-6 sm:p-8 lg:p-12 max-w-7xl mx-auto space-y-12 relative font-sans">
       
-      {/* Page Header */}
+      {/* Header */}
       <div className="border-b border-gray-200 pb-6">
         <h1 className="text-3xl sm:text-4xl font-black text-emerald-950 tracking-tight">Events & Activities</h1>
         <p className="text-sm sm:text-base text-gray-500 mt-2 max-w-2xl">
-          Discover upcoming expeditions, browse galleries of our past adventures, and see the long-term conservation projects our members are driving.
+          Sign up for upcoming excursions, connect with nature, and browse through our past club highlights.
         </p>
       </div>
 
@@ -255,7 +352,7 @@ export default function EventsPage() {
         </div>
       ) : (
         <>
-          {/* 1. Upcoming Events Section */}
+          {/* Upcoming Section */}
           <section className="space-y-6">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-emerald-100 text-emerald-600 rounded-lg">
@@ -266,8 +363,8 @@ export default function EventsPage() {
             
             <div className="grid grid-cols-1 gap-6">
               {upcomingEvents.map((event) => {
-                const hasRSVPd = rsvpedEventIds.includes(event._id);
-                
+                const status = userRsvpStatus[event.title];
+
                 return (
                   <div key={event._id} className="flex flex-col md:flex-row bg-white border border-gray-200 rounded-3xl overflow-hidden shadow-sm hover:shadow-md transition">
                     <div className="md:w-2/5 h-64 md:h-auto relative bg-gray-100">
@@ -299,17 +396,38 @@ export default function EventsPage() {
                       </div>
 
                       <div>
-                        {hasRSVPd ? (
+                        {status === "Paid" ? (
                           <div className="inline-flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-200 px-6 py-3 rounded-xl text-sm font-bold">
-                            <CheckCircle className="h-5 w-5" />
-                            Participation Confirmed
+                            <CheckCircle className="h-5 w-5" /> Secured & Paid
+                          </div>
+                        ) : status === "Not Yet Paid" ? (
+                          <div className="flex flex-col gap-3">
+                            <div className="flex flex-wrap items-center gap-3">
+                              <span className="inline-flex items-center gap-1.5 bg-amber-50 text-amber-800 border border-amber-200 px-4 py-2.5 rounded-xl text-xs font-bold">
+                                <AlertCircle className="h-4 w-4" /> Applied (Not Yet Paid)
+                              </span>
+                              <button 
+                                onClick={() => handleOpenModal(event, true)}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl text-xs font-bold transition shadow-sm"
+                              >
+                                Complete Payment
+                              </button>
+                            </div>
+                            
+                            {/* FALLBACK/RETRY PAYMENT BUTTON ADDED HERE */}
+                            <button 
+                              onClick={() => handleOpenModal(event, true)}
+                              className="text-xs text-gray-500 hover:text-emerald-700 font-bold transition text-left flex items-center gap-1.5 w-max ml-1"
+                            >
+                              <AlertCircle className="h-4 w-4" /> Did your payment fail or delay? Retry Here
+                            </button>
                           </div>
                         ) : (
                           <button 
-                            onClick={() => handleOpenModal(event)}
+                            onClick={() => handleOpenModal(event, false)}
                             className="bg-emerald-900 hover:bg-emerald-800 text-white px-6 py-3 rounded-xl text-sm font-bold transition shadow-sm w-full sm:w-auto"
                           >
-                            Do you want to participate?
+                            Apply for Event
                           </button>
                         )}
                       </div>
@@ -320,7 +438,7 @@ export default function EventsPage() {
             </div>
           </section>
 
-          {/* 2. Previous Events Section */}
+          {/* Previous Events Section */}
           <section className="space-y-6">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-gray-100 text-gray-600 rounded-lg">
@@ -356,7 +474,7 @@ export default function EventsPage() {
             </div>
           </section>
 
-          {/* 3. Ongoing Projects & Other Events Grid */}
+          {/* Ongoing Projects & Other Events Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             
             {/* Ongoing Projects */}
@@ -412,7 +530,7 @@ export default function EventsPage() {
         </>
       )}
 
-      {/* RSVP Modal Overlay */}
+      {/* MULTI-STAGE RSVP & PAYMENT MODAL */}
       {activeModalEvent !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-white rounded-3xl w-full max-w-md p-6 sm:p-8 shadow-2xl relative animate-in fade-in zoom-in duration-200">
@@ -424,22 +542,15 @@ export default function EventsPage() {
               <X className="h-5 w-5" />
             </button>
 
-            {showSuccess ? (
-              <div className="text-center space-y-4 py-6">
-                <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
-                  <CheckCircle className="h-8 w-8" />
-                </div>
-                <h3 className="text-xl font-black text-emerald-950">Participation Logged!</h3>
-                <p className="text-sm text-gray-500">Your details have been submitted. See you at the event!</p>
-              </div>
-            ) : (
+            {/* STAGE 1: Event Registration Form */}
+            {modalStep === "form" && (
               <>
                 <div className="mb-6">
-                  <h3 className="text-xl font-black text-emerald-950">Event Participation</h3>
-                  <p className="text-sm text-gray-500 mt-1">Submit your details to secure your spot for <strong>{activeModalEvent.title}</strong>.</p>
+                  <h3 className="text-xl font-black text-emerald-950">Event Application</h3>
+                  <p className="text-sm text-gray-500 mt-1">Submit your details to sign up for <strong>{activeModalEvent.title}</strong>.</p>
                 </div>
 
-                <form onSubmit={handleSubmitRSVP} className="space-y-4">
+                <form onSubmit={handleSubmitApplication} className="space-y-4">
                   <div>
                     <label className="block text-xs font-bold text-gray-700 mb-1">Full Name</label>
                     <input
@@ -453,7 +564,7 @@ export default function EventsPage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-1">Phone Number</label>
+                    <label className="block text-xs font-bold text-gray-700 mb-1">Contact Phone Number</label>
                     <input
                       type="tel"
                       required
@@ -482,11 +593,127 @@ export default function EventsPage() {
                     className="w-full mt-4 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white font-bold text-sm transition flex items-center justify-center gap-2"
                   >
                     {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                    <span>{isSubmitting ? "Processing..." : "Confirm Participation"}</span>
+                    <span>Confirm Application</span>
                   </button>
                 </form>
               </>
             )}
+
+            {/* STAGE 2: Congratulate & Ask Payment */}
+            {modalStep === "ask_pay" && (
+              <div className="text-center space-y-6 py-4">
+                <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
+                  <CheckCircle className="h-8 w-8" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black text-emerald-950">Congratulations! 🎉</h3>
+                  <p className="text-sm text-gray-600 mt-2">
+                    Your spot for <strong>{activeModalEvent.title}</strong> has been logged.
+                  </p>
+                  <p className="text-sm font-bold text-emerald-800 mt-4">Do you want to complete your payment now?</p>
+                </div>
+
+                <div className="flex flex-col gap-3">
+                  <button 
+                    onClick={() => setModalStep("checkout")}
+                    className="w-full py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm transition"
+                  >
+                    Next: Proceed to Pay
+                  </button>
+                  <button 
+                    onClick={handleCloseModal}
+                    className="w-full py-3.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-sm transition"
+                  >
+                    I'll Pay Later
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* STAGE 3: Select Dynamic Payment Tier & Confirm M-Pesa Phone */}
+            {modalStep === "checkout" && (
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-xl font-black text-emerald-950">M-Pesa Checkout</h3>
+                  <p className="text-xs text-gray-500 mt-1">Select ticket type and confirm phone number for the STK Prompt.</p>
+                </div>
+
+                <form onSubmit={handleInitiatePayment} className="space-y-4">
+                  {/* Dynamic Dropdown Tier */}
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-1">Pay As</label>
+                    <select 
+                      value={selectedTier} 
+                      onChange={(e) => handleTierChange(e.target.value)}
+                      className="w-full px-4 py-3 rounded-xl border border-emerald-300 bg-emerald-50 text-emerald-900 font-bold text-sm outline-none"
+                    >
+                      {paymentOptions.map((opt) => (
+                        <option key={opt.id} value={opt.id}>
+                          {opt.label} (KES {opt.amount})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Display Amount */}
+                  <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-2xl flex items-center justify-between">
+                    <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider">Amount Due</span>
+                    <span className="text-xl font-black text-emerald-950">KES {selectedAmount}</span>
+                  </div>
+
+                  {/* Phone Input with Editable Override */}
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-1">M-Pesa Phone Number</label>
+                    <div className="relative">
+                      <Smartphone className="h-4 w-4 text-gray-400 absolute left-3.5 top-3.5" />
+                      <input
+                        type="tel"
+                        required
+                        placeholder="07XXXXXXXX"
+                        value={paymentPhone}
+                        onChange={(e) => setPaymentPhone(e.target.value)}
+                        className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 text-sm font-semibold outline-none focus:border-emerald-600"
+                      />
+                    </div>
+                    <span className="text-[10px] text-gray-400 mt-1 block">Pre-filled with your registration contact. You may modify it to another number to pay.</span>
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm transition flex items-center justify-center gap-2 shadow-md mt-2"
+                  >
+                    <CreditCard className="h-4 w-4" />
+                    <span>Send M-Pesa Prompt</span>
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {/* STAGE 4: Waiting for M-Pesa PIN */}
+            {modalStep === "polling" && (
+              <div className="text-center space-y-5 py-8">
+                <Smartphone className="h-12 w-12 text-emerald-600 animate-pulse mx-auto" />
+                <h3 className="text-lg font-black text-emerald-950">Check your phone!</h3>
+                <p className="text-sm text-gray-500 px-4">
+                  An M-Pesa prompt for <strong>KES {selectedAmount}</strong> has been sent to <strong>{paymentPhone}</strong>. Enter your PIN to finalize.
+                </p>
+                <div className="flex items-center justify-center gap-2 text-xs font-bold text-emerald-600 mt-4">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Verifying payment with Safaricom...
+                </div>
+              </div>
+            )}
+
+            {/* STAGE 5: Success */}
+            {modalStep === "success" && (
+              <div className="text-center space-y-4 py-6">
+                <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
+                  <CheckCircle className="h-8 w-8" />
+                </div>
+                <h3 className="text-xl font-black text-emerald-950">Payment Completed!</h3>
+                <p className="text-sm text-gray-500">Your reservation has been confirmed. See you at the excursion!</p>
+              </div>
+            )}
+
           </div>
         </div>
       )}
