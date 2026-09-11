@@ -1,8 +1,23 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useUser } from "@clerk/nextjs";
-import { UploadCloud, Mail, BookOpen, GraduationCap, Loader2, Save, Calendar, Camera, CreditCard, Award, CheckCircle } from "lucide-react";
+import { 
+  UploadCloud, Mail, BookOpen, GraduationCap, Loader2, Save, 
+  Calendar, Camera, CreditCard, Award, CheckCircle 
+} from "lucide-react";
+
+// 1. Explicitly teach TypeScript the shape of your data
+interface WckData {
+  createdAt: string | number | Date;
+  [key: string]: any;
+}
+
+interface ActivityState {
+  rsvps: any[];
+  wck: WckData | null;
+  snaps: any[];
+}
 
 export default function ComprehensiveAccountPage() {
   const { user, isLoaded } = useUser();
@@ -12,8 +27,12 @@ export default function ComprehensiveAccountPage() {
   
   const [member, setMember] = useState({ email: "", course: "", year: "Year 1", photoURL: "", status: "Unregistered" });
   
-  // Explicitly typed as <any> to prevent the 'never' type error
-  const [activityData, setActivityData] = useState<any>({ rsvps: [], wck: null, snaps: [] });
+  // 2. Apply the strict interface to the state
+  const [activityData, setActivityData] = useState<ActivityState>({ 
+    rsvps: [], 
+    wck: null, 
+    snaps: [] 
+  });
 
   useEffect(() => {
     if (!isLoaded || !user) return;
@@ -200,10 +219,9 @@ export default function ComprehensiveAccountPage() {
               {activityData.wck ? (
                 <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
                   <p className="text-sm font-bold text-emerald-900 mb-1">Application Submitted</p>
-                  
-                  {/* Forcefully typed as any to prevent build crash */}
-                  <p className="text-xs text-emerald-700">Applied on: {(activityData?.wck as any)?.createdAt ? new Date((activityData.wck as any).createdAt).toLocaleDateString() : "Recently"}</p>
-                  
+                  <p className="text-xs text-emerald-700">
+                    Applied on: {activityData.wck.createdAt ? new Date(activityData.wck.createdAt).toLocaleDateString() : "Recently"}
+                  </p>
                   <span className="inline-block mt-3 bg-emerald-600 text-white text-[10px] font-bold px-2 py-1 rounded-md uppercase tracking-wide">Processing</span>
                 </div>
               ) : (
