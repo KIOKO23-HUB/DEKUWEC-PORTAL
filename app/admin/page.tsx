@@ -7,7 +7,7 @@ import {
   Send, List, Camera, Radio, Crown, Loader2, RefreshCw,
   Edit2, Trash2, X, Lock, KeyRound, Check, AlertCircle, Menu,
   UploadCloud, Phone, Video, Download, Award, ThumbsUp, ThumbsDown,
-  Wallet // Added Wallet icon for Payments Tab
+  Wallet 
 } from "lucide-react";
 
 const DEFAULT_LEADERS = [
@@ -85,7 +85,8 @@ export default function DekuwecAdminDashboard() {
       const res = await fetch("/api/upload", { method: "POST", body: formData });
       if (res.ok) {
         const data = await res.json();
-        const secureImageUrl = data.secure_url || data.url;
+        // Support the new array response structure from the updated API
+        const secureImageUrl = data.results?.[0]?.url || data.secure_url || data.url;
         formSetter((prev: any) => ({ ...prev, [fieldName]: secureImageUrl }));
       } else {
         const err = await res.json().catch(()=>({}));
@@ -106,17 +107,24 @@ export default function DekuwecAdminDashboard() {
     
     setUploadingMedia(true);
     try {
-      const uploadedMedia: any[] = [];
-      for (const file of files) {
-        const formData = new FormData();
-        formData.append("file", file);
-        const res = await fetch("/api/upload", { method: "POST", body: formData });
-        if (res.ok) {
-          const data = await res.json();
-          uploadedMedia.push({ url: data.secure_url || data.url, type: data.resource_type });
+      const formData = new FormData();
+      // Append all selected files to the same payload to be processed in parallel
+      files.forEach((file) => formData.append("file", file));
+
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.results) {
+          const mappedMedia = data.results.map((item: any) => ({
+            url: item.url,
+            type: item.resource_type
+          }));
+          setEventForm(prev => ({ ...prev, media: [...(prev.media || []), ...mappedMedia] }));
         }
+      } else {
+        const err = await res.json().catch(()=>({}));
+        alert(`Media upload failed: ${err.error || res.statusText}`);
       }
-      setEventForm(prev => ({ ...prev, media: [...(prev.media || []), ...uploadedMedia] }));
     } catch (err) {
       alert("Media upload failed. Ensure Cloudinary keys are configured in .env.local");
     } finally {

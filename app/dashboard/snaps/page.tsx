@@ -75,7 +75,9 @@ export default function NatureSnapsPage() {
       
       if (res.ok) {
         const data = await res.json();
-        setUploadForm(prev => ({ ...prev, imageUrl: data.secure_url || data.url }));
+        // Support both old backend response and new parallel array response
+        const secureUrl = data.results?.[0]?.url || data.secure_url || data.url;
+        setUploadForm(prev => ({ ...prev, imageUrl: secureUrl }));
       } else {
         alert("Image upload failed.");
       }
@@ -128,7 +130,6 @@ export default function NatureSnapsPage() {
       let newLikes = snap.likes.filter((id: string) => id !== user.id);
       let newDislikes = snap.dislikes.filter((id: string) => id !== user.id);
 
-      // FIX: Added 'remove' to the explicit type definition
       let finalAction: "like" | "dislike" | "remove" = currentAction;
       
       if (currentAction === "like") {
@@ -149,7 +150,6 @@ export default function NatureSnapsPage() {
     }));
   };
 
-  // NEW: Secure user deletion logic
   const handleDeleteOwnSnap = async (snapId: string) => {
     if (!confirm("Are you sure you want to delete this photo from the community wall?")) return;
     if (!user) return;
@@ -182,7 +182,7 @@ export default function NatureSnapsPage() {
   }
 
   return (
-    <div className="p-6 sm:p-8 lg:p-12 max-w-7xl mx-auto space-y-10 font-sans">
+    <div className="p-4 sm:p-8 lg:p-12 max-w-7xl mx-auto space-y-10 font-sans">
       
       <div className="space-y-6 border-b border-gray-200 pb-8">
         <div>
@@ -190,7 +190,7 @@ export default function NatureSnapsPage() {
           <p className="text-sm sm:text-base text-gray-500 mt-1">Dedan Kimathi University of Technology</p>
         </div>
 
-        <div className="bg-emerald-900 rounded-3xl p-8 sm:p-10 shadow-lg text-white">
+        <div className="bg-emerald-900 rounded-3xl p-6 sm:p-10 shadow-lg text-white">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div className="max-w-2xl">
               <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-800 border border-emerald-700 text-emerald-100 text-xs font-bold uppercase tracking-wider mb-4">
@@ -206,14 +206,14 @@ export default function NatureSnapsPage() {
               href="https://photos.app.goo.gl/Fedcqm7wGHnqsK2G9" 
               target="_blank" 
               rel="noopener noreferrer"
-              className="inline-flex items-center justify-center gap-2 bg-white text-emerald-900 font-bold px-6 py-4 rounded-xl text-sm hover:bg-emerald-50 transition shrink-0 shadow-md"
+              className="inline-flex items-center justify-center gap-2 bg-white text-emerald-900 font-bold px-6 py-4 rounded-xl text-sm hover:bg-emerald-50 transition shrink-0 shadow-md w-full md:w-auto"
             >
               Open Google Photos Album <ExternalLink className="h-4 w-4" />
             </a>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 pt-2">
           <div className="bg-gray-50 border border-gray-100 p-5 rounded-2xl flex flex-col gap-2">
             <div className="flex items-center gap-2 text-emerald-700 font-bold text-sm">
               <Camera className="h-4 w-4" /> 1. Shoot & Upload
@@ -239,7 +239,7 @@ export default function NatureSnapsPage() {
         <div className="p-2 bg-emerald-100 text-emerald-600 rounded-lg">
           <Camera className="h-6 w-6" />
         </div>
-        <h2 className="text-3xl font-black text-emerald-950 tracking-tight">Hall of Fame</h2>
+        <h2 className="text-2xl sm:text-3xl font-black text-emerald-950 tracking-tight">Hall of Fame</h2>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
@@ -249,7 +249,7 @@ export default function NatureSnapsPage() {
           onClick={() => setPreviewSnap(liveWinner)}
           className="lg:col-span-7 bg-white rounded-3xl overflow-hidden shadow-sm border border-gray-200 relative group cursor-pointer"
         >
-          <div className="relative h-[420px] sm:h-[480px] w-full bg-gray-900">
+          <div className="relative h-[320px] sm:h-[480px] w-full bg-gray-900">
             <img 
               src={liveWinner.imageUrl} 
               alt={liveWinner.title} 
@@ -257,17 +257,17 @@ export default function NatureSnapsPage() {
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
 
-            <div className="absolute top-6 right-6 flex items-center gap-2">
-              <span className="flex items-center gap-1.5 bg-amber-500 text-slate-950 text-xs font-black px-3.5 py-1.5 rounded-full shadow-lg">
-                <Trophy className="h-3.5 w-3.5 fill-slate-950" /> Pic of the Week
+            <div className="absolute top-4 sm:top-6 right-4 sm:right-6 flex items-center gap-2">
+              <span className="flex items-center gap-1.5 bg-amber-500 text-slate-950 text-[10px] sm:text-xs font-black px-3 py-1.5 rounded-full shadow-lg">
+                <Trophy className="h-3 sm:h-3.5 w-3 sm:w-3.5 fill-slate-950" /> Pic of the Week
               </span>
-              <span className="p-2 bg-black/40 text-white rounded-full backdrop-blur-sm opacity-0 group-hover:opacity-100 transition">
+              <span className="p-2 bg-black/40 text-white rounded-full backdrop-blur-sm opacity-0 group-hover:opacity-100 transition hidden sm:flex">
                 <ZoomIn className="h-4 w-4" />
               </span>
             </div>
 
-            <div className="absolute bottom-6 left-6 right-6 text-white space-y-3">
-              <h2 className="text-2xl sm:text-3xl font-black leading-tight drop-shadow-md">
+            <div className="absolute bottom-4 sm:bottom-6 left-4 sm:left-6 right-4 sm:right-6 text-white space-y-2 sm:space-y-3">
+              <h2 className="text-xl sm:text-3xl font-black leading-tight drop-shadow-md">
                 {liveWinner.title}
               </h2>
               {liveWinner.description && (
@@ -276,13 +276,13 @@ export default function NatureSnapsPage() {
                 </p>
               )}
 
-              <div className="flex items-center gap-3 pt-2">
-                <div className="h-9 w-9 bg-emerald-700 text-emerald-100 rounded-full font-bold flex items-center justify-center text-sm border border-emerald-400 shrink-0">
+              <div className="flex items-center gap-3 pt-1 sm:pt-2">
+                <div className="h-8 w-8 sm:h-9 sm:w-9 bg-emerald-700 text-emerald-100 rounded-full font-bold flex items-center justify-center text-xs sm:text-sm border border-emerald-400 shrink-0">
                   {liveWinner.photographer ? liveWinner.photographer[0] : "P"}
                 </div>
                 <div>
-                  <p className="text-sm font-bold leading-none">{liveWinner.photographer}</p>
-                  <p className="text-[11px] text-gray-300 mt-0.5">{liveWinner.date || "Featured Photo"}</p>
+                  <p className="text-xs sm:text-sm font-bold leading-none">{liveWinner.photographer}</p>
+                  <p className="text-[10px] sm:text-[11px] text-gray-300 mt-0.5">{liveWinner.date || "Featured Photo"}</p>
                 </div>
               </div>
             </div>
@@ -296,12 +296,12 @@ export default function NatureSnapsPage() {
             <h3 className="text-lg font-black text-emerald-950">Top Submissions</h3>
           </div>
 
-          <div className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-4">
             {submissionsList.map((item: any) => (
               <div 
                 key={item._id} 
                 onClick={() => setPreviewSnap(item)}
-                className="relative h-44 rounded-2xl overflow-hidden shadow-sm border border-gray-200 group cursor-pointer"
+                className="relative h-40 sm:h-44 rounded-2xl overflow-hidden shadow-sm border border-gray-200 group cursor-pointer"
               >
                 <img 
                   src={item.imageUrl} 
@@ -310,13 +310,13 @@ export default function NatureSnapsPage() {
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
                 
-                <div className="absolute top-3 right-3 p-1.5 bg-black/40 text-white rounded-full opacity-0 group-hover:opacity-100 transition">
+                <div className="absolute top-3 right-3 p-1.5 bg-black/40 text-white rounded-full opacity-0 group-hover:opacity-100 transition hidden sm:block">
                   <ZoomIn className="h-3.5 w-3.5" />
                 </div>
 
                 <div className="absolute bottom-4 left-4 right-4 text-white">
-                  <h4 className="text-base font-bold leading-snug">{item.title}</h4>
-                  <p className="text-xs text-emerald-300 font-medium mt-0.5">by {item.photographer}</p>
+                  <h4 className="text-sm sm:text-base font-bold leading-snug">{item.title}</h4>
+                  <p className="text-[10px] sm:text-xs text-emerald-300 font-medium mt-0.5">by {item.photographer}</p>
                 </div>
               </div>
             ))}
@@ -326,10 +326,10 @@ export default function NatureSnapsPage() {
 
       <div className="w-full h-px bg-gray-200 my-8"></div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start relative">
         
-        {/* Left Side: Upload Form */}
-        <div className="lg:col-span-1 bg-white border border-gray-200 rounded-3xl p-6 sm:p-8 shadow-sm sticky top-24">
+        {/* Left Side: Upload Form (Fixed mobile overlap with lg:sticky) */}
+        <div className="lg:col-span-1 bg-white border border-gray-200 rounded-3xl p-6 sm:p-8 shadow-sm relative lg:sticky lg:top-24 z-20">
           <h2 className="text-xl font-black text-emerald-950 mb-2">Weekly Challenge</h2>
           <p className="text-xs text-gray-500 mb-6">Submit your best campus or excursion capture for the community to vote on!</p>
 
@@ -338,7 +338,7 @@ export default function NatureSnapsPage() {
               {uploadForm.imageUrl ? (
                 <div className="relative w-full aspect-square rounded-xl overflow-hidden shadow-sm group">
                   <img src={uploadForm.imageUrl} alt="Upload Preview" className="w-full h-full object-cover" />
-                  <button type="button" onClick={() => setUploadForm({ ...uploadForm, imageUrl: "" })} className="absolute top-2 right-2 bg-rose-500 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition shadow-md z-10">
+                  <button type="button" onClick={() => setUploadForm({ ...uploadForm, imageUrl: "" })} className="absolute top-2 right-2 bg-rose-500 text-white rounded-full p-1.5 sm:opacity-0 group-hover:opacity-100 transition shadow-md z-10">
                     <X className="h-4 w-4" />
                   </button>
                 </div>
@@ -379,39 +379,38 @@ export default function NatureSnapsPage() {
 
         {/* Right Side: Community Feed */}
         <div className="lg:col-span-2 space-y-6">
-          <h2 className="text-2xl font-black text-emerald-950 flex items-center gap-2">
+          <h2 className="text-xl sm:text-2xl font-black text-emerald-950 flex items-center gap-2">
             Community Submissions
           </h2>
 
           {communitySnaps.length === 0 ? (
             <div className="text-center py-16 bg-white rounded-3xl border border-gray-100">
               <Camera className="h-10 w-10 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-500 font-medium">No snaps submitted this week yet. Be the first!</p>
+              <p className="text-gray-500 font-medium text-sm sm:text-base">No snaps submitted this week yet. Be the first!</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
               {communitySnaps.map((snap) => {
                 const hasLiked = snap.likes.includes(user?.id);
                 const hasDisliked = snap.dislikes.includes(user?.id);
-                const isOwner = user?.id === snap.clerkId; // Identify if the current user uploaded this snap
+                const isOwner = user?.id === snap.clerkId; 
 
                 return (
                   <div key={snap._id} className="bg-white border border-gray-200 rounded-3xl overflow-hidden shadow-sm flex flex-col">
-                    <div className="p-4 flex items-center gap-3 border-b border-gray-50">
+                    <div className="p-3 sm:p-4 flex items-center gap-3 border-b border-gray-50">
                       <img src={snap.userProfilePic || "https://i.postimg.cc/qB9gLwmz/Whats-App-Image-2026-09-03-at-09-49-04.jpg"} alt="Profile" className="h-8 w-8 rounded-full object-cover border border-gray-200" />
                       <div className="flex-1 min-w-0">
-                        <h4 className="text-sm font-bold text-gray-900 truncate">{snap.fullName}</h4>
+                        <h4 className="text-xs sm:text-sm font-bold text-gray-900 truncate">{snap.fullName}</h4>
                         <p className="text-[10px] text-gray-400">{new Date(snap.createdAt).toLocaleDateString()}</p>
                       </div>
                       
-                      {/* NEW: Conditional Delete Button for the Owner */}
                       {isOwner && (
                         <button 
                           onClick={() => handleDeleteOwnSnap(snap._id)}
-                          className="p-2 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-full transition"
+                          className="p-1.5 sm:p-2 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-full transition"
                           title="Delete my photo"
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 className="h-3.5 sm:h-4 w-3.5 sm:w-4" />
                         </button>
                       )}
                     </div>
@@ -422,25 +421,25 @@ export default function NatureSnapsPage() {
                     >
                       <img src={snap.imageUrl} alt="Community Snap" className="w-full h-full object-cover" />
                       <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
-                        <ZoomIn className="text-white h-8 w-8" />
+                        <ZoomIn className="text-white h-6 w-6 sm:h-8 sm:w-8" />
                       </div>
                     </div>
 
-                    <div className="p-4 flex flex-col flex-grow">
-                      <p className="text-sm text-gray-700 mb-4 line-clamp-2">{snap.caption}</p>
+                    <div className="p-3 sm:p-4 flex flex-col flex-grow">
+                      <p className="text-xs sm:text-sm text-gray-700 mb-4 line-clamp-2 break-words">{snap.caption}</p>
                       
-                      <div className="flex items-center gap-3 mt-auto pt-2 border-t border-gray-50">
+                      <div className="flex items-center gap-2 sm:gap-3 mt-auto pt-2 border-t border-gray-50">
                         <button 
                           onClick={() => handleInteraction(snap._id, "like")}
-                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition ${hasLiked ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-50 text-gray-600 hover:bg-emerald-50'}`}
+                          className={`flex items-center justify-center flex-1 sm:flex-none gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition ${hasLiked ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-50 text-gray-600 hover:bg-emerald-50'}`}
                         >
-                          <ThumbsUp className={`h-4 w-4 ${hasLiked ? 'fill-emerald-600' : ''}`} /> {snap.likes.length}
+                          <ThumbsUp className={`h-3.5 sm:h-4 w-3.5 sm:w-4 ${hasLiked ? 'fill-emerald-600' : ''}`} /> {snap.likes.length}
                         </button>
                         <button 
                           onClick={() => handleInteraction(snap._id, "dislike")}
-                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition ${hasDisliked ? 'bg-rose-100 text-rose-700' : 'bg-gray-50 text-gray-600 hover:bg-rose-50'}`}
+                          className={`flex items-center justify-center flex-1 sm:flex-none gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition ${hasDisliked ? 'bg-rose-100 text-rose-700' : 'bg-gray-50 text-gray-600 hover:bg-rose-50'}`}
                         >
-                          <ThumbsDown className={`h-4 w-4 ${hasDisliked ? 'fill-rose-600' : ''}`} /> {snap.dislikes.length}
+                          <ThumbsDown className={`h-3.5 sm:h-4 w-3.5 sm:w-4 ${hasDisliked ? 'fill-rose-600' : ''}`} /> {snap.dislikes.length}
                         </button>
                       </div>
                     </div>
@@ -460,32 +459,32 @@ export default function NatureSnapsPage() {
         >
           <div 
             onClick={(e) => e.stopPropagation()}
-            className="relative bg-emerald-950 border border-emerald-900/60 rounded-3xl overflow-hidden max-w-4xl w-full text-white shadow-2xl"
+            className="relative bg-emerald-950 border border-emerald-900/60 rounded-2xl sm:rounded-3xl overflow-hidden max-w-4xl w-full text-white shadow-2xl flex flex-col"
           >
             <button 
               onClick={() => setPreviewSnap(null)}
-              className="absolute top-4 right-4 z-10 p-2 bg-black/60 hover:bg-black/90 text-white rounded-full transition"
+              className="absolute top-3 right-3 sm:top-4 sm:right-4 z-10 p-1.5 sm:p-2 bg-black/60 hover:bg-black/90 text-white rounded-full transition"
             >
-              <X className="h-5 w-5" />
+              <X className="h-4 w-4 sm:h-5 sm:w-5" />
             </button>
 
-            <div className="max-h-[75vh] w-full bg-black flex items-center justify-center overflow-hidden">
+            <div className="max-h-[60vh] sm:max-h-[75vh] w-full bg-black flex items-center justify-center overflow-hidden">
               <img 
                 src={previewSnap.imageUrl} 
                 alt={previewSnap.title} 
-                className="w-full h-full max-h-[75vh] object-contain" 
+                className="w-full h-full max-h-[60vh] sm:max-h-[75vh] object-contain" 
               />
             </div>
 
-            <div className="p-6 sm:p-8 space-y-2 bg-gradient-to-b from-emerald-950 to-slate-950">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xl sm:text-2xl font-black">{previewSnap.title}</h3>
-                <span className="text-xs font-bold text-emerald-400 bg-emerald-900/60 border border-emerald-800 px-3 py-1 rounded-full">
+            <div className="p-4 sm:p-6 lg:p-8 space-y-2 bg-gradient-to-b from-emerald-950 to-slate-950">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <h3 className="text-lg sm:text-xl md:text-2xl font-black">{previewSnap.title}</h3>
+                <span className="text-[10px] sm:text-xs font-bold text-emerald-400 bg-emerald-900/60 border border-emerald-800 px-3 py-1 rounded-full self-start sm:self-auto">
                   Captured by {previewSnap.photographer}
                 </span>
               </div>
               {previewSnap.description && (
-                <p className="text-sm text-gray-300 leading-relaxed pt-1">
+                <p className="text-xs sm:text-sm text-gray-300 leading-relaxed pt-1 break-words">
                   {previewSnap.description}
                 </p>
               )}
