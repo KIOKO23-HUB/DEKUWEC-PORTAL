@@ -18,7 +18,9 @@ import {
   ChevronRight,
   Smartphone,
   CreditCard,
-  AlertCircle
+  AlertCircle,
+  Heart,
+  MessageSquare
 } from "lucide-react";
 
 // Initial fallbacks so the UI remains complete while loading or if DB is empty
@@ -32,7 +34,10 @@ const FALLBACK_UPCOMING = [
     description: "Join our student expedition to restore native highland biodiversity. We will be planting indigenous seedlings and exploring the Karuru and Magura waterfalls trails.",
     imageUrl: "https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?q=80&w=1000&auto=format&fit=crop",
     status: "Registration Open",
-    category: "upcoming"
+    category: "upcoming",
+    isFree: false,
+    likes: [],
+    comments: []
   },
 ];
 
@@ -44,7 +49,9 @@ const FALLBACK_PREVIOUS = [
     description: "Our community give-back initiative where DEKUWEC members donated clothes, foodstuff, and spent the day interacting with the kids.",
     imageUrl: "https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?q=80&w=1000&auto=format&fit=crop",
     galleryLink: "https://photos.google.com",
-    category: "previous"
+    category: "previous",
+    likes: [],
+    comments: []
   },
   {
     _id: "default_prev_2",
@@ -53,7 +60,9 @@ const FALLBACK_PREVIOUS = [
     description: "A fantastic day of outdoor activities, board games, colorfest, and team-building in partnership with AYLF.",
     imageUrl: "https://images.unsplash.com/photo-1526976663112-0058b76c8cb9?q=80&w=1000&auto=format&fit=crop",
     galleryLink: "https://photos.google.com",
-    category: "previous"
+    category: "previous",
+    likes: [],
+    comments: []
   }
 ];
 
@@ -63,7 +72,9 @@ const FALLBACK_PROJECTS = [
     title: "Campus Tree Nursery Establishment",
     description: "A continuous club initiative to cultivate indigenous tree seedlings for future conservation drives and community distribution.",
     imageUrl: "https://images.unsplash.com/photo-1466692476868-aef1dfb1e735?q=80&w=1000&auto=format&fit=crop",
-    category: "project"
+    category: "project",
+    likes: [],
+    comments: []
   }
 ];
 
@@ -101,13 +112,13 @@ const EventMediaCarousel = ({ event, fallbackImage }: { event: any, fallbackImag
   }, [currentIndex, allMedia.length, allMedia]);
 
   if (allMedia.length === 0) {
-    return <img src={fallbackImage} alt="Event Cover" className="w-full h-full object-contain bg-emerald-50" />;
+    return <img src={fallbackImage} alt="Event Cover" className="w-full h-full object-cover bg-emerald-50" />;
   }
 
   const currentMedia = allMedia[currentIndex];
 
   return (
-    <div className="relative w-full h-full bg-emerald-50/50 flex items-center justify-center group overflow-hidden">
+    <div className="relative w-full h-full bg-black/90 flex items-center justify-center group overflow-hidden">
       {currentMedia.type === 'video' ? (
         <video 
           key={currentMedia.url}
@@ -117,13 +128,13 @@ const EventMediaCarousel = ({ event, fallbackImage }: { event: any, fallbackImag
           controls 
           playsInline 
           onEnded={handleNext} 
-          className="w-full h-full object-contain" 
+          className="w-full h-full object-cover" 
         />
       ) : (
         <img 
           src={currentMedia.url} 
           alt="Event Media" 
-          className="w-full h-full object-contain" 
+          className="w-full h-full object-cover transition-transform duration-700 hover:scale-105" 
         />
       )}
 
@@ -131,25 +142,135 @@ const EventMediaCarousel = ({ event, fallbackImage }: { event: any, fallbackImag
         <>
           <button 
             onClick={(e) => { e.preventDefault(); handlePrev(); }}
-            className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/70 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition z-10"
+            className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/80 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition z-10 backdrop-blur-sm"
           >
             <ChevronLeft className="h-5 w-5" />
           </button>
           <button 
             onClick={(e) => { e.preventDefault(); handleNext(); }}
-            className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/70 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition z-10"
+            className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/80 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition z-10 backdrop-blur-sm"
           >
             <ChevronRight className="h-5 w-5" />
           </button>
-          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
+          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 z-10 bg-black/30 px-3 py-1.5 rounded-full backdrop-blur-md">
             {allMedia.map((_, idx) => (
               <div 
                 key={idx} 
-                className={`h-1.5 rounded-full transition-all duration-300 ${idx === currentIndex ? 'w-4 bg-emerald-500' : 'w-1.5 bg-white/50'}`} 
+                className={`h-1.5 rounded-full transition-all duration-300 ${idx === currentIndex ? 'w-5 bg-emerald-400' : 'w-2 bg-white/60'}`} 
               />
             ))}
           </div>
         </>
+      )}
+    </div>
+  );
+};
+
+// --- Interactive Likes & Comments Component ---
+const EventInteractions = ({ eventId, initialLikes = [], initialComments = [], user }: any) => {
+  const [likes, setLikes] = useState(initialLikes.length || 0);
+  const [isLiked, setIsLiked] = useState(user ? initialLikes.includes(user.id) : false);
+  const [showComments, setShowComments] = useState(false);
+  const [comments, setComments] = useState(initialComments || []);
+  const [newComment, setNewComment] = useState("");
+  const [isPosting, setIsPosting] = useState(false);
+
+  const handleLike = async () => {
+    if (!user) return alert("Please sign in to like posts.");
+    setIsLiked(!isLiked);
+    setLikes((prev: number) => isLiked ? prev - 1 : prev + 1);
+    
+    try {
+      await fetch(`/api/events/${eventId}/like`, { 
+        method: "POST", 
+        body: JSON.stringify({ userId: user.id }),
+        headers: { "Content-Type": "application/json" }
+      });
+    } catch (error) {
+      console.error("Failed to toggle like");
+    }
+  };
+
+  const handlePostComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !newComment.trim()) return;
+    
+    setIsPosting(true);
+    const commentObj = {
+      id: Date.now().toString(),
+      userName: user.fullName || "Member",
+      userImage: user.imageUrl,
+      text: newComment,
+      date: new Date().toLocaleDateString()
+    };
+    
+    setComments([...comments, commentObj]);
+    setNewComment("");
+
+    try {
+      await fetch(`/api/events/${eventId}/comment`, {
+        method: "POST",
+        body: JSON.stringify(commentObj),
+        headers: { "Content-Type": "application/json" }
+      });
+    } catch (error) {
+      console.error("Failed to post comment");
+    } finally {
+      setIsPosting(false);
+    }
+  };
+
+  return (
+    <div className="mt-5 border-t border-gray-100 pt-4 w-full">
+      <div className="flex items-center gap-6 mb-4">
+        <button onClick={handleLike} className={`flex items-center gap-2 font-bold text-sm transition ${isLiked ? 'text-rose-500' : 'text-gray-500 hover:text-rose-500'}`}>
+          <Heart className={`h-5 w-5 ${isLiked ? 'fill-current' : ''}`} />
+          <span>{likes} {likes === 1 ? 'Like' : 'Likes'}</span>
+        </button>
+        <button onClick={() => setShowComments(!showComments)} className="flex items-center gap-2 font-bold text-sm text-gray-500 hover:text-emerald-600 transition">
+          <MessageSquare className="h-5 w-5" />
+          <span>{comments.length} Comments</span>
+        </button>
+      </div>
+
+      {showComments && (
+        <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="max-h-48 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
+            {comments.length === 0 ? (
+              <p className="text-xs text-gray-400 text-center italic py-2">No comments yet. Be the first!</p>
+            ) : (
+              comments.map((c: any) => (
+                <div key={c.id} className="bg-gray-50 p-3 rounded-2xl flex gap-3">
+                  <img src={c.userImage || `https://ui-avatars.com/api/?name=${c.userName}`} alt="User" className="w-8 h-8 rounded-full" />
+                  <div>
+                    <div className="flex items-baseline gap-2">
+                      <span className="font-bold text-sm text-gray-900">{c.userName}</span>
+                      <span className="text-[10px] text-gray-400">{c.date}</span>
+                    </div>
+                    <p className="text-sm text-gray-700 mt-0.5 leading-snug">{c.text}</p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+          
+          {user ? (
+            <form onSubmit={handlePostComment} className="flex gap-2">
+              <input 
+                type="text" 
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
+                placeholder="Write a comment..." 
+                className="flex-1 bg-gray-100 border-none px-4 py-2.5 rounded-full text-sm outline-none focus:ring-2 focus:ring-emerald-500 transition"
+              />
+              <button disabled={!newComment.trim() || isPosting} type="submit" className="bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-300 text-white p-2.5 rounded-full transition">
+                {isPosting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              </button>
+            </form>
+          ) : (
+            <p className="text-xs text-center text-gray-500 bg-gray-50 py-2 rounded-xl">Please sign in to join the conversation.</p>
+          )}
+        </div>
       )}
     </div>
   );
@@ -172,7 +293,7 @@ export default function EventsPage() {
   const [paymentPhone, setPaymentPhone] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // NEW: Dynamic Array Fee Configuration State (Admin can set 1, 2, or more tiers)
+  // Dynamic Array Fee Configuration State
   const [paymentOptions, setPaymentOptions] = useState([
     { id: "member", label: "Registered Club Member", amount: 650 },
     { id: "first_year", label: "First Year Student", amount: 650 },
@@ -190,7 +311,6 @@ export default function EventsPage() {
           setEvents(data.events);
         }
 
-        // Fetch User Registrations to check payment states
         if (user) {
           const userActivity = await fetch(`/api/account/activity?clerkId=${user.id}`);
           const actData = await userActivity.json();
@@ -206,19 +326,15 @@ export default function EventsPage() {
         console.error("Failed to load events data:", err);
       }
 
-      // Fetch dynamic fee structures set by Admin
       try {
         const feeRes = await fetch("/api/admin/fees");
         if (feeRes.ok) {
           const feeData = await feeRes.json();
-          // If admin has defined dynamic tiers array (e.g. 1 flat fee, 4 tiers, etc)
           if (feeData && feeData.eventTiers && Array.isArray(feeData.eventTiers) && feeData.eventTiers.length > 0) {
             setPaymentOptions(feeData.eventTiers);
             setSelectedTier(feeData.eventTiers[0].id);
             setSelectedAmount(feeData.eventTiers[0].amount);
-          } 
-          // Legacy Fallback to existing config if array doesn't exist yet
-          else if (feeData && feeData.eventMember) {
+          } else if (feeData && feeData.eventMember) {
             const legacyOptions = [
               { id: "member", label: "Registered Club Member", amount: feeData.eventMember },
               { id: "first_year", label: "First Year Student", amount: feeData.eventMember },
@@ -247,7 +363,6 @@ export default function EventsPage() {
     }
   }, [user]);
 
-  // Adjust amount dynamically based on selected array tier
   const handleTierChange = (tierId: string) => {
     setSelectedTier(tierId);
     const selectedOption = paymentOptions.find(opt => opt.id === tierId);
@@ -271,14 +386,14 @@ export default function EventsPage() {
     setModalStep("form");
   };
 
-  // Step 1: Submit Event Application Form
   const handleSubmitApplication = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeModalEvent || !user) return;
     setIsSubmitting(true);
 
     try {
-      const isFreeEvent = activeModalEvent.isFree || false;
+      // Check if event is strictly free
+      const isFreeEvent = activeModalEvent.isFree === true;
 
       const res = await fetch("/api/admin/registrations", {
         method: "POST",
@@ -297,14 +412,14 @@ export default function EventsPage() {
       });
 
       if (res.ok) {
-        setPaymentPhone(formData.phone); // Copy the phone used in application
+        setPaymentPhone(formData.phone); 
         if (isFreeEvent) {
           setUserRsvpStatus(prev => ({ ...prev, [activeModalEvent.title]: "Paid" }));
           setModalStep("success");
           setTimeout(() => handleCloseModal(), 2000);
         } else {
           setUserRsvpStatus(prev => ({ ...prev, [activeModalEvent.title]: "Not Yet Paid" }));
-          setModalStep("ask_pay"); // Ask if they want to pay now
+          setModalStep("ask_pay");
         }
       } else {
         const errData = await res.json().catch(() => ({}));
@@ -317,11 +432,10 @@ export default function EventsPage() {
     }
   };
 
-  // Trigger M-Pesa Prompt (MAINTENANCE MODE)
   const handleInitiatePayment = async (e: React.FormEvent) => {
     e.preventDefault();
     alert("Payment system is currently under maintenance. Please try again later.");
-    setModalStep("ask_pay"); // Route them back to the options
+    setModalStep("ask_pay");
   };
 
   if (!isLoaded) return null;
@@ -364,13 +478,14 @@ export default function EventsPage() {
             <div className="grid grid-cols-1 gap-6">
               {upcomingEvents.map((event) => {
                 const status = userRsvpStatus[event.title];
+                const isFree = event.isFree === true;
 
                 return (
                   <div key={event._id} className="flex flex-col md:flex-row bg-white border border-gray-200 rounded-3xl overflow-hidden shadow-sm hover:shadow-md transition">
                     <div className="md:w-2/5 h-64 md:h-auto relative bg-gray-100">
                       <EventMediaCarousel event={event} fallbackImage="https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?q=80&w=1000" />
                       <div className="absolute top-4 left-4 bg-emerald-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-md z-20">
-                        {event.status || "Registration Open"}
+                        {isFree ? "Free Event" : (event.status || "Registration Open")}
                       </div>
                     </div>
                     
@@ -398,9 +513,9 @@ export default function EventsPage() {
                       <div>
                         {status === "Paid" ? (
                           <div className="inline-flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-200 px-6 py-3 rounded-xl text-sm font-bold">
-                            <CheckCircle className="h-5 w-5" /> Secured & Paid
+                            <CheckCircle className="h-5 w-5" /> Secured {isFree ? "" : "& Paid"}
                           </div>
-                        ) : status === "Not Yet Paid" ? (
+                        ) : status === "Not Yet Paid" && !isFree ? (
                           <div className="flex flex-col gap-3">
                             <div className="flex flex-wrap items-center gap-3">
                               <span className="inline-flex items-center gap-1.5 bg-amber-50 text-amber-800 border border-amber-200 px-4 py-2.5 rounded-xl text-xs font-bold">
@@ -413,8 +528,6 @@ export default function EventsPage() {
                                 Complete Payment
                               </button>
                             </div>
-                            
-                            {/* FALLBACK/RETRY PAYMENT BUTTON ADDED HERE */}
                             <button 
                               onClick={() => handleOpenModal(event, true)}
                               className="text-xs text-gray-500 hover:text-emerald-700 font-bold transition text-left flex items-center gap-1.5 w-max ml-1"
@@ -427,10 +540,13 @@ export default function EventsPage() {
                             onClick={() => handleOpenModal(event, false)}
                             className="bg-emerald-900 hover:bg-emerald-800 text-white px-6 py-3 rounded-xl text-sm font-bold transition shadow-sm w-full sm:w-auto"
                           >
-                            Apply for Event
+                            {isFree ? "Register for Free" : "Apply for Event"}
                           </button>
                         )}
                       </div>
+
+                      {/* LIKES AND COMMENTS */}
+                      <EventInteractions eventId={event._id} initialLikes={event.likes} initialComments={event.comments} user={user} />
                     </div>
                   </div>
                 );
@@ -462,13 +578,18 @@ export default function EventsPage() {
                       href={event.galleryLink} 
                       target="_blank" 
                       rel="noopener noreferrer" 
-                      className="inline-flex items-center justify-center gap-2 w-full py-3 rounded-xl border-2 border-emerald-100 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs transition mt-auto"
+                      className="inline-flex items-center justify-center gap-2 w-full py-3 rounded-xl border-2 border-emerald-100 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs transition mb-4"
                     >
                       <ImageIcon className="h-4 w-4" />
                       <span>View Google Photos Gallery</span>
                       <ExternalLink className="h-3 w-3 ml-1" />
                     </a>
                   )}
+
+                  {/* LIKES AND COMMENTS */}
+                  <div className="mt-auto">
+                    <EventInteractions eventId={event._id} initialLikes={event.likes} initialComments={event.comments} user={user} />
+                  </div>
                 </div>
               ))}
             </div>
@@ -500,6 +621,11 @@ export default function EventsPage() {
                       <p className="text-sm text-emerald-100/80 leading-relaxed whitespace-pre-wrap">
                         {project.description}
                       </p>
+
+                      {/* LIKES AND COMMENTS FOR PROJECTS (Dark Theme) */}
+                      <div className="mt-4">
+                        <EventInteractions eventId={project._id} initialLikes={project.likes} initialComments={project.comments} user={user} />
+                      </div>
                     </div>
                   </div>
                 ))}

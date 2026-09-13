@@ -1,14 +1,37 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useUser } from "@clerk/nextjs"; // NEW: To capture exactly who is logging into the admin panel
 import { 
   Users, Calendar, Megaphone, MessageSquare, CreditCard, 
   CheckCircle, ShieldCheck, Image as ImageIcon, Link as LinkIcon, 
   Send, List, Camera, Radio, Crown, Loader2, RefreshCw,
   Edit2, Trash2, X, Lock, KeyRound, Check, AlertCircle, Menu,
   UploadCloud, Phone, Video, Download, Award, ThumbsUp, ThumbsDown,
-  Wallet 
+  Wallet, Clock
 } from "lucide-react";
+
+// --- HELPER: Admin Active Time Formatter ---
+function formatActiveStatus(lastActiveDate: string) {
+  if (!lastActiveDate) return { text: "Never logged in", status: "offline" };
+  const now = new Date();
+  const past = new Date(lastActiveDate);
+  const diffMs = now.getTime() - past.getTime();
+  const diffMins = Math.max(0, Math.floor(diffMs / 60000));
+
+  if (diffMins < 5) return { text: "Active Now", status: "online" };
+  if (diffMins < 60) return { text: `Active ${diffMins} minutes ago`, status: "away" };
+  
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return { text: `Active ${diffHours} ${diffHours === 1 ? 'hour' : 'hours'} ago`, status: "offline" };
+  
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays === 1) return { text: `Active Yesterday`, status: "offline" };
+  if (diffDays <= 30) return { text: `Active ${diffDays} days ago`, status: "offline" };
+  
+  const diffMonths = Math.floor(diffDays / 30);
+  return { text: `Active ${diffMonths} ${diffMonths === 1 ? 'month' : 'months'} ago`, status: "offline" };
+}
 
 const DEFAULT_LEADERS = [
   { name: "Curtis Kioko", role: "Chairperson", phone: "0758638953", bio: "", imageUrl: "", order: 1 },
@@ -24,6 +47,8 @@ const DEFAULT_LEADERS = [
 ];
 
 export default function DekuwecAdminDashboard() {
+  const { user, isLoaded } = useUser(); // Identify the admin
+
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [passcode, setPasscode] = useState("");
   const [authError, setAuthError] = useState("");
@@ -46,8 +71,8 @@ export default function DekuwecAdminDashboard() {
   const [communitySnaps, setCommunitySnaps] = useState<any[]>([]);
   const [leaders, setLeaders] = useState<any[]>([]);
   const [feedbacks, setFeedbacks] = useState<any[]>([]);
+  const [adminLogs, setAdminLogs] = useState<any[]>([]);
   
-  // NEW: Payments & Fee Configurations State
   const [payments, setPayments] = useState<any[]>([]);
   const [feeConfig, setFeeConfig] = useState({ member: 200, wckUnder23: 100, wckOver23: 230, eventMember: 650, eventNonMember: 750 });
 
@@ -57,13 +82,27 @@ export default function DekuwecAdminDashboard() {
   const [editingLeaderId, setEditingLeaderId] = useState<string | null>(null);
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
 
-  // Feedback Reply State
   const [replyingToId, setReplyingToId] = useState<string | null>(null);
   const [replyMessage, setReplyMessage] = useState("");
   const [isReplying, setIsReplying] = useState(false);
 
   const [broadcastData, setBroadcastData] = useState({ title: "", message: "", imageUrl: "", link: "" });
-  const [eventForm, setEventForm] = useState({ title: "", category: "upcoming", date: "", time: "", location: "", imageUrl: "", galleryLink: "", description: "", media: [] as any[] });
+  
+  // UPDATED EVENT FORM STATE TO INCLUDE ISFREE AND TICKETPRICE
+  const [eventForm, setEventForm] = useState({ 
+    title: "", 
+    category: "upcoming", 
+    date: "", 
+    time: "", 
+    location: "", 
+    imageUrl: "", 
+    galleryLink: "", 
+    description: "", 
+    media: [] as any[],
+    isFree: false,
+    ticketPrice: ""
+  });
+  
   const [ecoType, setEcoType] = useState<"topic" | "quiz">("topic");
   const [ecoArticleForm, setEcoArticleForm] = useState({ title: "", category: "Conservation", imageUrl: "", link: "", content: "" });
   const [ecoQuizForm, setEcoQuizForm] = useState({ question: "", optionA: "", optionB: "", optionC: "", optionD: "", correctAnswer: "A", explanation: "" });
@@ -73,60 +112,79 @@ export default function DekuwecAdminDashboard() {
 
   const [uploadingMedia, setUploadingMedia] = useState(false);
 
-  // Secure Cloudinary Uploader for Single Images (forces secure_url)
+  // Cloudinary Uploader
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, formSetter: React.Dispatch<React.SetStateAction<any>>, fieldName: string) => {
     const file = e.target.files?.[0];
     if (!file) return;
     
     setUploadingMedia(true);
     try {
+      const signRes = await fetch("/api/upload", { method: "GET" });
+      if (!signRes.ok) throw new Error("Failed to authenticate upload.");
+      const signData = await signRes.json();
+
       const formData = new FormData();
       formData.append("file", file);
-      const res = await fetch("/api/upload", { method: "POST", body: formData });
-      if (res.ok) {
-        const data = await res.json();
-        // Support the new array response structure from the updated API
-        const secureImageUrl = data.results?.[0]?.url || data.secure_url || data.url;
-        formSetter((prev: any) => ({ ...prev, [fieldName]: secureImageUrl }));
+      formData.append("api_key", signData.apiKey);
+      formData.append("timestamp", signData.timestamp);
+      formData.append("signature", signData.signature);
+      formData.append("folder", "dekuwec_portal");
+
+      const uploadRes = await fetch(`https://api.cloudinary.com/v1_1/${signData.cloudName}/auto/upload`, {
+        method: "POST",
+        body: formData
+      });
+
+      if (uploadRes.ok) {
+        const data = await uploadRes.json();
+        formSetter((prev: any) => ({ ...prev, [fieldName]: data.secure_url }));
       } else {
-        const err = await res.json().catch(()=>({}));
-        alert(`Image upload failed: ${err.error || res.statusText}`);
+        alert("Image upload rejected by Cloudinary.");
       }
     } catch (err) {
-      alert("Error uploading image. Check Cloudinary settings.");
+      alert("Error bypassing server for direct upload.");
     } finally {
       setUploadingMedia(false);
       e.target.value = ""; 
     }
   };
 
-  // Cloudinary Uploader for Multiple Videos and Images (Events Gallery)
   const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
     
     setUploadingMedia(true);
     try {
-      const formData = new FormData();
-      // Append all selected files to the same payload to be processed in parallel
-      files.forEach((file) => formData.append("file", file));
+      const signRes = await fetch("/api/upload", { method: "GET" });
+      if (!signRes.ok) throw new Error("Failed to authenticate upload.");
+      const signData = await signRes.json();
 
-      const res = await fetch("/api/upload", { method: "POST", body: formData });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.results) {
-          const mappedMedia = data.results.map((item: any) => ({
-            url: item.url,
-            type: item.resource_type
-          }));
-          setEventForm(prev => ({ ...prev, media: [...(prev.media || []), ...mappedMedia] }));
+      const uploadedMedia: any[] = [];
+
+      for (const file of files) {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("api_key", signData.apiKey);
+        formData.append("timestamp", signData.timestamp);
+        formData.append("signature", signData.signature);
+        formData.append("folder", "dekuwec_portal");
+
+        const uploadRes = await fetch(`https://api.cloudinary.com/v1_1/${signData.cloudName}/auto/upload`, {
+          method: "POST",
+          body: formData
+        });
+
+        if (uploadRes.ok) {
+          const data = await uploadRes.json();
+          uploadedMedia.push({ url: data.secure_url, type: data.resource_type });
+        } else {
+          console.error("Failed to upload a file directly.");
         }
-      } else {
-        const err = await res.json().catch(()=>({}));
-        alert(`Media upload failed: ${err.error || res.statusText}`);
       }
+
+      setEventForm(prev => ({ ...prev, media: [...(prev.media || []), ...uploadedMedia] }));
     } catch (err) {
-      alert("Media upload failed. Ensure Cloudinary keys are configured in .env.local");
+      alert("Media upload failed. Ensure Cloudinary keys are configured.");
     } finally {
       setUploadingMedia(false);
       e.target.value = "";
@@ -142,6 +200,22 @@ export default function DekuwecAdminDashboard() {
       setLoading(false);
     }
   }, []);
+
+  // NEW: Background Ping - Silently updates the database to show you are "Active Now"
+  useEffect(() => {
+    if (isAuthenticated && isLoaded && user) {
+      fetch("/api/admin/verify-key", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          action: "ping",
+          clerkId: user.id,
+          name: user.fullName || "Executive Admin",
+          email: user.primaryEmailAddress?.emailAddress || ""
+        })
+      });
+    }
+  }, [isAuthenticated, isLoaded, user]);
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -160,7 +234,12 @@ export default function DekuwecAdminDashboard() {
       const res = await fetch("/api/admin/verify-key", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key: passcode }),
+        body: JSON.stringify({ 
+          key: passcode,
+          clerkId: user?.id,
+          name: user?.fullName || "Executive Admin",
+          email: user?.primaryEmailAddress?.emailAddress || ""
+        }),
       });
 
       if (res.ok) {
@@ -193,13 +272,13 @@ export default function DekuwecAdminDashboard() {
         setCommunitySnaps(data.communitySnaps || []);
         setLeaders(data.leaders || []);
         setFeedbacks(data.feedbacks || []);
+        setAdminLogs(data.adminLogs || []); // Load live tracking data
       }
 
       const commRes = await fetch("/api/community-snaps");
       const commData = await commRes.json();
       if (commRes.ok) setCommunitySnaps(commData.snaps || []);
 
-      // NEW: Fetch all recorded payments securely
       const payRes = await fetch("/api/admin/payments").catch(()=>null);
       if (payRes && payRes.ok) {
         const payData = await payRes.json();
@@ -324,7 +403,13 @@ export default function DekuwecAdminDashboard() {
     try {
       const isNew = !editingEventId;
       const method = isNew ? "POST" : "PUT";
-      const payload = isNew ? eventForm : { id: editingEventId, ...eventForm };
+      
+      const payloadData = { 
+        ...eventForm,
+        ticketPrice: Number(eventForm.ticketPrice) || 0
+      };
+      
+      const payload = isNew ? payloadData : { id: editingEventId, ...payloadData };
 
       const res = await fetch("/api/admin/events", {
         method,
@@ -336,7 +421,7 @@ export default function DekuwecAdminDashboard() {
         if (isNew) triggerAutoNotification(`New Event: ${eventForm.title}`, `A new event has been scheduled for ${eventForm.date}. Tap to view details.`, "/dashboard/events");
         alert(isNew ? "New event published & Notification sent!" : "Event updated successfully!");
         setEditingEventId(null);
-        setEventForm({ title: "", category: "upcoming", date: "", time: "", location: "", imageUrl: "", galleryLink: "", description: "", media: [] });
+        setEventForm({ title: "", category: "upcoming", date: "", time: "", location: "", imageUrl: "", galleryLink: "", description: "", media: [], isFree: false, ticketPrice: "" });
         fetchAllAdminData();
       } else {
         const errData = await res.json().catch(()=>({}));
@@ -360,7 +445,9 @@ export default function DekuwecAdminDashboard() {
       imageUrl: evt.imageUrl || "", 
       galleryLink: evt.galleryLink || "", 
       description: evt.description,
-      media: evt.media || [] 
+      media: evt.media || [],
+      isFree: evt.isFree || false,
+      ticketPrice: evt.ticketPrice || ""
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -715,6 +802,7 @@ export default function DekuwecAdminDashboard() {
             { id: "leaders", icon: Crown, label: `Leaders (${leaders.length})` },
             { id: "broadcast", icon: Megaphone, label: "Broadcasts" },
             { id: "feedback", icon: MessageSquare, label: `Feedback (${feedbacks.length})` },
+            { id: "admins", icon: ShieldCheck, label: "Admin Logs" },
           ].map((tab) => (
             <button key={tab.id} onClick={() => { setActiveTab(tab.id); setIsMobileMenuOpen(false); }} className={`flex items-center gap-3 px-4 py-3 md:py-2.5 rounded-xl transition-all font-bold text-sm md:text-xs w-full ${activeTab === tab.id ? "bg-emerald-600 text-white shadow-md" : "text-emerald-300 hover:bg-emerald-900/50 hover:text-white"}`}>
               <tab.icon className="h-5 w-5 md:h-4 md:w-4 shrink-0" />
@@ -907,7 +995,7 @@ export default function DekuwecAdminDashboard() {
             </div>
           )}
 
-          {/* NEW: PAYMENTS TAB */}
+          {/* 4. PAYMENTS TAB */}
           {activeTab === "payments" && (
             <div className="space-y-8 animate-in fade-in">
               <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100">
@@ -921,29 +1009,29 @@ export default function DekuwecAdminDashboard() {
                 </div>
                 <p className="text-sm text-gray-500 mb-6">Track all confirmed M-Pesa transactions across Events, WCK Cards, and Memberships. System automatically syncs with Safaricom Daraja API.</p>
 
-                {/* Payment Configuration (Allows Admin to Regulate Amounts) */}
+                {/* Payment Configuration */}
                 <div className="mb-8 p-6 bg-emerald-50 border border-emerald-200 rounded-2xl">
                   <h3 className="text-lg font-bold text-emerald-900 mb-4">Regulate Default Payment Fees (KES)</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-xs font-bold text-emerald-800 mb-1">Standard Membership</label>
-                      <input type="number" value={feeConfig.member} onChange={e => setFeeConfig({...feeConfig, member: Number(e.target.value)})} className="w-full px-3 py-2 rounded-lg border border-emerald-200 text-sm outline-none focus:border-emerald-500" />
+                      <input type="number" value={feeConfig.member} onChange={e => setFeeConfig({...feeConfig, member: Number(e.target.value)})} className="w-full px-3 py-2 rounded-lg border border-emerald-200 text-sm outline-none focus:border-emerald-500 bg-white" />
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-emerald-800 mb-1">Event: Member Rate</label>
-                      <input type="number" value={feeConfig.eventMember} onChange={e => setFeeConfig({...feeConfig, eventMember: Number(e.target.value)})} className="w-full px-3 py-2 rounded-lg border border-emerald-200 text-sm outline-none focus:border-emerald-500" />
+                      <input type="number" value={feeConfig.eventMember} onChange={e => setFeeConfig({...feeConfig, eventMember: Number(e.target.value)})} className="w-full px-3 py-2 rounded-lg border border-emerald-200 text-sm outline-none focus:border-emerald-500 bg-white" />
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-emerald-800 mb-1">Event: Non-Member Rate</label>
-                      <input type="number" value={feeConfig.eventNonMember} onChange={e => setFeeConfig({...feeConfig, eventNonMember: Number(e.target.value)})} className="w-full px-3 py-2 rounded-lg border border-emerald-200 text-sm outline-none focus:border-emerald-500" />
+                      <input type="number" value={feeConfig.eventNonMember} onChange={e => setFeeConfig({...feeConfig, eventNonMember: Number(e.target.value)})} className="w-full px-3 py-2 rounded-lg border border-emerald-200 text-sm outline-none focus:border-emerald-500 bg-white" />
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-emerald-800 mb-1">WCK Card (Below 23 Years)</label>
-                      <input type="number" value={feeConfig.wckUnder23} onChange={e => setFeeConfig({...feeConfig, wckUnder23: Number(e.target.value)})} className="w-full px-3 py-2 rounded-lg border border-emerald-200 text-sm outline-none focus:border-emerald-500" />
+                      <input type="number" value={feeConfig.wckUnder23} onChange={e => setFeeConfig({...feeConfig, wckUnder23: Number(e.target.value)})} className="w-full px-3 py-2 rounded-lg border border-emerald-200 text-sm outline-none focus:border-emerald-500 bg-white" />
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-emerald-800 mb-1">WCK Card (23 Years & Above)</label>
-                      <input type="number" value={feeConfig.wckOver23} onChange={e => setFeeConfig({...feeConfig, wckOver23: Number(e.target.value)})} className="w-full px-3 py-2 rounded-lg border border-emerald-200 text-sm outline-none focus:border-emerald-500" />
+                      <input type="number" value={feeConfig.wckOver23} onChange={e => setFeeConfig({...feeConfig, wckOver23: Number(e.target.value)})} className="w-full px-3 py-2 rounded-lg border border-emerald-200 text-sm outline-none focus:border-emerald-500 bg-white" />
                     </div>
                   </div>
                   <button onClick={() => alert("Global fee structures updated successfully! (Linked to future dynamic schema)")} className="mt-4 bg-emerald-700 hover:bg-emerald-800 text-white font-bold py-2 px-5 rounded-xl text-xs transition shadow-sm">
@@ -995,7 +1083,7 @@ export default function DekuwecAdminDashboard() {
             </div>
           )}
 
-          {/* 4. EVENTS TAB */}
+          {/* 5. EVENTS TAB */}
           {activeTab === "events" && (
             <div className="space-y-8 animate-in fade-in">
               <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100">
@@ -1007,7 +1095,7 @@ export default function DekuwecAdminDashboard() {
                     <button 
                       onClick={() => {
                         setEditingEventId(null);
-                        setEventForm({ title: "", category: "upcoming", date: "", time: "", location: "", imageUrl: "", galleryLink: "", description: "", media: [] });
+                        setEventForm({ title: "", category: "upcoming", date: "", time: "", location: "", imageUrl: "", galleryLink: "", description: "", media: [], isFree: false, ticketPrice: "" });
                       }}
                       className="text-xs text-rose-600 font-bold hover:underline flex items-center gap-1 shrink-0"
                     >
@@ -1131,6 +1219,44 @@ export default function DekuwecAdminDashboard() {
                       </div>
                     )}
                   </div>
+
+                  {/* FREE OR PAID EVENT TOGGLE */}
+                  {eventForm.category === "upcoming" && (
+                    <div className="bg-emerald-50/50 p-6 rounded-2xl border border-emerald-100 mt-6 mb-4 shadow-sm">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="text-sm font-bold text-emerald-950">Is this a Free Event?</h3>
+                          <p className="text-xs text-emerald-700/70 mt-1">If true, members won't be asked for M-Pesa payments.</p>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            className="sr-only peer"
+                            checked={eventForm.isFree}
+                            onChange={(e) => setEventForm({ ...eventForm, isFree: e.target.checked })}
+                          />
+                          <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                        </label>
+                      </div>
+
+                      {/* Only show price input if the event is NOT free */}
+                      {!eventForm.isFree && (
+                        <div className="mt-4 pt-4 border-t border-emerald-200/60">
+                          <label className="block text-xs font-bold text-emerald-900 mb-2">Base Ticket Price (KES)</label>
+                          <input
+                            type="number"
+                            value={eventForm.ticketPrice}
+                            onChange={(e) => setEventForm({ ...eventForm, ticketPrice: e.target.value })}
+                            placeholder="e.g. 650"
+                            className="w-full px-4 py-3 rounded-xl border border-emerald-200 text-sm focus:border-emerald-600 outline-none transition bg-white"
+                          />
+                          <p className="text-[10px] text-emerald-700/60 mt-2">
+                            Note: If you have dynamic tiers configured in settings, they will override this base price.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {eventForm.category === "previous" && (
                     <input
@@ -1265,7 +1391,7 @@ export default function DekuwecAdminDashboard() {
             </div>
           )}
 
-          {/* 5. ECOPULSE TAB */}
+          {/* 6. ECOPULSE TAB */}
           {activeTab === "ecopulse" && (
             <div className="space-y-8 animate-in fade-in">
               <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100">
@@ -1453,7 +1579,7 @@ export default function DekuwecAdminDashboard() {
             </div>
           )}
 
-          {/* 6. NATURE SNAPS TAB */}
+          {/* 7. NATURE SNAPS TAB */}
           {activeTab === "snaps" && (
             <div className="space-y-8 animate-in fade-in">
               <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-emerald-300">
@@ -1532,7 +1658,7 @@ export default function DekuwecAdminDashboard() {
                 </form>
               </div>
 
-              {/* NEW: Community Submissions Moderation */}
+              {/* Community Submissions Moderation */}
               <div className="bg-emerald-950 rounded-3xl p-6 sm:p-8 shadow-sm text-white">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                   <div>
@@ -1601,7 +1727,7 @@ export default function DekuwecAdminDashboard() {
             </div>
           )}
 
-          {/* 7. LEADERS TAB */}
+          {/* 8. LEADERS TAB */}
           {activeTab === "leaders" && (
             <div className="space-y-8 animate-in fade-in">
               <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100">
@@ -1745,7 +1871,7 @@ export default function DekuwecAdminDashboard() {
             </div>
           )}
 
-          {/* 8. BROADCASTS TAB */}
+          {/* 9. BROADCASTS TAB */}
           {activeTab === "broadcast" && (
             <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100 animate-in fade-in">
               <h2 className="text-xl sm:text-2xl font-black text-emerald-950 mb-2 flex items-center gap-2">
@@ -1814,7 +1940,7 @@ export default function DekuwecAdminDashboard() {
             </div>
           )}
 
-          {/* 9. FEEDBACK & INQUIRIES TAB (NEW INTERACTIVE REPLY) */}
+          {/* 10. FEEDBACK & INQUIRIES TAB */}
           {activeTab === "feedback" && (
             <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100 animate-in fade-in">
               <h2 className="text-xl sm:text-2xl font-black text-emerald-950 mb-2 flex items-center gap-2">
@@ -1892,6 +2018,77 @@ export default function DekuwecAdminDashboard() {
                       </div>
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 11. ADMIN LOGS TAB (NEW REAL DATABASE VERSION) */}
+          {activeTab === "admins" && (
+            <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100 animate-in fade-in">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                <div>
+                  <h2 className="text-2xl font-black text-emerald-950 flex items-center gap-2">
+                    <ShieldCheck className="text-emerald-600 shrink-0" /> Admin Access Logs
+                  </h2>
+                  <p className="text-sm text-gray-500 mt-1">Permanently track executive members who have accessed the portal and their active history.</p>
+                </div>
+                <button onClick={fetchAllAdminData} className="hidden sm:inline-block text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-xl transition shrink-0">
+                  Refresh Logs
+                </button>
+              </div>
+
+              {adminLogs.length === 0 ? (
+                <div className="text-center py-12 text-gray-400 font-medium bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+                  No admin activity recorded.
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded-2xl border border-gray-100">
+                  <table className="w-full text-left border-collapse min-w-[650px]">
+                    <thead>
+                      <tr className="bg-gray-50 text-xs uppercase text-gray-500 font-bold border-b border-gray-200">
+                        <th className="p-4">Admin Details</th>
+                        <th className="p-4">Role</th>
+                        <th className="p-4">Access Count</th>
+                        <th className="p-4">Active Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {adminLogs.map((admin) => {
+                        const { text, status } = formatActiveStatus(admin.lastActive);
+                        return (
+                          <tr key={admin._id || admin.email} className="border-b border-gray-100 hover:bg-gray-50 text-sm">
+                            <td className="p-4">
+                              <div className="font-bold text-gray-900">{admin.name || "Unknown Admin"}</div>
+                              <div className="text-xs text-gray-500 mt-0.5">{admin.email}</div>
+                            </td>
+                            <td className="p-4">
+                              <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2.5 py-1 rounded-md uppercase tracking-wider">
+                                {admin.role || "Admin"}
+                              </span>
+                            </td>
+                            <td className="p-4 font-black text-gray-600">
+                              {admin.accessCount} Logins
+                            </td>
+                            <td className="p-4">
+                              <div className="flex items-center gap-2">
+                                <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${
+                                  status === 'online' ? 'bg-emerald-500 animate-pulse' : 
+                                  status === 'away' ? 'bg-amber-400' : 'bg-gray-300'
+                                }`}></span>
+                                <span className={`text-xs font-bold ${
+                                  status === 'online' ? 'text-emerald-700' : 
+                                  status === 'away' ? 'text-amber-700' : 'text-gray-500'
+                                }`}>
+                                  {text}
+                                </span>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>

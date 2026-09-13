@@ -9,6 +9,7 @@ import EcoPulse from "@/models/EcoPulse";
 import NatureSnap from "@/models/NatureSnap";
 import Leader from "@/models/Leader";
 import Inquiry from "@/models/Inquiry";
+import AdminLog from "@/models/AdminLog"; // NEW: Import the Admin Logs
 
 export const dynamic = 'force-dynamic';
 
@@ -16,7 +17,7 @@ export async function GET() {
   try {
     await connectToDatabase();
 
-    // Fetch local database collections
+    // Fetch local database collections, now including AdminLogs
     const [
       pendingMembers,
       localMembersDb,
@@ -26,7 +27,8 @@ export async function GET() {
       ecoPulsePosts,
       snaps,
       leaders,
-      feedbacks
+      feedbacks,
+      adminLogs // FETCH ACTUAL ADMIN HISTORY
     ] = await Promise.all([
       Member.find({ status: { $in: ["Pending Approval", "Pending"] } }).sort({ updatedAt: -1 }),
       Member.find({}).sort({ updatedAt: -1 }),
@@ -36,23 +38,21 @@ export async function GET() {
       EcoPulse.find({}).sort({ createdAt: -1 }),
       NatureSnap.find({}).sort({ createdAt: -1 }),
       Leader.find({}).sort({ order: 1, createdAt: 1 }),
-      Inquiry.find({}).sort({ createdAt: -1 })
+      Inquiry.find({}).sort({ createdAt: -1 }),
+      AdminLog.find({}).sort({ lastActive: -1 }) // Most recently active at the top
     ]);
 
-    // Fetch the MASTER user list directly from Clerk with a limit of 500 (bypassing the default limit of 10)
     const client = await clerkClient();
     const clerkUsers = await client.users.getUserList({ limit: 500 });
 
-    // Map local MongoDB members for quick lookup
     const localMembersMap = new Map();
     localMembersDb.forEach(m => localMembersMap.set(m.clerkId, m));
 
-    // Merge Clerk Auth accounts with local MongoDB data
     const allMembers = clerkUsers.data.map(user => {
       const localData = localMembersMap.get(user.id);
       
       return {
-        _id: user.id, // Force _id to be the Clerk ID so the frontend passes it to the DELETE/PUT routes
+        _id: user.id,
         clerkId: user.id,
         fullName: localData?.fullName || `${user.firstName || ''} ${user.lastName || ''}`.trim() || "Member",
         email: user.emailAddresses[0]?.emailAddress || localData?.email || "No Email",
@@ -70,7 +70,8 @@ export async function GET() {
       ecoPulsePosts,
       snaps,
       leaders,
-      feedbacks
+      feedbacks,
+      adminLogs // Send live database logs to frontend
     }, { status: 200 });
   } catch (error: any) {
     console.error("Master Admin Fetch Error:", error);
