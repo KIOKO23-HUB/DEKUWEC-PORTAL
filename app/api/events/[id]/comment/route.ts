@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { connectToDB } from "@/lib/mongodb";
-import EventItem from "@/models/EventItem"; // <-- Corrected import
+import connectToDB from "@/lib/mongodb"; // <-- Removed curly braces here
+import EventItem from "@/models/EventItem";
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
@@ -8,11 +8,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const comment = await req.json();
     const { id } = params;
 
-    // Use EventItem instead of Event
     const event = await EventItem.findById(id);
     if (!event) return NextResponse.json({ error: "Event not found" }, { status: 404 });
 
-    // Push the new comment to the array
     event.comments.push(comment);
     await event.save();
 

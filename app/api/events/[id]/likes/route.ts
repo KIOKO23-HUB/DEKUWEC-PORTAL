@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { connectToDB } from "@/lib/mongodb";
-import EventItem from "@/models/EventItem"; // <-- Corrected import
+import connectToDB from "@/lib/mongodb"; // <-- Removed curly braces here
+import EventItem from "@/models/EventItem";
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
@@ -8,18 +8,14 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const { userId } = await req.json();
     const { id } = params;
 
-    // Use EventItem instead of Event
     const event = await EventItem.findById(id);
     if (!event) return NextResponse.json({ error: "Event not found" }, { status: 404 });
 
-    // Check if user already liked it
     const hasLiked = event.likes.includes(userId);
 
     if (hasLiked) {
-      // Unlike
       event.likes = event.likes.filter((id: string) => id !== userId);
     } else {
-      // Like
       event.likes.push(userId);
     }
 
