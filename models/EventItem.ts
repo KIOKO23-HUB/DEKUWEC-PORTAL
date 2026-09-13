@@ -1,27 +1,48 @@
-import mongoose from "mongoose";
+import mongoose, { Schema, Document } from "mongoose";
 
-const EventItemSchema = new mongoose.Schema({
+export interface IEventItem extends Document {
+  title: string;
+  category: string;
+  date: string;
+  time?: string;
+  location?: string;
+  imageUrl?: string;
+  galleryLink?: string;
+  description: string;
+  media?: any[];
+  isFree?: boolean;
+  likes: string[]; // NEW: Stores Clerk User IDs
+  comments: {
+    clerkId: string;
+    fullName: string;
+    text: string;
+    createdAt: Date;
+  }[]; // NEW: Stores Comment Objects
+  createdAt: Date;
+}
+
+const EventItemSchema = new Schema<IEventItem>({
   title: { type: String, required: true },
-  category: { 
-    type: String, 
-    enum: ["upcoming", "previous", "project"], 
-    default: "upcoming" 
-  },
+  category: { type: String, required: true },
   date: { type: String, required: true },
-  time: { type: String, default: "" },
-  location: { type: String, default: "" },
+  time: { type: String },
+  location: { type: String },
+  imageUrl: { type: String },
+  galleryLink: { type: String },
   description: { type: String, required: true },
-  imageUrl: { type: String, default: "" }, // Keeps the main poster/thumbnail
+  media: { type: Array, default: [] },
+  isFree: { type: Boolean, default: false },
   
-  // NEW: Array holding multiple images and videos from Cloudinary
-  media: [{ 
-    url: { type: String },
-    type: { type: String, enum: ["image", "video"] }
-  }], 
+  // NEW FIELDS FOR INTERACTION
+  likes: { type: [String], default: [] },
+  comments: [{
+    clerkId: String,
+    fullName: String,
+    text: String,
+    createdAt: { type: Date, default: Date.now }
+  }],
   
-  galleryLink: { type: String, default: "" },
-  status: { type: String, default: "Registration Open" },
   createdAt: { type: Date, default: Date.now }
 });
 
-export default mongoose.models.EventItem || mongoose.model("EventItem", EventItemSchema);
+export default mongoose.models.EventItem || mongoose.model<IEventItem>("EventItem", EventItemSchema);

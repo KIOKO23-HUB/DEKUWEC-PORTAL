@@ -1,21 +1,27 @@
 import { NextResponse } from "next/server";
-import connectToDB from "@/lib/mongodb"; // <-- Removed curly braces here
+import { connectToDatabase } from "@/lib/mongodb"; 
 import EventItem from "@/models/EventItem";
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
-    await connectToDB();
+    await connectToDatabase();
     const comment = await req.json();
     const { id } = params;
 
-    const event = await EventItem.findById(id);
-    if (!event) return NextResponse.json({ error: "Event not found" }, { status: 404 });
+    // Use $push to inject the comment directly into the database safely
+    const updatedEvent = await EventItem.findByIdAndUpdate(
+      id,
+      { $push: { comments: { ...comment, createdAt: new Date() } } },
+      { new: true }
+    );
 
-    event.comments.push(comment);
-    await event.save();
+    if (!updatedEvent) {
+      return NextResponse.json({ error: "Event not found" }, { status: 404 });
+    }
 
-    return NextResponse.json({ success: true, comments: event.comments });
+    return NextResponse.json({ success: true, comments: updatedEvent.comments });
   } catch (error) {
+    console.error("Comment POST Error:", error);
     return NextResponse.json({ error: "Failed to post comment" }, { status: 500 });
   }
 }
