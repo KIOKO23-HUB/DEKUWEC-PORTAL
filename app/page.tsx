@@ -193,7 +193,7 @@ export default function Home() {
                       href="/signup" 
                       className="px-8 py-3.5 bg-emerald-800 hover:bg-emerald-900 text-white font-bold rounded-xl shadow-lg transition text-center"
                     >
-                      Register as a Member
+                      Open DEKUWEC Dashboard
                     </Link>
                     <button 
                       onClick={() => setActiveTab("contact")} 
@@ -322,7 +322,7 @@ export default function Home() {
               </p>
               <div className="pt-2">
                 <Link href="/signup" className="px-6 py-3 bg-emerald-400 hover:bg-emerald-300 text-emerald-950 font-black rounded-xl inline-block text-xs uppercase tracking-wider transition shadow">
-                  Join DEKUWEC Now
+                  Open DEKUWEC Dashboard
                 </Link>
               </div>
             </div>
