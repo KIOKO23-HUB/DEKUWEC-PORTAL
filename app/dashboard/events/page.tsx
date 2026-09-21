@@ -432,10 +432,78 @@ export default function EventsPage() {
     }
   };
 
+  // REAL LIVE SAFARICOM DARAJA PAYMENT INTEGRATION
   const handleInitiatePayment = async (e: React.FormEvent) => {
     e.preventDefault();
-    alert("Payment system is currently under maintenance. Please try again later.");
-    setModalStep("ask_pay");
+    
+    if (!paymentPhone) return alert("Please enter your M-Pesa phone number.");
+
+    setModalStep("polling"); // Switch UI to polling spinner immediately
+
+    try {
+      // 1. Trigger the STK Push to the user's phone via backend
+      const pushRes = await fetch("/api/mpesa/stkpush", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clerkId: user?.id,
+          fullName: user?.fullName || formData.name || "Member",
+          phone: paymentPhone,
+          amount: selectedAmount,
+          category: "Event Registration",
+          reference: activeModalEvent?.title || "Event Payment"
+        })
+      });
+
+      const pushData = await pushRes.json();
+
+      if (!pushRes.ok) {
+        alert(`M-Pesa Error: ${pushData.error}`);
+        setModalStep("checkout");
+        return;
+      }
+
+      // 2. Start Polling the Database for "Completed" Status
+      const paymentId = pushData.paymentId;
+      let attempts = 0;
+      const maxAttempts = 30; // Stop checking after 60 seconds (30 attempts * 2s)
+
+      const pollInterval = setInterval(async () => {
+        attempts++;
+        
+        try {
+          const statusRes = await fetch(`/api/mpesa/status?id=${paymentId}`);
+          const statusData = await statusRes.json();
+
+          if (statusData.status === "Completed") {
+            clearInterval(pollInterval);
+            
+            // Mark local state as paid to update UI
+            if (activeModalEvent) {
+              setUserRsvpStatus(prev => ({ ...prev, [activeModalEvent.title]: "Paid" }));
+            }
+            setModalStep("success");
+            
+            // Auto-close modal after 3 seconds
+            setTimeout(() => {
+              handleCloseModal();
+            }, 3000);
+            
+          } else if (statusData.status === "Failed" || attempts >= maxAttempts) {
+            clearInterval(pollInterval);
+            alert("Payment failed or timed out. Please check your funds and try again.");
+            setModalStep("checkout");
+          }
+        } catch (pollErr) {
+          console.error("Polling error", pollErr);
+        }
+      }, 2000); // Check every 2 seconds
+
+    } catch (error) {
+      console.error("Payment submission error:", error);
+      alert("Server connection failed.");
+      setModalStep("checkout");
+    }
   };
 
   if (!isLoaded) return null;

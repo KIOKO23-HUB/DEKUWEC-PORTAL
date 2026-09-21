@@ -52,10 +52,11 @@ export default function MembershipPortalPage() {
 
   // Payment Modal States for New Registration
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
-  const [paymentStep, setPaymentStep] = useState<"ask_pay" | "checkout">("ask_pay");
+  // UPDATED: Added polling and success to the modal steps
+  const [paymentStep, setPaymentStep] = useState<"ask_pay" | "checkout" | "polling" | "success">("ask_pay");
   const [paymentPhone, setPaymentPhone] = useState("");
   
-  // NEW: Dynamic Fee Configuration (Controlled by Admin Portal)
+  // Dynamic Fee Configuration (Controlled by Admin Portal)
   const [feeConfig, setFeeConfig] = useState({ member: 100 });
   const membershipFee = feeConfig.member;
 
@@ -178,11 +179,75 @@ export default function MembershipPortalPage() {
     }
   };
 
-  // Simulated Payment Trigger (MAINTENANCE MODE)
-  const handleInitiatePayment = (e: React.FormEvent) => {
+  // REAL LIVE SAFARICOM DARAJA PAYMENT INTEGRATION
+  const handleInitiatePayment = async (e: React.FormEvent) => {
     e.preventDefault();
-    alert("Payment system is currently under maintenance. We will continue once the Safaricom Daraja API is applied.");
-    setPaymentStep("ask_pay");
+    
+    if (!paymentPhone) return alert("Please enter your M-Pesa phone number.");
+
+    setPaymentStep("polling"); // Switch UI to polling spinner immediately
+
+    try {
+      // 1. Trigger the STK Push to the user's phone via backend
+      const pushRes = await fetch("/api/mpesa/stkpush", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clerkId: user?.id,
+          fullName: user?.fullName || regForm.name || "Member",
+          phone: paymentPhone,
+          amount: membershipFee, 
+          category: "Membership Registration",
+          reference: "Membership"
+        })
+      });
+
+      const pushData = await pushRes.json();
+
+      if (!pushRes.ok) {
+        alert(`M-Pesa Error: ${pushData.error}`);
+        setPaymentStep("checkout");
+        return;
+      }
+
+      // 2. Start Polling the Database for "Completed" Status
+      const paymentId = pushData.paymentId;
+      let attempts = 0;
+      const maxAttempts = 30; // Stop checking after 60 seconds (30 attempts * 2s)
+
+      const pollInterval = setInterval(async () => {
+        attempts++;
+        
+        try {
+          const statusRes = await fetch(`/api/mpesa/status?id=${paymentId}`);
+          const statusData = await statusRes.json();
+
+          if (statusData.status === "Completed") {
+            clearInterval(pollInterval);
+            
+            setPaymentStep("success");
+            
+            // Auto-close modal after 3 seconds and show success status notice
+            setTimeout(() => {
+              setIsPaymentModalOpen(false);
+              setStatusNotice("Payment successful! Your membership fee has been processed. Your registration is now pending admin approval.");
+            }, 3000);
+            
+          } else if (statusData.status === "Failed" || attempts >= maxAttempts) {
+            clearInterval(pollInterval);
+            alert("Payment failed or timed out. Please check your funds and try again.");
+            setPaymentStep("checkout");
+          }
+        } catch (pollErr) {
+          console.error("Polling error", pollErr);
+        }
+      }, 2000); // Check every 2 seconds
+
+    } catch (error) {
+      console.error("Payment submission error:", error);
+      alert("Server connection failed.");
+      setPaymentStep("checkout");
+    }
   };
 
   const handleSendMessage = async (e: React.FormEvent) => {
@@ -255,7 +320,7 @@ export default function MembershipPortalPage() {
               </div>
             </div>
 
-            {/* NEW: Fallback button for payment errors/retries */}
+            {/* Fallback button for payment errors/retries */}
             <div className="pt-2">
               <button
                 onClick={() => {
@@ -531,6 +596,29 @@ export default function MembershipPortalPage() {
                     <span>Send M-Pesa Prompt</span>
                   </button>
                 </form>
+              </div>
+            )}
+
+            {paymentStep === "polling" && (
+              <div className="text-center space-y-5 py-8">
+                <Smartphone className="h-12 w-12 text-emerald-600 animate-pulse mx-auto" />
+                <h3 className="text-lg font-black text-emerald-950">Check your phone!</h3>
+                <p className="text-sm text-gray-500 px-4">
+                  An M-Pesa prompt for <strong>KES {membershipFee}</strong> has been sent to <strong>{paymentPhone}</strong>. Enter your PIN to finalize.
+                </p>
+                <div className="flex items-center justify-center gap-2 text-xs font-bold text-emerald-600 mt-4">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Verifying payment with Safaricom...
+                </div>
+              </div>
+            )}
+
+            {paymentStep === "success" && (
+              <div className="text-center space-y-4 py-6">
+                <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
+                  <CheckCircle className="h-8 w-8" />
+                </div>
+                <h3 className="text-xl font-black text-emerald-950">Payment Completed!</h3>
+                <p className="text-sm text-gray-500">Your membership fee has been successfully processed.</p>
               </div>
             )}
           </div>

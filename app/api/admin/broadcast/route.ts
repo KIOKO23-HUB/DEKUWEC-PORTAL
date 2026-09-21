@@ -24,7 +24,7 @@ export async function POST(req: Request) {
 
     // --- FIX: Ensure the link is a full, valid URL for Brevo ---
     // Using your exact live Vercel link as the base URL
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://dekuwec-portal-k2p9.vercel.app";
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://dekuwec.app";
 
     let actionUrl = "";
     if (link) {

@@ -1,14 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useUser } from "@clerk/nextjs"; // NEW: To capture exactly who is logging into the admin panel
+import { useUser } from "@clerk/nextjs";
 import { 
   Users, Calendar, Megaphone, MessageSquare, CreditCard, 
   CheckCircle, ShieldCheck, Image as ImageIcon, Link as LinkIcon, 
   Send, List, Camera, Radio, Crown, Loader2, RefreshCw,
   Edit2, Trash2, X, Lock, KeyRound, Check, AlertCircle, Menu,
   UploadCloud, Phone, Video, Download, Award, ThumbsUp, ThumbsDown,
-  Wallet, Clock
+  Wallet, Clock, Tag, Plus, ShoppingBag, PackageCheck
 } from "lucide-react";
 
 // --- HELPER: Admin Active Time Formatter ---
@@ -47,7 +47,7 @@ const DEFAULT_LEADERS = [
 ];
 
 export default function DekuwecAdminDashboard() {
-  const { user, isLoaded } = useUser(); // Identify the admin
+  const { user, isLoaded } = useUser();
 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [passcode, setPasscode] = useState("");
@@ -74,7 +74,25 @@ export default function DekuwecAdminDashboard() {
   const [adminLogs, setAdminLogs] = useState<any[]>([]);
   
   const [payments, setPayments] = useState<any[]>([]);
-  const [feeConfig, setFeeConfig] = useState({ member: 200, wckUnder23: 100, wckOver23: 230, eventMember: 650, eventNonMember: 750 });
+  const [feeConfig, setFeeConfig] = useState({ member: 100, wckUnder23: 100, wckOver23: 230 });
+  
+  // State for multi-option live event pricing
+  const [eventTiersState, setEventTiersState] = useState<Record<string, { id: string; label: string; amount: number }[]>>({});
+
+  // Merchandise State
+  const [merchandiseItems, setMerchandiseItems] = useState<any[]>([]);
+  const [merchandiseOrders, setMerchandiseOrders] = useState<any[]>([]);
+  const [editingMerchId, setEditingMerchId] = useState<string | null>(null);
+  const [merchForm, setMerchForm] = useState({
+    title: "",
+    description: "",
+    price: "",
+    imageUrl: "",
+    category: "tshirt",
+    allowCustomName: false,
+    availableSizes: ["S", "M", "L", "XL"],
+    inStock: true
+  });
 
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [editingEcoId, setEditingEcoId] = useState<string | null>(null);
@@ -88,7 +106,6 @@ export default function DekuwecAdminDashboard() {
 
   const [broadcastData, setBroadcastData] = useState({ title: "", message: "", imageUrl: "", link: "" });
   
-  // UPDATED EVENT FORM STATE TO INCLUDE ISFREE AND TICKETPRICE
   const [eventForm, setEventForm] = useState({ 
     title: "", 
     category: "upcoming", 
@@ -112,7 +129,6 @@ export default function DekuwecAdminDashboard() {
 
   const [uploadingMedia, setUploadingMedia] = useState(false);
 
-  // Cloudinary Uploader
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, formSetter: React.Dispatch<React.SetStateAction<any>>, fieldName: string) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -201,7 +217,6 @@ export default function DekuwecAdminDashboard() {
     }
   }, []);
 
-  // NEW: Background Ping - Silently updates the database to show you are "Active Now"
   useEffect(() => {
     if (isAuthenticated && isLoaded && user) {
       fetch("/api/admin/verify-key", {
@@ -272,7 +287,18 @@ export default function DekuwecAdminDashboard() {
         setCommunitySnaps(data.communitySnaps || []);
         setLeaders(data.leaders || []);
         setFeedbacks(data.feedbacks || []);
-        setAdminLogs(data.adminLogs || []); // Load live tracking data
+        setAdminLogs(data.adminLogs || []);
+
+        // Load prices for live event fee editing (Supports multiple tiers)
+        const tiersObj: Record<string, any[]> = {};
+        (data.events || []).forEach((e: any) => {
+          if (e.category === "upcoming" && !e.isFree) {
+            tiersObj[e._id] = e.paymentTiers && e.paymentTiers.length > 0 
+              ? e.paymentTiers 
+              : [{ id: Date.now().toString() + Math.random().toString(), label: "Standard Ticket", amount: e.ticketPrice || 0 }];
+          }
+        });
+        setEventTiersState(tiersObj);
       }
 
       const commRes = await fetch("/api/community-snaps");
@@ -285,11 +311,147 @@ export default function DekuwecAdminDashboard() {
         setPayments(payData.payments || []);
       }
 
+      // Fetch Merchandise Catalog & Orders
+      const merchRes = await fetch("/api/admin/merchandise").catch(() => null);
+      if (merchRes && merchRes.ok) {
+        const merchData = await merchRes.json();
+        setMerchandiseItems(merchData.items || []);
+        setMerchandiseOrders(merchData.orders || []);
+      }
+
     } catch (err) {
       console.error("Master fetch failed:", err);
     } finally {
       setLoading(false);
       setRefreshing(false);
+    }
+  };
+
+  // --- LIVE EVENT PRICE UPDATERS ---
+  const handleAddTier = (eventId: string) => {
+    setEventTiersState(prev => ({
+      ...prev,
+      [eventId]: [...(prev[eventId] || []), { id: Date.now().toString() + Math.random().toString(), label: "", amount: 0 }]
+    }));
+  };
+
+  const handleTierChange = (eventId: string, tierId: string, field: "label" | "amount", value: any) => {
+    setEventTiersState(prev => ({
+      ...prev,
+      [eventId]: prev[eventId].map(t => t.id === tierId ? { ...t, [field]: value } : t)
+    }));
+  };
+
+  const handleRemoveTier = (eventId: string, tierId: string) => {
+    setEventTiersState(prev => ({
+      ...prev,
+      [eventId]: prev[eventId].filter(t => t.id !== tierId)
+    }));
+  };
+
+  const handleSaveEventTiers = async (eventId: string) => {
+    const tiers = eventTiersState[eventId];
+    if (!tiers || tiers.length === 0) return alert("You must have at least one payment option.");
+    if (tiers.some(t => !t.label.trim() || t.amount < 0)) return alert("Please fill out all option names and provide valid amounts.");
+    
+    try {
+      const res = await fetch("/api/admin/events", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          id: eventId, 
+          paymentTiers: tiers,
+          ticketPrice: tiers[0]?.amount || 0
+        })
+      });
+      if (res.ok) {
+        alert("Event payment options successfully updated live!");
+        fetchAllAdminData();
+      } else {
+        alert("Failed to update options.");
+      }
+    } catch(err) {
+      alert("Server error connecting to database.");
+    }
+  };
+
+  // --- MERCHANDISE HANDLERS ---
+  const handleMerchSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      const isNew = !editingMerchId;
+      const method = isNew ? "POST" : "PUT";
+      const payload = isNew 
+        ? { ...merchForm, price: Number(merchForm.price) } 
+        : { id: editingMerchId, ...merchForm, price: Number(merchForm.price) };
+
+      const res = await fetch("/api/admin/merchandise", {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        if (isNew) triggerAutoNotification(`New Club Merch: ${merchForm.title}`, `Official club merchandise is now available on the portal. Check it out!`, "/dashboard/merchandise");
+        alert(isNew ? "Merchandise published!" : "Merchandise updated!");
+        setEditingMerchId(null);
+        setMerchForm({
+          title: "",
+          description: "",
+          price: "",
+          imageUrl: "",
+          category: "tshirt",
+          allowCustomName: false,
+          availableSizes: ["S", "M", "L", "XL"],
+          inStock: true
+        });
+        fetchAllAdminData();
+      } else {
+        alert("Failed to save merchandise item.");
+      }
+    } catch {
+      alert("Network error occurred while saving merchandise.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleEditMerch = (item: any) => {
+    setEditingMerchId(item._id);
+    setMerchForm({
+      title: item.title,
+      description: item.description,
+      price: item.price.toString(),
+      imageUrl: item.imageUrl,
+      category: item.category || "tshirt",
+      allowCustomName: item.allowCustomName || false,
+      availableSizes: item.availableSizes || ["S", "M", "L", "XL"],
+      inStock: item.inStock !== false
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleDeleteMerch = async (id: string) => {
+    if (!confirm("Are you sure you want to permanently delete this merchandise item?")) return;
+    const res = await fetch(`/api/admin/merchandise?id=${id}`, { method: "DELETE" });
+    if (res.ok) fetchAllAdminData();
+  };
+
+  const handleUpdateOrderStatus = async (orderId: string, collectionStatus: string) => {
+    try {
+      const res = await fetch("/api/admin/merchandise", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId, collectionStatus })
+      });
+      if (res.ok) {
+        fetchAllAdminData();
+      } else {
+        alert("Failed to update status");
+      }
+    } catch {
+      alert("Error updating order status");
     }
   };
 
@@ -305,7 +467,6 @@ export default function DekuwecAdminDashboard() {
     }
   };
 
-  // --- APPROVALS & MEMBERS ---
   const handleApproveMember = async (member: any) => {
     setApprovingId(member.clerkId);
     try {
@@ -371,18 +532,18 @@ export default function DekuwecAdminDashboard() {
     if (res.ok) fetchAllAdminData();
   };
 
-  // --- CSV DOWNLOAD ---
   const handleDownloadCSV = () => {
     if (eventRegistrations.length === 0) return alert("No registrations to download.");
 
-    const headers = ["Participant Name", "Phone Number", "DeKUT Reg No", "Event Name", "Email Address"];
+    const headers = ["Participant Name", "Phone Number", "DeKUT Reg No", "Event Name", "Email Address", "Payment Status"];
     const csvRows = eventRegistrations.map(reg => {
       const name = (reg.fullName || reg.name || "Member").replace(/,/g, "");
       const phone = reg.phoneNumber || reg.phone || "—";
       const regNo = reg.registrationNumber || reg.regNo || "—";
       const event = (reg.eventName || reg.eventTitle || "—").replace(/,/g, "");
       const email = reg.email || "—";
-      return `${name},${phone},${regNo},${event},${email}`;
+      const payStatus = reg.paymentStatus || "Unknown";
+      return `${name},${phone},${regNo},${event},${email},${payStatus}`;
     });
 
     const csvContent = [headers.join(","), ...csvRows].join("\n");
@@ -396,7 +557,6 @@ export default function DekuwecAdminDashboard() {
     document.body.removeChild(link);
   };
 
-  // --- EVENTS ---
   const handleEventSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
@@ -458,7 +618,6 @@ export default function DekuwecAdminDashboard() {
     if (res.ok) fetchAllAdminData();
   };
 
-  // --- ECOPULSE ---
   const handleEcoPulseSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
@@ -515,7 +674,6 @@ export default function DekuwecAdminDashboard() {
     if (res.ok) fetchAllAdminData();
   };
 
-  // --- NATURE SNAPS ---
   const handleSnapSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
@@ -584,7 +742,6 @@ export default function DekuwecAdminDashboard() {
     alert("Photo copied! Scroll up to tweak the details and hit Publish.");
   };
 
-  // --- LEADERS ---
   const importDefaultLeaders = async () => {
     if (!confirm("This will initialize your database with the default executive board so you can easily edit them. Proceed?")) return;
     setSubmitting(true);
@@ -644,7 +801,6 @@ export default function DekuwecAdminDashboard() {
     if (res.ok) fetchAllAdminData();
   };
 
-  // --- BROADCAST ---
   const handleBroadcast = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
@@ -667,7 +823,6 @@ export default function DekuwecAdminDashboard() {
     }
   };
 
-  // --- FEEDBACK INTERACTIVE REPLY ---
   const handleSendReply = async (e: React.FormEvent, item: any) => {
     e.preventDefault();
     if (!replyMessage.trim()) return alert("Reply message cannot be empty.");
@@ -796,6 +951,7 @@ export default function DekuwecAdminDashboard() {
             { id: "wck", icon: CreditCard, label: `WCK Cards (${wckApplicants.length})` },
             { id: "members", icon: Users, label: `All Members (${allMembers.length})` },
             { id: "payments", icon: Wallet, label: `Payments (${payments.length})` },
+            { id: "merchandise", icon: ShoppingBag, label: `Merchandise (${merchandiseItems.length})` },
             { id: "events", icon: Calendar, label: `Events & RSVPs (${events.length})` },
             { id: "ecopulse", icon: Radio, label: `EcoPulse (${ecoPulsePosts.length})` },
             { id: "snaps", icon: Camera, label: `Nature Snaps (${snaps.length})` },
@@ -1007,23 +1163,15 @@ export default function DekuwecAdminDashboard() {
                     Refresh Ledger
                   </button>
                 </div>
-                <p className="text-sm text-gray-500 mb-6">Track all confirmed M-Pesa transactions across Events, WCK Cards, and Memberships. System automatically syncs with Safaricom Daraja API.</p>
+                <p className="text-sm text-gray-500 mb-6">Track all confirmed M-Pesa transactions. Manage your base fees and live event ticket prices here.</p>
 
-                {/* Payment Configuration */}
-                <div className="mb-8 p-6 bg-emerald-50 border border-emerald-200 rounded-2xl">
+                {/* Default Payment Configuration */}
+                <div className="mb-6 p-6 bg-emerald-50 border border-emerald-200 rounded-2xl">
                   <h3 className="text-lg font-bold text-emerald-900 mb-4">Regulate Default Payment Fees (KES)</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-xs font-bold text-emerald-800 mb-1">Standard Membership</label>
                       <input type="number" value={feeConfig.member} onChange={e => setFeeConfig({...feeConfig, member: Number(e.target.value)})} className="w-full px-3 py-2 rounded-lg border border-emerald-200 text-sm outline-none focus:border-emerald-500 bg-white" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-emerald-800 mb-1">Event: Member Rate</label>
-                      <input type="number" value={feeConfig.eventMember} onChange={e => setFeeConfig({...feeConfig, eventMember: Number(e.target.value)})} className="w-full px-3 py-2 rounded-lg border border-emerald-200 text-sm outline-none focus:border-emerald-500 bg-white" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-emerald-800 mb-1">Event: Non-Member Rate</label>
-                      <input type="number" value={feeConfig.eventNonMember} onChange={e => setFeeConfig({...feeConfig, eventNonMember: Number(e.target.value)})} className="w-full px-3 py-2 rounded-lg border border-emerald-200 text-sm outline-none focus:border-emerald-500 bg-white" />
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-emerald-800 mb-1">WCK Card (Below 23 Years)</label>
@@ -1035,24 +1183,83 @@ export default function DekuwecAdminDashboard() {
                     </div>
                   </div>
                   <button onClick={() => alert("Global fee structures updated successfully! (Linked to future dynamic schema)")} className="mt-4 bg-emerald-700 hover:bg-emerald-800 text-white font-bold py-2 px-5 rounded-xl text-xs transition shadow-sm">
-                    Save Fee Configurations
+                    Save Base Fees
                   </button>
                 </div>
 
-                <h3 className="text-lg font-bold text-gray-900 mb-4">Confirmed Transactions</h3>
+                {/* LIVE UPCOMING EVENT PRICES SECTION (MULTI-TIER) */}
+                <div className="mb-8 p-6 bg-indigo-50 border border-indigo-200 rounded-2xl">
+                  <h3 className="text-lg font-bold text-indigo-900 mb-2 flex items-center gap-2">
+                    <Tag className="h-5 w-5" /> Live Upcoming Event Fees
+                  </h3>
+                  <p className="text-xs text-indigo-700 mb-4">Set dynamic ticket options (e.g. Member vs Non-Member) for upcoming paid events. Free events are automatically hidden from this list.</p>
+                  
+                  {events.filter(e => e.category === "upcoming" && !e.isFree).length === 0 ? (
+                    <p className="text-sm text-indigo-600/70 italic bg-white p-4 rounded-xl border border-indigo-100">No upcoming paid events currently posted.</p>
+                  ) : (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      {events.filter(e => e.category === "upcoming" && !e.isFree).map(evt => (
+                        <div key={evt._id} className="bg-white p-5 rounded-2xl border border-indigo-100 shadow-sm flex flex-col">
+                            <label className="block text-sm font-black text-indigo-950 mb-4 border-b border-indigo-50 pb-2">{evt.title}</label>
+                            
+                            <div className="space-y-3 mb-4 flex-1">
+                               {(eventTiersState[evt._id] || []).map((tier) => (
+                                  <div key={tier.id} className="flex items-center gap-2">
+                                     <input 
+                                       type="text" 
+                                       placeholder="Option Name (e.g. Member)" 
+                                       value={tier.label} 
+                                       onChange={(e) => handleTierChange(evt._id, tier.id, 'label', e.target.value)} 
+                                       className="w-1/2 px-3 py-2 rounded-lg border border-indigo-200 text-xs font-bold outline-none focus:border-indigo-500" 
+                                     />
+                                     <div className="relative w-1/3">
+                                        <span className="absolute left-2.5 top-2.5 text-xs font-bold text-gray-400">KES</span>
+                                        <input 
+                                          type="number" 
+                                          placeholder="0" 
+                                          value={tier.amount} 
+                                          onChange={(e) => handleTierChange(evt._id, tier.id, 'amount', Number(e.target.value))} 
+                                          className="w-full pl-9 pr-3 py-2 rounded-lg border border-indigo-200 text-xs font-bold outline-none focus:border-indigo-500" 
+                                        />
+                                     </div>
+                                     <button onClick={() => handleRemoveTier(evt._id, tier.id)} className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition" title="Remove option">
+                                        <Trash2 className="h-4 w-4" />
+                                     </button>
+                                  </div>
+                               ))}
+                            </div>
+
+                            <div className="flex items-center justify-between mt-auto pt-4 border-t border-indigo-50">
+                               <button onClick={() => handleAddTier(evt._id)} className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 transition">
+                                  <Plus className="h-3.5 w-3.5" /> Add Pay Option
+                               </button>
+                               <button 
+                                  onClick={() => handleSaveEventTiers(evt._id)} 
+                                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-xl text-xs font-bold transition shadow-sm"
+                               >
+                                  Save Options
+                               </button>
+                            </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <h3 className="text-lg font-bold text-gray-900 mb-4">Confirmed Transactions History</h3>
                 {payments.length === 0 ? (
                   <div className="text-center py-12 text-gray-400 font-medium bg-gray-50 rounded-2xl border border-dashed border-gray-200">
                     No completed payments logged yet.
                   </div>
                 ) : (
                   <div className="overflow-x-auto rounded-2xl border border-gray-100">
-                    <table className="w-full text-left border-collapse min-w-[700px]">
+                    <table className="w-full text-left border-collapse min-w-[800px]">
                       <thead>
                         <tr className="bg-gray-50 text-xs uppercase text-gray-500 font-bold border-b border-gray-200">
                           <th className="p-4">Date</th>
                           <th className="p-4">Applicant / Payer</th>
                           <th className="p-4">Phone Number</th>
-                          <th className="p-4">Category & Ref</th>
+                          <th className="p-4">Payment Description</th>
                           <th className="p-4">Amount</th>
                           <th className="p-4">Status</th>
                         </tr>
@@ -1063,10 +1270,20 @@ export default function DekuwecAdminDashboard() {
                             <td className="p-4 text-gray-600 whitespace-nowrap">{new Date(pay.createdAt).toLocaleDateString()}</td>
                             <td className="p-4 font-bold text-gray-900">{pay.fullName}</td>
                             <td className="p-4 font-semibold text-gray-600">{pay.phone}</td>
+                            
+                            {/* Highlighting What Was Paid For */}
                             <td className="p-4">
-                              <span className="font-bold text-emerald-800">{pay.category}</span>
-                              <span className="block text-[10px] text-gray-500 uppercase mt-0.5">{pay.reference}</span>
+                              <span className="font-black text-emerald-900 block">{pay.category || "Payment"}</span>
+                              <span className="inline-block text-[10px] text-emerald-800 font-bold mt-1 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded uppercase tracking-wider">
+                                Ref: {pay.reference}
+                              </span>
+                              {pay.mpesaReceipt && pay.mpesaReceipt !== "VERIFIED" && (
+                                <span className="block text-[10px] text-gray-500 mt-1.5 font-mono bg-gray-100 px-2 py-0.5 rounded w-max border border-gray-200">
+                                  Receipt: {pay.mpesaReceipt}
+                                </span>
+                              )}
                             </td>
+
                             <td className="p-4 font-black text-emerald-700">KES {pay.amount}</td>
                             <td className="p-4">
                               <span className={`text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap ${pay.status === "Completed" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
@@ -1083,7 +1300,284 @@ export default function DekuwecAdminDashboard() {
             </div>
           )}
 
-          {/* 5. EVENTS TAB */}
+          {/* NEW: 5. MERCHANDISE TAB */}
+          {activeTab === "merchandise" && (
+            <div className="space-y-8 animate-in fade-in">
+              <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-4">
+                  <h2 className="text-xl sm:text-2xl font-black text-emerald-950 flex items-center gap-2">
+                    <ShoppingBag className="text-emerald-600 shrink-0" /> {editingMerchId ? "Edit Merchandise Item" : "Add Club Merchandise"}
+                  </h2>
+                  {editingMerchId && (
+                    <button 
+                      onClick={() => {
+                        setEditingMerchId(null);
+                        setMerchForm({
+                          title: "",
+                          description: "",
+                          price: "",
+                          imageUrl: "",
+                          category: "tshirt",
+                          allowCustomName: false,
+                          availableSizes: ["S", "M", "L", "XL"],
+                          inStock: true
+                        });
+                      }}
+                      className="text-xs text-rose-600 font-bold hover:underline flex items-center gap-1 shrink-0"
+                    >
+                      <X className="h-3 w-3" /> Cancel Edit
+                    </button>
+                  )}
+                </div>
+
+                <form onSubmit={handleMerchSubmit} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">Item Title</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. Official DEKUWEC Conservation T-Shirt"
+                        value={merchForm.title}
+                        onChange={(e) => setMerchForm({ ...merchForm, title: e.target.value })}
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-emerald-600"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">Price (KES)</label>
+                      <input
+                        type="number"
+                        required
+                        placeholder="e.g. 700"
+                        value={merchForm.price}
+                        onChange={(e) => setMerchForm({ ...merchForm, price: e.target.value })}
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-emerald-600"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">Category</label>
+                      <select
+                        value={merchForm.category}
+                        onChange={(e) => setMerchForm({ ...merchForm, category: e.target.value })}
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-semibold outline-none focus:border-emerald-600"
+                      >
+                        <option value="tshirt">T-Shirt / Polo</option>
+                        <option value="hoodie">Hoodie / Sweatshirt</option>
+                        <option value="cap">Cap / Hat</option>
+                        <option value="badge">Lapel Pin / Badge</option>
+                        <option value="other">Other Club Gear</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">Image (Upload via Cloudinary)</label>
+                      <div className="w-full flex flex-col justify-center border border-gray-200 rounded-xl px-2">
+                        <div className="flex items-center gap-3">
+                          {merchForm.imageUrl && (
+                            <div className="relative h-12 w-16 bg-gray-100 rounded-lg flex items-center justify-center shrink-0 p-1 border border-gray-200 shadow-sm">
+                              <img src={merchForm.imageUrl} alt="Preview" className="h-full w-full object-contain rounded-md" />
+                              <button type="button" onClick={() => setMerchForm({ ...merchForm, imageUrl: "" })} className="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full p-1 shadow-md hover:bg-rose-600 transition z-10">
+                                <X className="h-3 w-3" />
+                              </button>
+                            </div>
+                          )}
+                          <input
+                            key={merchForm.imageUrl ? "has-img" : "no-img"}
+                            type="file"
+                            accept="image/*"
+                            disabled={uploadingMedia}
+                            onChange={(e) => handleImageUpload(e, setMerchForm, "imageUrl")}
+                            className="w-full py-1.5 text-sm outline-none focus:border-emerald-600 bg-white file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 disabled:opacity-50 cursor-pointer"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <h4 className="text-sm font-bold text-emerald-950">Name Printing Customization</h4>
+                      <p className="text-xs text-emerald-800/70">Allow members to specify a custom printed name on the merchandise.</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                      <input
+                        type="checkbox"
+                        className="sr-only peer"
+                        checked={merchForm.allowCustomName}
+                        onChange={(e) => setMerchForm({ ...merchForm, allowCustomName: e.target.checked })}
+                      />
+                      <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                    </label>
+                  </div>
+
+                  <div className="bg-gray-50 p-4 rounded-2xl border border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <h4 className="text-sm font-bold text-gray-900">Stock Availability</h4>
+                      <p className="text-xs text-gray-500">Uncheck to mark item as out of stock on the student portal.</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                      <input
+                        type="checkbox"
+                        className="sr-only peer"
+                        checked={merchForm.inStock}
+                        onChange={(e) => setMerchForm({ ...merchForm, inStock: e.target.checked })}
+                      />
+                      <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                    </label>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-1">Item Description & Sizing Notes</label>
+                    <textarea
+                      rows={3}
+                      required
+                      placeholder="High-quality cotton, moisture-wicking material with club crest..."
+                      value={merchForm.description}
+                      onChange={(e) => setMerchForm({ ...merchForm, description: e.target.value })}
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-emerald-600"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={submitting || uploadingMedia}
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white font-bold py-3.5 rounded-xl text-sm transition flex items-center justify-center gap-2"
+                  >
+                    {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                    <span>{editingMerchId ? "Save Merchandise Changes" : "Publish to Merchandise Store"}</span>
+                  </button>
+                </form>
+              </div>
+
+              {/* Active Merchandise Inventory */}
+              <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100">
+                <h3 className="text-xl font-bold text-emerald-950 mb-4">Current Merchandise Catalog</h3>
+                {merchandiseItems.length === 0 ? (
+                  <p className="text-sm text-gray-400">No merchandise items logged yet.</p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {merchandiseItems.map((item) => (
+                      <div key={item._id} className="p-4 rounded-2xl border border-gray-200 bg-gray-50 flex flex-col justify-between">
+                        <div>
+                          <div className="aspect-video bg-gray-200 rounded-xl overflow-hidden mb-3">
+                            <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover" />
+                          </div>
+                          <h4 className="font-bold text-sm text-gray-900 leading-snug">{item.title}</h4>
+                          <p className="text-xs font-black text-emerald-800 mt-1">KES {item.price}</p>
+                          <div className="flex gap-2 mt-2">
+                            {item.allowCustomName && (
+                              <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded">
+                                Custom Name
+                              </span>
+                            )}
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${item.inStock ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>
+                              {item.inStock ? "In Stock" : "Out of Stock"}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex gap-2 justify-end mt-4 pt-3 border-t border-gray-200/60">
+                          <button onClick={() => handleEditMerch(item)} className="p-2 text-emerald-700 hover:bg-emerald-100 rounded-lg transition">
+                            <Edit2 className="h-4 w-4" />
+                          </button>
+                          <button onClick={() => handleDeleteMerch(item._id)} className="p-2 text-rose-600 hover:bg-rose-100 rounded-lg transition">
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Student Merchandise Orders Ledger */}
+              <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-4">
+                  <div>
+                    <h3 className="text-xl font-bold text-emerald-950">Student Merchandise Orders ({merchandiseOrders.length})</h3>
+                    <p className="text-xs text-gray-500 mt-0.5">Manage custom orders and fulfillment for weekly physical gatherings.</p>
+                  </div>
+                </div>
+
+                {merchandiseOrders.length === 0 ? (
+                  <div className="text-center py-10 text-gray-400 text-sm bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+                    No merchandise orders recorded yet.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto rounded-2xl border border-gray-100">
+                    <table className="w-full text-left border-collapse min-w-[800px]">
+                      <thead>
+                        <tr className="bg-gray-50 text-xs uppercase text-gray-500 font-bold border-b border-gray-200">
+                          <th className="p-4">Date</th>
+                          <th className="p-4">Member Name</th>
+                          <th className="p-4">Item & Custom Name</th>
+                          <th className="p-4">Size & Price</th>
+                          <th className="p-4">Payment</th>
+                          <th className="p-4">Collection Status</th>
+                          <th className="p-4 text-right">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {merchandiseOrders.map((ord) => (
+                          <tr key={ord._id} className="border-b border-gray-100 hover:bg-gray-50 text-sm">
+                            <td className="p-4 text-gray-600 whitespace-nowrap">{new Date(ord.createdAt).toLocaleDateString()}</td>
+                            <td className="p-4">
+                              <div className="font-bold text-gray-900">{ord.fullName}</div>
+                              <div className="text-xs text-gray-500">{ord.phone}</div>
+                            </td>
+                            <td className="p-4">
+                              <div className="font-bold text-emerald-950">{ord.merchandiseTitle}</div>
+                              {ord.customName ? (
+                                <span className="inline-block text-xs font-mono font-black text-white bg-emerald-900 px-2.5 py-0.5 rounded mt-1">
+                                  Print: {ord.customName}
+                                </span>
+                              ) : (
+                                <span className="text-xs text-gray-400">No custom name</span>
+                              )}
+                            </td>
+                            <td className="p-4 font-bold text-gray-800">
+                              <div>Size: {ord.size}</div>
+                              <div className="text-xs text-emerald-700">KES {ord.amount}</div>
+                            </td>
+                            <td className="p-4">
+                              <span className={`text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap ${
+                                ord.paymentStatus === "Paid" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
+                              }`}>
+                                {ord.paymentStatus}
+                              </span>
+                            </td>
+                            <td className="p-4">
+                              <span className={`text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap ${
+                                ord.collectionStatus === "Collected" ? "bg-emerald-100 text-emerald-800" : ord.collectionStatus === "Ready for Pickup" ? "bg-blue-100 text-blue-800" : "bg-gray-100 text-gray-700"
+                              }`}>
+                                {ord.collectionStatus}
+                              </span>
+                            </td>
+                            <td className="p-4 text-right">
+                              <select 
+                                value={ord.collectionStatus}
+                                onChange={(e) => handleUpdateOrderStatus(ord._id, e.target.value)}
+                                className="px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs font-bold outline-none bg-white"
+                              >
+                                <option value="Processing">Processing</option>
+                                <option value="Ready for Pickup">Ready for Pickup</option>
+                                <option value="Collected">Collected</option>
+                              </select>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* 6. EVENTS TAB */}
           {activeTab === "events" && (
             <div className="space-y-8 animate-in fade-in">
               <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100">
@@ -1239,7 +1733,6 @@ export default function DekuwecAdminDashboard() {
                         </label>
                       </div>
 
-                      {/* Only show price input if the event is NOT free */}
                       {!eventForm.isFree && (
                         <div className="mt-4 pt-4 border-t border-emerald-200/60">
                           <label className="block text-xs font-bold text-emerald-900 mb-2">Base Ticket Price (KES)</label>
@@ -1251,7 +1744,7 @@ export default function DekuwecAdminDashboard() {
                             className="w-full px-4 py-3 rounded-xl border border-emerald-200 text-sm focus:border-emerald-600 outline-none transition bg-white"
                           />
                           <p className="text-[10px] text-emerald-700/60 mt-2">
-                            Note: If you have dynamic tiers configured in settings, they will override this base price.
+                            Note: You can configure multiple dynamic options (like Member/Non-Member/First Year) with different prices in the <strong>Payments Tab</strong> after publishing.
                           </p>
                         </div>
                       )}
@@ -1391,7 +1884,7 @@ export default function DekuwecAdminDashboard() {
             </div>
           )}
 
-          {/* 6. ECOPULSE TAB */}
+          {/* 7. ECOPULSE TAB */}
           {activeTab === "ecopulse" && (
             <div className="space-y-8 animate-in fade-in">
               <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100">
@@ -1579,7 +2072,7 @@ export default function DekuwecAdminDashboard() {
             </div>
           )}
 
-          {/* 7. NATURE SNAPS TAB */}
+          {/* 8. NATURE SNAPS TAB */}
           {activeTab === "snaps" && (
             <div className="space-y-8 animate-in fade-in">
               <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-emerald-300">
@@ -1727,7 +2220,7 @@ export default function DekuwecAdminDashboard() {
             </div>
           )}
 
-          {/* 8. LEADERS TAB */}
+          {/* 9. LEADERS TAB */}
           {activeTab === "leaders" && (
             <div className="space-y-8 animate-in fade-in">
               <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100">
@@ -1871,7 +2364,7 @@ export default function DekuwecAdminDashboard() {
             </div>
           )}
 
-          {/* 9. BROADCASTS TAB */}
+          {/* 10. BROADCASTS TAB */}
           {activeTab === "broadcast" && (
             <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100 animate-in fade-in">
               <h2 className="text-xl sm:text-2xl font-black text-emerald-950 mb-2 flex items-center gap-2">
@@ -1940,7 +2433,7 @@ export default function DekuwecAdminDashboard() {
             </div>
           )}
 
-          {/* 10. FEEDBACK & INQUIRIES TAB */}
+          {/* 11. FEEDBACK & INQUIRIES TAB */}
           {activeTab === "feedback" && (
             <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100 animate-in fade-in">
               <h2 className="text-xl sm:text-2xl font-black text-emerald-950 mb-2 flex items-center gap-2">
@@ -2023,7 +2516,7 @@ export default function DekuwecAdminDashboard() {
             </div>
           )}
 
-          {/* 11. ADMIN LOGS TAB (NEW REAL DATABASE VERSION) */}
+          {/* 12. ADMIN LOGS TAB */}
           {activeTab === "admins" && (
             <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100 animate-in fade-in">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">

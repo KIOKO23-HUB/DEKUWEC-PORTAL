@@ -20,7 +20,8 @@ import {
   Send,
   ChevronLeft,
   Loader2,
-  Menu 
+  Menu,
+  ShoppingBag
 } from "lucide-react";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -147,6 +148,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       destination = "/dashboard/dispatch";
     } else if (titleLower.includes("snap") || titleLower.includes("photo")) {
       destination = "/dashboard/snaps";
+    } else if (titleLower.includes("merch") || titleLower.includes("t-shirt") || titleLower.includes("hoodie") || titleLower.includes("order")) {
+      destination = "/dashboard/merchandise";
     }
 
     // Redirect the user
@@ -265,6 +268,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </Link>
           <Link href="/dashboard/membership" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center space-x-3 px-4 py-3 rounded-xl hover:bg-emerald-800/60 text-sm font-medium text-emerald-100 transition">
             <Users className="h-4 w-4 text-emerald-300" /><span>Membership Portal</span>
+          </Link>
+          <Link href="/dashboard/merchandise" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center space-x-3 px-4 py-3 rounded-xl hover:bg-emerald-800/60 text-sm font-medium text-emerald-100 transition">
+            <ShoppingBag className="h-4 w-4 text-emerald-300" /><span>Club Merchandise</span>
           </Link>
           <Link href="/dashboard/support" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center space-x-3 px-4 py-3 rounded-xl hover:bg-emerald-800/60 text-sm font-medium text-emerald-100 transition">
             <HelpCircle className="h-4 w-4 text-emerald-300" /><span>Support & Inquiries</span>
@@ -460,7 +466,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                             {msg.content}
                           </div>
                         </div>
-                      )
+                      );
                     })
                   )}
                 </div>
