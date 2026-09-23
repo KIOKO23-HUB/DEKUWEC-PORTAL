@@ -45,8 +45,8 @@ export async function POST(req: Request) {
 
     const consumerKey = process.env.MPESA_CONSUMER_KEY?.trim();
     const consumerSecret = process.env.MPESA_CONSUMER_SECRET?.trim();
-    const shortCode = process.env.MPESA_SHORTCODE?.trim() || "4218224"; // Store Number[cite: 13]
-    const passkey = process.env.MPESA_PASSKEY?.trim() || "4a5623a174fd4e14cc6dfca263a7674ff8f9bcc9325313014347e50382d076ba"; //[cite: 13]
+    const shortCode = process.env.MPESA_SHORTCODE?.trim() || "4218224"; // Store Number[cite: 5, 8]
+    const passkey = process.env.MPESA_PASSKEY?.trim() || "4a5623a174fd4e14cc6dfca263a7674ff8f9bcc9325313014347e50382d076ba"; //[cite: 5, 8]
     const tillNumber = process.env.MPESA_TILL?.trim() || "1715230"; // DEKUWEC Till Number
 
     if (!consumerKey || !consumerSecret) {
@@ -84,7 +84,12 @@ export async function POST(req: Request) {
     const safeRef = (reference || "DEKUWEC").replace(/[^a-zA-Z0-9]/g, "").slice(0, 12);
     const safeDesc = (category || "DEKUWEC").replace(/[^a-zA-Z0-9]/g, "").slice(0, 12);
 
-    // 3. Fire the Live STK Push Payload for Buy Goods
+    // 3. Resolve exact CallBackURL without redirection drop
+    const host = req.headers.get("host") || "www.dekuwec.app";[cite: 10]
+    const protocol = host.includes("localhost") ? "http" : "https";
+    const callBackUrl = `${protocol}://${host}/api/mpesa/callback`;
+
+    // 4. Fire the Live STK Push Payload for Buy Goods
     const stkPayload = {
       BusinessShortCode: shortCode,
       Password: password,
@@ -94,7 +99,7 @@ export async function POST(req: Request) {
       PartyA: formattedPhone,
       PartyB: tillNumber,
       PhoneNumber: formattedPhone,
-      CallBackURL: "https://dekuwec.app/api/mpesa/callback",
+      CallBackURL: callBackUrl,
       AccountReference: safeRef || "DEKUWEC",
       TransactionDesc: safeDesc || "DEKUWEC",
     };
@@ -110,7 +115,7 @@ export async function POST(req: Request) {
 
     const stkData = await stkResponse.json();
 
-    // 4. Handle Response & Save Record in Database
+    // 5. Handle Response & Save Record in Database
     if (stkData.ResponseCode === "0") {
       await connectToDatabase();
       const payment = await Payment.create({
