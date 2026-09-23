@@ -14,30 +14,31 @@ export async function POST(req: Request) {
     const callback = rawBody?.Body?.stkCallback;
     if (!callback) {
       console.error("Missing stkCallback structure in payload");
-      return NextResponse.json({ ResultCode: 0, ResultDesc: "Accepted" });
+      return NextResponse.json({ ResultCode: 0, ResultDesc: "Accepted" }, { status: 200 });
     }
 
     const { CheckoutRequestID, ResultCode, ResultDesc, CallbackMetadata } = callback;
 
     await connectToDatabase();
 
-    // 1. Locate the record
+    // 1. Locate the pending payment record via CheckoutRequestID
     const payment = await Payment.findOne({ checkoutRequestId: CheckoutRequestID });
 
     if (!payment) {
       console.warn(`Payment record not found for CheckoutRequestID: ${CheckoutRequestID}`);
-      return NextResponse.json({ ResultCode: 0, ResultDesc: "Accepted" });
+      // Return 200 so Safaricom does not retry repeatedly
+      return NextResponse.json({ ResultCode: 0, ResultDesc: "Accepted" }, { status: 200 });
     }
 
-    // 2. Successful Payment (ResultCode 0)
+    // 2. Successful Payment (ResultCode === 0)
     if (ResultCode === 0) {
       let mpesaReceipt = "VERIFIED";
       let amountPaid = payment.amount;
 
       if (CallbackMetadata?.Item && Array.isArray(CallbackMetadata.Item)) {
         for (const item of CallbackMetadata.Item) {
-          if (item.Name === "MpesaReceiptNumber") mpesaReceipt = item.Value;
-          if (item.Name === "Amount") amountPaid = item.Value;
+          if (item.Name === "MpesaReceiptNumber") mpesaReceipt = String(item.Value);
+          if (item.Name === "Amount") amountPaid = Number(item.Value);
         }
       }
 
@@ -64,7 +65,7 @@ export async function POST(req: Request) {
         );
       }
 
-      // Dispatch in-app notification
+      // Dispatch in-app notification if user is authenticated
       if (payment.clerkId && payment.clerkId !== "anonymous") {
         try {
           await Notification.create({
@@ -86,13 +87,13 @@ export async function POST(req: Request) {
       payment.failureReason = ResultDesc || "Failed / Cancelled";
       payment.updatedAt = new Date();
       await payment.save();
-      console.warn(`❌ Failed for ${payment.phone}: ${ResultDesc}`);
+      console.warn(`❌ Payment failed for ${payment.phone}: ${ResultDesc}`);
     }
 
-    // Always respond with 200 and ResultCode 0 to acknowledge Safaricom
+    // Acknowledge receipt to Safaricom
     return NextResponse.json({ ResultCode: 0, ResultDesc: "Success" }, { status: 200 });
   } catch (error: any) {
     console.error("Callback Processing Error:", error);
-    return NextResponse.json({ ResultCode: 0, ResultDesc: "Error caught" }, { status: 200 });
+    return NextResponse.json({ ResultCode: 0, ResultDesc: "Error processed" }, { status: 200 });
   }
 }

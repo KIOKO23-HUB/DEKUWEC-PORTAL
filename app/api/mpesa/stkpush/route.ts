@@ -10,7 +10,7 @@ const TOKEN_URL = "https://api.safaricom.co.ke/oauth/v1/generate?grant_type=clie
 const STK_URL = "https://api.safaricom.co.ke/mpesa/stkpush/v1/processrequest";
 
 function formatPhoneNumber(phone: string): string {
-  let cleaned = phone.replace(/\D/g, "");
+  let cleaned = (phone || "").replace(/\D/g, "");
   if (cleaned.startsWith("0")) {
     cleaned = "254" + cleaned.slice(1);
   } else if (cleaned.startsWith("7") || cleaned.startsWith("1")) {
@@ -34,7 +34,8 @@ function getTimestamp(): string {
 
 export async function POST(req: Request) {
   try {
-    const { clerkId, fullName, phone, amount, category, reference } = await req.json();
+    const body = await req.json();
+    const { clerkId, fullName, phone, amount, category, reference } = body;
 
     if (!phone || !amount) {
       return NextResponse.json(
@@ -45,26 +46,28 @@ export async function POST(req: Request) {
 
     const consumerKey = process.env.MPESA_CONSUMER_KEY?.trim();
     const consumerSecret = process.env.MPESA_CONSUMER_SECRET?.trim();
-    const shortCode = process.env.MPESA_SHORTCODE?.trim() || "4218224"; // Store Number[cite: 5, 8]
-    const passkey = process.env.MPESA_PASSKEY?.trim() || "4a5623a174fd4e14cc6dfca263a7674ff8f9bcc9325313014347e50382d076ba"; //[cite: 5, 8]
-    const tillNumber = process.env.MPESA_TILL?.trim() || "1715230"; // DEKUWEC Till Number
+    const shortCode = process.env.MPESA_SHORTCODE?.trim() || "4218224"; // Store Number[cite: 8]
+    const passkey = process.env.MPESA_PASSKEY?.trim() || "4a5623a174fd4e14cc6dfca263a7674ff8f9bcc9325313014347e50382d076ba"; //[cite: 8]
+    const tillNumber = process.env.MPESA_TILL?.trim() || "1715230"; // Buy Goods Till Number
 
     if (!consumerKey || !consumerSecret) {
       return NextResponse.json(
-        { error: "Production Consumer Key or Secret not configured in environment." },
+        { error: "Missing MPESA_CONSUMER_KEY or MPESA_CONSUMER_SECRET in Vercel environment." },
         { status: 500 }
       );
     }
 
     // 1. Authenticate with Safaricom Production Server
-    const auth = Buffer.from(`${consumerKey}:${consumerSecret}`).toString("base64");
-    const tokenResponse = await fetch(TOKEN_URL, {
+    const authHeader = Buffer.from(`${consumerKey}:${consumerSecret}`).toString("base64");
+    const tokenRes = await fetch(TOKEN_URL, {
       method: "GET",
-      headers: { Authorization: `Basic ${auth}` },
+      headers: {
+        Authorization: `Basic ${authHeader}`,
+      },
     });
 
-    if (!tokenResponse.ok) {
-      const errText = await tokenResponse.text();
+    if (!tokenRes.ok) {
+      const errText = await tokenRes.text();
       console.error("Daraja Production Auth Error:", errText);
       return NextResponse.json(
         { error: `Safaricom Auth Failed: ${errText}` },
@@ -72,7 +75,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const tokenData = await tokenResponse.json();
+    const tokenData = await tokenRes.json();
     const accessToken = tokenData.access_token;
 
     // 2. Generate Cryptographic Password and Timestamp
@@ -80,16 +83,11 @@ export async function POST(req: Request) {
     const password = Buffer.from(`${shortCode}${passkey}${timestamp}`).toString("base64");
     const formattedPhone = formatPhoneNumber(phone);
 
-    // Clean references to prevent parameter rejection
+    // Sanitize references to avoid parameter rejection
     const safeRef = (reference || "DEKUWEC").replace(/[^a-zA-Z0-9]/g, "").slice(0, 12);
     const safeDesc = (category || "DEKUWEC").replace(/[^a-zA-Z0-9]/g, "").slice(0, 12);
 
-    // 3. Resolve exact CallBackURL without redirection drop
-    const host = req.headers.get("host") || "www.dekuwec.app";[cite: 10]
-    const protocol = host.includes("localhost") ? "http" : "https";
-    const callBackUrl = `${protocol}://${host}/api/mpesa/callback`;
-
-    // 4. Fire the Live STK Push Payload for Buy Goods
+    // 3. Dispatch Live STK Push Payload for Buy Goods
     const stkPayload = {
       BusinessShortCode: shortCode,
       Password: password,
@@ -99,12 +97,12 @@ export async function POST(req: Request) {
       PartyA: formattedPhone,
       PartyB: tillNumber,
       PhoneNumber: formattedPhone,
-      CallBackURL: callBackUrl,
+      CallBackURL: "https://www.dekuwec.app/api/mpesa/callback",
       AccountReference: safeRef || "DEKUWEC",
       TransactionDesc: safeDesc || "DEKUWEC",
     };
 
-    const stkResponse = await fetch(STK_URL, {
+    const stkRes = await fetch(STK_URL, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -113,43 +111,43 @@ export async function POST(req: Request) {
       body: JSON.stringify(stkPayload),
     });
 
-    const stkData = await stkResponse.json();
+    const stkData = await stkRes.json();
 
-    // 5. Handle Response & Save Record in Database
-    if (stkData.ResponseCode === "0") {
-      await connectToDatabase();
-      const payment = await Payment.create({
-        clerkId: clerkId || "anonymous",
-        fullName: fullName || "Member",
-        phone: formattedPhone,
-        amount: Math.ceil(Number(amount)),
-        category: category || "General Payment",
-        reference: reference || "DEKUWEC",
-        status: "Pending",
-        checkoutRequestId: stkData.CheckoutRequestID,
-        merchantRequestId: stkData.MerchantRequestID,
-      });
-
-      return NextResponse.json(
-        {
-          success: true,
-          message: "Check your phone! M-Pesa prompt sent.",
-          paymentId: payment._id,
-          checkoutRequestId: stkData.CheckoutRequestID,
-        },
-        { status: 200 }
-      );
-    } else {
+    if (!stkRes.ok || stkData.ResponseCode !== "0") {
       console.error("Safaricom Rejected STK:", stkData);
       return NextResponse.json(
-        { error: stkData.errorMessage || stkData.ResponseDescription || "Failed to push M-Pesa prompt" },
+        { error: stkData.errorMessage || stkData.ResponseDescription || "Safaricom rejected the payment prompt request." },
         { status: 400 }
       );
     }
-  } catch (error: any) {
-    console.error("M-Pesa API Error:", error);
+
+    // 4. Save Pending Record in Database
+    await connectToDatabase();
+    const payment = await Payment.create({
+      clerkId: clerkId || "anonymous",
+      fullName: fullName || "Member",
+      phone: formattedPhone,
+      amount: Math.ceil(Number(amount)),
+      category: category || "General Payment",
+      reference: reference || "DEKUWEC",
+      status: "Pending",
+      checkoutRequestId: stkData.CheckoutRequestID,
+      merchantRequestId: stkData.MerchantRequestID,
+    });
+
     return NextResponse.json(
-      { error: error?.message || "Internal Server Error connecting to M-Pesa" },
+      {
+        success: true,
+        message: "Check your phone! M-Pesa prompt sent.",
+        paymentId: payment._id,
+        checkoutRequestId: stkData.CheckoutRequestID,
+      },
+      { status: 200 }
+    );
+  } catch (err: any) {
+    console.error("M-Pesa API Error:", err);
+    return NextResponse.json(
+      { error: err?.message || "Internal Server Error connecting to M-Pesa" },
       { status: 500 }
     );
   }
