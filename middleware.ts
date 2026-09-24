@@ -6,14 +6,14 @@ const isPublicRoute = createRouteMatcher([
   '/login(.*)', 
   '/signup(.*)',
   '/api/webhooks(.*)',
-  '/api/mpesa(.*)',       // Allows STK push & callbacks through without login
-  '/api/payments(.*)'     // Fallback payment route
+  '/api/mpesa(.*)',
+  '/api/payments(.*)'
 ]);
 
-export default clerkMiddleware(async (auth, request) => {
+export default clerkMiddleware((auth, request) => {
   // Protect all routes that are NOT explicitly marked as public above
   if (!isPublicRoute(request)) {
-    await auth.protect();
+    auth().protect();
   }
 });
 
