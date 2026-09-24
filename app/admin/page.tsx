@@ -311,6 +311,16 @@ export default function DekuwecAdminDashboard() {
         setPayments(payData.payments || []);
       }
 
+      const feeRes = await fetch("/api/admin/fees").catch(() => null);
+      if (feeRes?.ok) {
+        const feeData = await feeRes.json();
+        setFeeConfig({
+          member: Number(feeData.member || 0),
+          wckUnder23: Number(feeData.wckUnder23 || 0),
+          wckOver23: Number(feeData.wckOver23 || 0)
+        });
+      }
+
       // Fetch Merchandise Catalog & Orders
       const merchRes = await fetch("/api/admin/merchandise").catch(() => null);
       if (merchRes && merchRes.ok) {
@@ -372,6 +382,20 @@ export default function DekuwecAdminDashboard() {
       }
     } catch(err) {
       alert("Server error connecting to database.");
+    }
+  };
+
+  const handleSaveBaseFees = async () => {
+    try {
+      const res = await fetch("/api/admin/fees", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(feeConfig)
+      });
+      if (!res.ok) throw new Error("Save failed");
+      alert("Base payment fees updated successfully.");
+    } catch {
+      alert("Could not save base payment fees.");
     }
   };
 
@@ -1182,7 +1206,7 @@ export default function DekuwecAdminDashboard() {
                       <input type="number" value={feeConfig.wckOver23} onChange={e => setFeeConfig({...feeConfig, wckOver23: Number(e.target.value)})} className="w-full px-3 py-2 rounded-lg border border-emerald-200 text-sm outline-none focus:border-emerald-500 bg-white" />
                     </div>
                   </div>
-                  <button onClick={() => alert("Global fee structures updated successfully! (Linked to future dynamic schema)")} className="mt-4 bg-emerald-700 hover:bg-emerald-800 text-white font-bold py-2 px-5 rounded-xl text-xs transition shadow-sm">
+                  <button onClick={handleSaveBaseFees} className="mt-4 bg-emerald-700 hover:bg-emerald-800 text-white font-bold py-2 px-5 rounded-xl text-xs transition shadow-sm">
                     Save Base Fees
                   </button>
                 </div>

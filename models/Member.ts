@@ -10,6 +10,9 @@ const MemberSchema = new mongoose.Schema(
     status: { type: String, default: "Pending Approval" },
     isOfficialRosterClaim: { type: Boolean, default: false },
     claimedRosterName: { type: String },
+    paymentStatus: { type: String, default: "Not Yet Paid" },
+    amountPaid: { type: Number, default: 0 },
+    mpesaReceipt: { type: String, default: "" },
   },
   { timestamps: true }
 );

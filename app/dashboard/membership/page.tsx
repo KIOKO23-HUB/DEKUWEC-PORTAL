@@ -59,6 +59,8 @@ export default function MembershipPortalPage() {
   // Dynamic Fee Configuration (Controlled by Admin Portal)
   const [feeConfig, setFeeConfig] = useState({ member: 100 });
   const membershipFee = feeConfig.member;
+  const [paymentAmount, setPaymentAmount] = useState(100);
+  const [paymentBalance, setPaymentBalance] = useState<number | null>(null);
 
   const [messagingTarget, setMessagingTarget] = useState<any>(null);
   const [messageText, setMessageText] = useState("");
@@ -88,6 +90,7 @@ export default function MembershipPortalPage() {
           const feeData = await feeRes.json();
           if (feeData && feeData.member) {
             setFeeConfig({ member: feeData.member });
+            setPaymentAmount(feeData.member);
           }
         }
       } catch (error) {
@@ -196,7 +199,8 @@ export default function MembershipPortalPage() {
           clerkId: user?.id,
           fullName: user?.fullName || regForm.name || "Member",
           phone: paymentPhone,
-          amount: membershipFee, 
+          amount: paymentAmount,
+          totalDue: membershipFee,
           category: "Membership Registration",
           reference: "Membership"
         })
@@ -224,6 +228,7 @@ export default function MembershipPortalPage() {
 
           if (statusData.status === "Completed") {
             clearInterval(pollInterval);
+            setPaymentBalance(statusData.balance ?? 0);
             
             setPaymentStep("success");
             
@@ -544,7 +549,7 @@ export default function MembershipPortalPage() {
                     onClick={() => setPaymentStep("checkout")}
                     className="w-full py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm transition"
                   >
-                    Next: Proceed to Pay (KES {membershipFee})
+                    Next: Proceed to Pay
                   </button>
                   <button 
                     onClick={() => {
@@ -567,9 +572,10 @@ export default function MembershipPortalPage() {
                 </div>
 
                 <form onSubmit={handleInitiatePayment} className="space-y-4">
-                  <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-2xl flex items-center justify-between">
-                    <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider">Registration Fee</span>
-                    <span className="text-xl font-black text-emerald-950">KES {membershipFee}</span>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-1">Amount to pay</label>
+                    <input type="number" min="1" required value={paymentAmount} onChange={(e) => setPaymentAmount(Number(e.target.value))} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-semibold outline-none focus:border-emerald-600" />
+                    <span className="text-[10px] text-gray-400 mt-1 block">You may pay part now and pay the remaining balance later.</span>
                   </div>
 
                   <div>
@@ -604,7 +610,7 @@ export default function MembershipPortalPage() {
                 <Smartphone className="h-12 w-12 text-emerald-600 animate-pulse mx-auto" />
                 <h3 className="text-lg font-black text-emerald-950">Check your phone!</h3>
                 <p className="text-sm text-gray-500 px-4">
-                  An M-Pesa prompt for <strong>KES {membershipFee}</strong> has been sent to <strong>{paymentPhone}</strong>. Enter your PIN to finalize.
+                  An M-Pesa prompt has been sent to <strong>{paymentPhone}</strong>. Enter your PIN to finalize.
                 </p>
                 <div className="flex items-center justify-center gap-2 text-xs font-bold text-emerald-600 mt-4">
                   <Loader2 className="h-4 w-4 animate-spin" /> Verifying payment with Safaricom...
@@ -618,7 +624,8 @@ export default function MembershipPortalPage() {
                   <CheckCircle className="h-8 w-8" />
                 </div>
                 <h3 className="text-xl font-black text-emerald-950">Payment Completed!</h3>
-                <p className="text-sm text-gray-500">Your membership fee has been successfully processed.</p>
+                <p className="text-sm text-gray-500">Payment received. Your remaining balance is {paymentBalance ?? "being calculated"}. You can pay the full balance again from this payment option.</p>
+                <button onClick={() => { setPaymentAmount(paymentBalance || membershipFee); setPaymentStep("checkout"); }} className="w-full py-3 rounded-xl bg-emerald-600 text-white font-bold text-sm">Pay Full Balance Again</button>
               </div>
             )}
           </div>

@@ -35,9 +35,9 @@ function getTimestamp(): string {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { clerkId, fullName, phone, amount, category, reference } = body;
+    const { clerkId, fullName, phone, amount, totalDue, category, reference, targetId } = body;
 
-    if (!phone || !amount) {
+    if (!phone || !amount || Number(amount) <= 0) {
       return NextResponse.json(
         { error: "Phone number and amount are required." },
         { status: 400 }
@@ -128,8 +128,10 @@ export async function POST(req: Request) {
       fullName: fullName || "Member",
       phone: formattedPhone,
       amount: Math.ceil(Number(amount)),
+      totalDue: Math.max(Math.ceil(Number(totalDue || amount)), Math.ceil(Number(amount))),
       category: category || "General Payment",
       reference: reference || "DEKUWEC",
+      targetId: targetId || "",
       status: "Pending",
       checkoutRequestId: stkData.CheckoutRequestID,
       merchantRequestId: stkData.MerchantRequestID,

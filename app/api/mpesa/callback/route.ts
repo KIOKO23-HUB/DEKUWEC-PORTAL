@@ -3,6 +3,9 @@ import { connectToDatabase } from "@/lib/mongodb";
 import Payment from "@/models/Payment";
 import MerchandiseOrder from "@/models/MerchandiseOrder";
 import Notification from "@/models/Notification";
+import Member from "@/models/Member";
+import WckApplication from "@/models/WckApplication";
+import EventRegistration from "@/models/EventRegistration";
 
 export const dynamic = "force-dynamic";
 
@@ -43,17 +46,39 @@ export async function POST(req: Request) {
       payment.updatedAt = new Date();
       await payment.save();
 
+      const completedForReference = await Payment.find({
+        clerkId: payment.clerkId,
+        category: payment.category,
+        reference: payment.reference,
+        status: "Completed"
+      }).select("amount").lean();
+      const totalPaid = completedForReference.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+      const paymentStatus = totalPaid >= Number(payment.totalDue || payment.amount) ? "Paid" : "Partial";
+
+      const paymentFilter = payment.targetId
+        ? { _id: payment.targetId }
+        : { clerkId: payment.clerkId, paymentStatus: { $ne: "Paid" } };
+      const paidUpdate = {
+        $set: { paymentStatus, mpesaReceipt, updatedAt: new Date() },
+        $inc: { amountPaid: amountPaid }
+      };
+
+      if (payment.category === "Membership Registration") {
+        await Member.updateMany(paymentFilter, paidUpdate);
+      } else if (payment.category === "WCK Card Application") {
+        await WckApplication.updateMany(paymentFilter, paidUpdate);
+      } else if (payment.category === "Event Registration") {
+        await EventRegistration.updateMany(paymentFilter, paidUpdate);
+      }
+
       // Update Merchandise Order if applicable
       await MerchandiseOrder.updateMany(
-        {
-          $or: [
-            { clerkId: payment.clerkId, paymentStatus: "Pending" },
-            { phone: payment.phone, paymentStatus: "Pending" }
-          ]
-        },
+        payment.targetId
+          ? { _id: payment.targetId }
+          : { $or: [{ clerkId: payment.clerkId, paymentStatus: "Pending" }, { phone: payment.phone, paymentStatus: "Pending" }] },
         {
           $set: {
-            paymentStatus: "Paid",
+            paymentStatus,
             mpesaReceipt: mpesaReceipt,
             updatedAt: new Date()
           }

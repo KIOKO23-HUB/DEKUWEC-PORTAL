@@ -28,6 +28,8 @@ export default function WckCardPage() {
   // Age-based pricing: Under 23 = 100, Over 23 = 230
   const [feeConfig, setFeeConfig] = useState({ wck1: 200, wck2: 350, wck4: 600 });
   const [selectedFeeAmount, setSelectedFeeAmount] = useState<number>(100);
+  const [paymentAmount, setPaymentAmount] = useState<number>(100);
+  const [paymentBalance, setPaymentBalance] = useState<number | null>(null);
 
   const userEmail = user?.primaryEmailAddress?.emailAddress || "";
 
@@ -35,24 +37,22 @@ export default function WckCardPage() {
     setMounted(true);
     if (user) {
       setFormData(prev => ({ ...prev, fullName: user.fullName || "" }));
-      
-      // Fetch live application status from the database
-      fetch(`/api/wck-card?clerkId=${user.id}`)
-        .then(res => res.json())
-        .then(data => {
-          if (data.application) {
-            setExistingApp(data.application);
-            setPaymentPhone(data.application.phone);
-            // Calculate existing user's fee based on their saved age bracket
-            if (data.application.ageBracket === "23 years and above") {
-              setSelectedFeeAmount(230);
-            } else {
-              setSelectedFeeAmount(100);
-            }
-          }
-        })
-        .catch(err => console.error(err))
-        .finally(() => setLoadingApp(false));
+      Promise.all([
+        fetch(`/api/wck-card?clerkId=${user.id}`).then(res => res.json()),
+        fetch("/api/admin/fees").then(res => res.ok ? res.json() : null)
+      ]).then(([applicationData, feeData]) => {
+        const application = applicationData?.application;
+        if (application) {
+          setExistingApp(application);
+          setPaymentPhone(application.phone);
+        }
+        const isOver23 = application?.ageBracket === "23 years and above" || formData.ageBracket === "23 years and above";
+        const configuredAmount = isOver23 ? feeData?.wckOver23 : feeData?.wckUnder23;
+        if (configuredAmount) {
+          setSelectedFeeAmount(Number(configuredAmount));
+          setPaymentAmount(Number(configuredAmount));
+        }
+      }).catch(err => console.error(err)).finally(() => setLoadingApp(false));
     }
   }, [user]);
 
@@ -62,8 +62,10 @@ export default function WckCardPage() {
     setFormData({ ...formData, ageBracket: age });
     if (age === "23 years and above") {
       setSelectedFeeAmount(230);
+      setPaymentAmount(230);
     } else {
       setSelectedFeeAmount(100);
+      setPaymentAmount(100);
     }
   };
 
@@ -117,9 +119,11 @@ export default function WckCardPage() {
           clerkId: user?.id,
           fullName: user?.fullName || "Member",
           phone: paymentPhone,
-          amount: selectedFeeAmount,
+          amount: paymentAmount,
+          totalDue: selectedFeeAmount,
           category: "WCK Card Application",
-          reference: "WCK Card"
+          reference: "WCK Card",
+          targetId: existingApp?._id
         })
       });
 
@@ -145,6 +149,7 @@ export default function WckCardPage() {
 
           if (statusData.status === "Completed") {
             clearInterval(pollInterval);
+            setPaymentBalance(statusData.balance ?? 0);
             
             // Mark the local state as paid to update the UI instantly
             setExistingApp((prev: any) => ({ ...prev, paymentStatus: "Paid" }));
@@ -245,7 +250,7 @@ export default function WckCardPage() {
                 }}
                 className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 px-6 rounded-xl text-sm transition shadow-sm flex items-center justify-center gap-2"
               >
-                <CreditCard className="h-4 w-4" /> Pay KES {selectedFeeAmount} via M-Pesa Now
+                <CreditCard className="h-4 w-4" /> Pay via M-Pesa Now
               </button>
             </div>
           )}
@@ -380,9 +385,10 @@ export default function WckCardPage() {
                 </div>
 
                 <form onSubmit={handleInitiatePayment} className="space-y-4">
-                  <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-2xl flex items-center justify-between">
-                    <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider">Amount Due ({existingApp?.ageBracket || formData.ageBracket})</span>
-                    <span className="text-xl font-black text-emerald-950">KES {selectedFeeAmount}</span>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-1">Amount to pay</label>
+                    <input type="number" min="1" required value={paymentAmount} onChange={(e) => setPaymentAmount(Number(e.target.value))} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-semibold outline-none focus:border-emerald-600" />
+                    <span className="text-[10px] text-gray-400 mt-1 block">Pay an installment now or enter the full remaining balance.</span>
                   </div>
 
                   <div>
@@ -406,7 +412,7 @@ export default function WckCardPage() {
                     className="w-full py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm transition flex items-center justify-center gap-2 shadow-md mt-2"
                   >
                     <CreditCard className="h-4 w-4" />
-                    <span>Send M-Pesa Prompt (KES {selectedFeeAmount})</span>
+                    <span>Send M-Pesa Prompt</span>
                   </button>
                 </form>
               </div>
@@ -418,7 +424,7 @@ export default function WckCardPage() {
                 <Smartphone className="h-12 w-12 text-emerald-600 animate-pulse mx-auto" />
                 <h3 className="text-lg font-black text-emerald-950">Check your phone!</h3>
                 <p className="text-sm text-gray-500 px-4">
-                  An M-Pesa prompt for <strong>KES {selectedFeeAmount}</strong> has been sent to <strong>{paymentPhone}</strong>. Enter your PIN to finalize.
+                  An M-Pesa prompt has been sent to <strong>{paymentPhone}</strong>. Enter your PIN to finalize.
                 </p>
                 <div className="flex items-center justify-center gap-2 text-xs font-bold text-emerald-600 mt-4">
                   <Loader2 className="h-4 w-4 animate-spin" /> Verifying payment with Safaricom...
@@ -433,7 +439,8 @@ export default function WckCardPage() {
                   <CheckCircle className="h-8 w-8" />
                 </div>
                 <h3 className="text-xl font-black text-emerald-950">Payment Completed!</h3>
-                <p className="text-sm text-gray-500">Your WCK Card request is now paid and queued for printing!</p>
+                <p className="text-sm text-gray-500">Payment received. Your remaining balance is {paymentBalance ?? "being calculated"}.</p>
+                <button onClick={() => { setPaymentAmount(paymentBalance || selectedFeeAmount); setModalStep("checkout"); }} className="w-full py-3 rounded-xl bg-emerald-600 text-white font-bold text-sm">Pay Full Balance Again</button>
               </div>
             )}
 

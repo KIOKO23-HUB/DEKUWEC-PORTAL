@@ -301,6 +301,8 @@ export default function EventsPage() {
   ]);
   const [selectedTier, setSelectedTier] = useState<string>("member");
   const [selectedAmount, setSelectedAmount] = useState<number>(650);
+  const [paymentAmount, setPaymentAmount] = useState<number>(650);
+  const [paymentBalance, setPaymentBalance] = useState<number | null>(null);
 
   useEffect(() => {
     async function loadData() {
@@ -334,6 +336,7 @@ export default function EventsPage() {
             setPaymentOptions(feeData.eventTiers);
             setSelectedTier(feeData.eventTiers[0].id);
             setSelectedAmount(feeData.eventTiers[0].amount);
+            setPaymentAmount(feeData.eventTiers[0].amount);
           } else if (feeData && feeData.eventMember) {
             const legacyOptions = [
               { id: "member", label: "Registered Club Member", amount: feeData.eventMember },
@@ -343,6 +346,7 @@ export default function EventsPage() {
             setPaymentOptions(legacyOptions);
             setSelectedTier(legacyOptions[0].id);
             setSelectedAmount(legacyOptions[0].amount);
+            setPaymentAmount(legacyOptions[0].amount);
           }
         }
       } catch (error) {
@@ -368,6 +372,7 @@ export default function EventsPage() {
     const selectedOption = paymentOptions.find(opt => opt.id === tierId);
     if (selectedOption) {
       setSelectedAmount(selectedOption.amount);
+      setPaymentAmount(selectedOption.amount);
     }
   };
 
@@ -449,7 +454,8 @@ export default function EventsPage() {
           clerkId: user?.id,
           fullName: user?.fullName || formData.name || "Member",
           phone: paymentPhone,
-          amount: selectedAmount,
+          amount: paymentAmount,
+          totalDue: selectedAmount,
           category: "Event Registration",
           reference: activeModalEvent?.title || "Event Payment"
         })
@@ -477,6 +483,7 @@ export default function EventsPage() {
 
           if (statusData.status === "Completed") {
             clearInterval(pollInterval);
+            setPaymentBalance(statusData.balance ?? 0);
             
             // Mark local state as paid to update UI
             if (activeModalEvent) {
@@ -843,16 +850,16 @@ export default function EventsPage() {
                     >
                       {paymentOptions.map((opt) => (
                         <option key={opt.id} value={opt.id}>
-                          {opt.label} (KES {opt.amount})
+                          {opt.label}
                         </option>
                       ))}
                     </select>
                   </div>
 
-                  {/* Display Amount */}
-                  <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-2xl flex items-center justify-between">
-                    <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider">Amount Due</span>
-                    <span className="text-xl font-black text-emerald-950">KES {selectedAmount}</span>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-1">Amount to pay</label>
+                    <input type="number" min="1" required value={paymentAmount} onChange={(e) => setPaymentAmount(Number(e.target.value))} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-semibold outline-none focus:border-emerald-600" />
+                    <span className="text-[10px] text-gray-400 mt-1 block">Pay an installment now or enter the full remaining balance.</span>
                   </div>
 
                   {/* Phone Input with Editable Override */}
@@ -889,7 +896,7 @@ export default function EventsPage() {
                 <Smartphone className="h-12 w-12 text-emerald-600 animate-pulse mx-auto" />
                 <h3 className="text-lg font-black text-emerald-950">Check your phone!</h3>
                 <p className="text-sm text-gray-500 px-4">
-                  An M-Pesa prompt for <strong>KES {selectedAmount}</strong> has been sent to <strong>{paymentPhone}</strong>. Enter your PIN to finalize.
+                  An M-Pesa prompt has been sent to <strong>{paymentPhone}</strong>. Enter your PIN to finalize.
                 </p>
                 <div className="flex items-center justify-center gap-2 text-xs font-bold text-emerald-600 mt-4">
                   <Loader2 className="h-4 w-4 animate-spin" /> Verifying payment with Safaricom...
@@ -904,7 +911,8 @@ export default function EventsPage() {
                   <CheckCircle className="h-8 w-8" />
                 </div>
                 <h3 className="text-xl font-black text-emerald-950">Payment Completed!</h3>
-                <p className="text-sm text-gray-500">Your reservation has been confirmed. See you at the excursion!</p>
+                <p className="text-sm text-gray-500">Payment received. Your remaining balance is {paymentBalance ?? "being calculated"}. You can pay the full balance again from checkout.</p>
+                <button onClick={() => { setPaymentAmount(paymentBalance || selectedAmount); setModalStep("checkout"); }} className="w-full py-3 rounded-xl bg-emerald-600 text-white font-bold text-sm">Pay Full Balance Again</button>
               </div>
             )}
 

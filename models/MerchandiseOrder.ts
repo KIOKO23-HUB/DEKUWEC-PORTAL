@@ -11,7 +11,7 @@ export interface IMerchandiseOrder extends Document {
   amount: number;
   size?: string;
   customName?: string;
-  paymentStatus: "Pending" | "Paid" | "Pay Later";
+  paymentStatus: "Pending" | "Partial" | "Paid" | "Pay Later";
   collectionStatus: "Processing" | "Ready for Pickup" | "Collected";
   pickupNote: string;
   mpesaReceipt?: string;

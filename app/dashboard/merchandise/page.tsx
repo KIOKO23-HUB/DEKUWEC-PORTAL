@@ -22,6 +22,8 @@ export default function MerchandisePage() {
   const [modalStep, setModalStep] = useState<"customize" | "ask_pay" | "checkout" | "polling" | "success">("customize");
   const [currentOrderId, setCurrentOrderId] = useState<string | null>(null);
   const [currentAmount, setCurrentAmount] = useState<number>(0);
+  const [paymentAmount, setPaymentAmount] = useState<number>(0);
+  const [paymentBalance, setPaymentBalance] = useState<number | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -39,6 +41,7 @@ export default function MerchandisePage() {
   const openOrderFlow = (item: any) => {
     setSelectedItem(item);
     setCurrentAmount(item.price);
+    setPaymentAmount(item.price);
     setCustomName((user?.firstName || "").toUpperCase());
     setSelectedSize(item.availableSizes?.[0] || "M");
     setPaymentPhone("");
@@ -101,7 +104,9 @@ export default function MerchandisePage() {
           clerkId: user?.id,
           fullName: user?.fullName || "Member",
           phone: paymentPhone,
-          amount: currentAmount,
+          amount: paymentAmount,
+          totalDue: currentAmount,
+          targetId: currentOrderId,
           category: "Club Merchandise",
           reference: selectedItem?.title?.slice(0, 12) || "Merchandise"
         })
@@ -126,6 +131,7 @@ export default function MerchandisePage() {
 
           if (statusData.status === "Completed") {
             clearInterval(pollInterval);
+            setPaymentBalance(statusData.balance ?? 0);
             setMyOrders((prev) =>
               prev.map((o) => (o._id === currentOrderId ? { ...o, paymentStatus: "Paid" } : o))
             );
@@ -191,7 +197,6 @@ export default function MerchandisePage() {
                   <div>
                     <div className="flex justify-between items-baseline gap-2 mb-1">
                       <h3 className="font-bold text-lg text-gray-900 leading-snug">{item.title}</h3>
-                      <span className="font-black text-emerald-800 text-lg shrink-0">KES {item.price}</span>
                     </div>
                     <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed">{item.description}</p>
                   </div>
@@ -224,7 +229,6 @@ export default function MerchandisePage() {
                   <p className="text-xs text-gray-500">
                     Size: <strong>{order.size}</strong> {order.customName && `• Custom Name: "${order.customName}"`}
                   </p>
-                  <p className="text-xs font-bold text-emerald-700 mt-1">KES {order.amount}</p>
                   
                   <div className="flex flex-wrap gap-2 mt-2">
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
@@ -326,7 +330,6 @@ export default function MerchandisePage() {
                 </div>
                 <div>
                   <h3 className="text-xl font-black text-emerald-950">{selectedItem.title}</h3>
-                  <p className="text-sm font-bold text-emerald-800 mt-1">Total: KES {currentAmount}</p>
                   <p className="text-xs text-gray-500 mt-2 px-4">
                     Do you want to complete payment via M-Pesa immediately, or log your order now and pay later?
                   </p>
@@ -366,9 +369,10 @@ export default function MerchandisePage() {
                   <p className="text-xs text-gray-500 mt-1">Confirm your phone number to receive the prompt.</p>
                 </div>
 
-                <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-2xl flex items-center justify-between">
-                  <span className="text-xs font-bold text-emerald-800 uppercase">Amount Due</span>
-                  <span className="text-xl font-black text-emerald-950">KES {currentAmount}</span>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">Amount to pay</label>
+                  <input type="number" min="1" required value={paymentAmount} onChange={(e) => setPaymentAmount(Number(e.target.value))} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-semibold outline-none focus:border-emerald-600" />
+                  <span className="text-[10px] text-gray-400 mt-1 block">Pay an installment now or enter the full remaining balance.</span>
                 </div>
 
                 <div>
@@ -402,7 +406,7 @@ export default function MerchandisePage() {
                 <Smartphone className="h-12 w-12 text-emerald-600 animate-pulse mx-auto" />
                 <h3 className="text-lg font-black text-emerald-950">Check your phone!</h3>
                 <p className="text-sm text-gray-500 px-4">
-                  Prompt for <strong>KES {currentAmount}</strong> sent to <strong>{paymentPhone}</strong>. Enter your M-Pesa PIN to finalize.
+                  Prompt sent to <strong>{paymentPhone}</strong>. Enter your M-Pesa PIN to finalize.
                 </p>
                 <div className="flex items-center justify-center gap-2 text-xs font-bold text-emerald-600">
                   <Loader2 className="h-4 w-4 animate-spin" /> Verifying with Safaricom...
@@ -418,9 +422,8 @@ export default function MerchandisePage() {
                 </div>
                 <div>
                   <h3 className="text-xl font-black text-emerald-950">Congratulations! 🎉</h3>
-                  <p className="text-sm text-gray-600 mt-1">
-                    Your order for <strong>{selectedItem.title}</strong> has been confirmed. An email notification has been dispatched.
-                  </p>
+                  <p className="text-sm text-gray-600 mt-1">Your order for <strong>{selectedItem.title}</strong> has been confirmed.</p>
+                  <p className="text-sm text-gray-600">Remaining balance: {paymentBalance ?? "being calculated"}.</p>
                 </div>
 
                 <div className="bg-gray-50 border border-gray-200 p-4 rounded-2xl text-left text-xs text-gray-600 space-y-1">
@@ -428,9 +431,12 @@ export default function MerchandisePage() {
                   <p>Collection is held during our weekly Wednesday physical club meeting (5:00 PM – 6:45 PM) exactly one week after payment.</p>
                 </div>
 
+                <button onClick={() => { setPaymentAmount(paymentBalance || currentAmount); setModalStep("checkout"); }} className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm">
+                  Pay Full Balance Again
+                </button>
                 <button
                   onClick={() => setIsModalOpen(false)}
-                  className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm"
+                  className="w-full py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl text-sm"
                 >
                   Done
                 </button>

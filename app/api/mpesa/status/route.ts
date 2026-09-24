@@ -34,10 +34,22 @@ export async function GET(req: Request) {
       return NextResponse.json({ status: "Pending" }, { status: 200 });
     }
 
+    const completedPayments = await Payment.find({
+      clerkId: payment.clerkId,
+      category: payment.category,
+      reference: payment.reference,
+      status: "Completed"
+    }).select("amount totalDue").lean();
+    const totalDue = Number(payment.totalDue || payment.amount || 0);
+    const totalPaid = completedPayments.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+
     return NextResponse.json({
       status: payment.status || "Pending",
       receipt: payment.mpesaReceipt || "",
       amount: payment.amount,
+      totalDue,
+      totalPaid,
+      balance: Math.max(0, totalDue - totalPaid),
     }, { status: 200 });
   } catch (err: any) {
     console.error("Status route error:", err);

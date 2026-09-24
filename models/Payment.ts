@@ -5,8 +5,10 @@ const PaymentSchema = new mongoose.Schema({
   fullName: { type: String, required: true },
   phone: { type: String, required: true },
   amount: { type: Number, required: true },
+  totalDue: { type: Number, default: 0 },
   category: { type: String, required: true }, // "Event", "WCK", or "Membership"
   reference: { type: String, required: true }, // e.g., "Mt Satima Hike"
+  targetId: { type: String, default: "" },
   checkoutRequestId: { type: String, index: true },
   merchantRequestId: { type: String },
   mpesaReceipt: { type: String, default: "" },
