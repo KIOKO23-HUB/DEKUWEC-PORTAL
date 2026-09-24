@@ -9,11 +9,10 @@ export const dynamic = "force-dynamic";
 export async function POST(req: Request) {
   try {
     const rawBody = await req.json();
-    console.log("👉 SAFARICOM CALLBACK RECEIVED:", JSON.stringify(rawBody, null, 2));
+    console.log("👉 SAFARICOM LIVE CALLBACK PAYLOAD:", JSON.stringify(rawBody));
 
     const callback = rawBody?.Body?.stkCallback;
     if (!callback) {
-      console.error("Missing stkCallback structure in payload");
       return NextResponse.json({ ResultCode: 0, ResultDesc: "Accepted" }, { status: 200 });
     }
 
@@ -21,16 +20,13 @@ export async function POST(req: Request) {
 
     await connectToDatabase();
 
-    // 1. Locate the pending payment record via CheckoutRequestID
     const payment = await Payment.findOne({ checkoutRequestId: CheckoutRequestID });
 
     if (!payment) {
-      console.warn(`Payment record not found for CheckoutRequestID: ${CheckoutRequestID}`);
-      // Return 200 so Safaricom does not retry repeatedly
+      console.warn("Payment not found for CheckoutRequestID:", CheckoutRequestID);
       return NextResponse.json({ ResultCode: 0, ResultDesc: "Accepted" }, { status: 200 });
     }
 
-    // 2. Successful Payment (ResultCode === 0)
     if (ResultCode === 0) {
       let mpesaReceipt = "VERIFIED";
       let amountPaid = payment.amount;
@@ -48,24 +44,23 @@ export async function POST(req: Request) {
       await payment.save();
 
       // Update Merchandise Order if applicable
-      if (payment.category === "Club Merchandise" || payment.reference?.toLowerCase().includes("merch")) {
-        await MerchandiseOrder.updateMany(
-          {
-            $or: [
-              { clerkId: payment.clerkId, paymentStatus: "Pending" },
-              { phone: payment.phone, paymentStatus: "Pending" }
-            ]
-          },
-          {
-            $set: {
-              paymentStatus: "Paid",
-              mpesaReceipt: mpesaReceipt
-            }
+      await MerchandiseOrder.updateMany(
+        {
+          $or: [
+            { clerkId: payment.clerkId, paymentStatus: "Pending" },
+            { phone: payment.phone, paymentStatus: "Pending" }
+          ]
+        },
+        {
+          $set: {
+            paymentStatus: "Paid",
+            mpesaReceipt: mpesaReceipt,
+            updatedAt: new Date()
           }
-        );
-      }
+        }
+      );
 
-      // Dispatch in-app notification if user is authenticated
+      // Create notification
       if (payment.clerkId && payment.clerkId !== "anonymous") {
         try {
           await Notification.create({
@@ -82,15 +77,12 @@ export async function POST(req: Request) {
 
       console.log(`✅ Success: ${mpesaReceipt} - KES ${amountPaid}`);
     } else {
-      // 3. User Cancelled or Transaction Failed
       payment.status = "Failed";
       payment.failureReason = ResultDesc || "Failed / Cancelled";
       payment.updatedAt = new Date();
       await payment.save();
-      console.warn(`❌ Payment failed for ${payment.phone}: ${ResultDesc}`);
     }
 
-    // Acknowledge receipt to Safaricom
     return NextResponse.json({ ResultCode: 0, ResultDesc: "Success" }, { status: 200 });
   } catch (error: any) {
     console.error("Callback Processing Error:", error);
