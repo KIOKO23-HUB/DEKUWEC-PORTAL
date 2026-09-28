@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { UserButton, useUser } from "@clerk/nextjs";
@@ -21,8 +21,15 @@ import {
   ChevronLeft,
   Loader2,
   Menu,
-  ShoppingBag
+  ShoppingBag,
+  ImagePlus,
+  Smile,
+  Flame,
+  Download,
+  Eye,
+  XCircle
 } from "lucide-react";
+import MessageAttachment from "@/components/MessageAttachment";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, isLoaded } = useUser();
@@ -39,6 +46,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [isFetchingContacts, setIsFetchingContacts] = useState(false);
   const [activeChat, setActiveChat] = useState<any | null>(null);
   const [chatHistory, setChatHistory] = useState<any[]>([]);
+  const [presenceById, setPresenceById] = useState<Record<string, { isOnline: boolean; lastSeenAt: string | null }>>({});
+  const [weeklyStreak, setWeeklyStreak] = useState(0);
+  const [pendingContactId, setPendingContactId] = useState<string | null>(null);
   
   // Like Button State
   const [likeCount, setLikeCount] = useState(20);
@@ -47,6 +57,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [chatInput, setChatInput] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [isLoadingChat, setIsLoadingChat] = useState(false);
+  const [isUploadingMedia, setIsUploadingMedia] = useState(false);
+  const [mediaFile, setMediaFile] = useState<File | null>(null);
+  const [mediaViewOnce, setMediaViewOnce] = useState(false);
+  const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
+  const [emojiMode, setEmojiMode] = useState<"emoji" | "sticker">("emoji");
+  const mediaInputRef = useRef<HTMLInputElement>(null);
 
   // Reliable Cloudinary Logo URL
   const logoUrl = "https://res.cloudinary.com/dnipaby6h/image/upload/v1789108366/WhatsApp_Image_2026-09-03_at_09.49.04_q31jcg.jpg";
@@ -62,6 +78,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     };
     window.addEventListener("keydown", handleEscape);
     return () => window.removeEventListener("keydown", handleEscape);
+  }, []);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("openMessages") === "1") {
+      setIsMessagesOpen(true);
+      setPendingContactId(url.searchParams.get("contact"));
+      url.searchParams.delete("openMessages");
+      url.searchParams.delete("contact");
+      window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+    }
   }, []);
 
   // 1. Fetch Global Likes on Load
@@ -90,6 +117,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   }, [user]);
 
+  useEffect(() => {
+    if (!user) return;
+    const heartbeat = () => {
+      if (document.visibilityState === "visible") {
+        fetch("/api/messages/presence", { method: "POST" }).catch(() => {});
+      }
+    };
+    heartbeat();
+    const interval = window.setInterval(heartbeat, 45000);
+    document.addEventListener("visibilitychange", heartbeat);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", heartbeat);
+    };
+  }, [user?.id]);
+
   // 3. Fetch REAL Contacts Directory when Message Sidebar is opened
   useEffect(() => {
     if (isMessagesOpen && directoryContacts.length === 0) {
@@ -102,18 +145,84 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   }, [isMessagesOpen, directoryContacts.length]);
 
-  // 4. Fetch REAL Chat History when a contact is selected
   useEffect(() => {
-    if (user && activeChat) {
-      setIsLoadingChat(true);
-      fetch(`/api/messages?user1=${user.id}&user2=${activeChat.id}`)
-        .then(res => res.json())
-        .then(data => {
-          if (data.messages) setChatHistory(data.messages);
-        })
-        .catch(err => console.error("Failed to load chat", err))
-        .finally(() => setIsLoadingChat(false));
+    if (!isMessagesOpen || !pendingContactId || directoryContacts.length === 0) return;
+    const contact = directoryContacts.find((entry) => entry.clerkId === pendingContactId);
+    if (!contact) {
+      setPendingContactId(null);
+      return;
     }
+    setActiveChat({
+      id: contact.clerkId,
+      name: contact.fullName || "Member",
+      role: contact.status || "Pending",
+      isOnline: presenceById[contact.clerkId]?.isOnline || false,
+      lastSeenAt: presenceById[contact.clerkId]?.lastSeenAt || null,
+    });
+    setPendingContactId(null);
+  }, [isMessagesOpen, pendingContactId, directoryContacts, presenceById]);
+
+  useEffect(() => {
+    if (!isMessagesOpen || directoryContacts.length === 0) return;
+    const refreshPresence = async () => {
+      try {
+        const ids = directoryContacts.map((contact) => contact.clerkId).filter(Boolean);
+        if (ids.length === 0) return;
+        const res = await fetch("/api/messages/presence", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userIds: ids }),
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        const nextPresence: typeof presenceById = {};
+        (data.presence || []).forEach((entry: any) => {
+          nextPresence[entry.clerkId] = { isOnline: entry.isOnline, lastSeenAt: entry.lastSeenAt };
+        });
+        setPresenceById(nextPresence);
+      } catch (error) {
+        console.error("Failed to refresh message presence", error);
+      }
+    };
+    refreshPresence();
+    const interval = window.setInterval(refreshPresence, 30000);
+    return () => window.clearInterval(interval);
+  }, [isMessagesOpen, directoryContacts]);
+
+  // Poll the open conversation so incoming messages and read state stay current.
+  useEffect(() => {
+    if (!user || !activeChat) return;
+    let isFirstLoad = true;
+    let lastMessageId: string | null = null;
+    const loadChat = async () => {
+      try {
+        const after = lastMessageId ? `&after=${lastMessageId}` : "";
+        const res = await fetch(`/api/messages?user1=${user.id}&user2=${activeChat.id}${after}`, { cache: "no-store" });
+        if (!res.ok) throw new Error("Could not load messages");
+        const data = await res.json();
+        if (data.messages) {
+          if (isFirstLoad) {
+            setChatHistory(data.messages);
+          } else if (data.messages.length) {
+            setChatHistory((previous) => {
+              const knownIds = new Set(previous.map((message) => message._id));
+              return [...previous, ...data.messages.filter((message: any) => !knownIds.has(message._id))];
+            });
+          }
+          if (data.messages.length) lastMessageId = data.messages[data.messages.length - 1]._id;
+        }
+        setWeeklyStreak(data.streakWeeks || 0);
+      } catch (error) {
+        console.error("Failed to load chat", error);
+      } finally {
+        if (isFirstLoad) setIsLoadingChat(false);
+        isFirstLoad = false;
+      }
+    };
+    setIsLoadingChat(true);
+    loadChat();
+    const interval = window.setInterval(loadChat, 5000);
+    return () => window.clearInterval(interval);
   }, [user, activeChat]);
 
   // Mark a single notification as read and route the user
@@ -171,35 +280,76 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   };
 
-  // Handle Sending a REAL Message to Database
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!chatInput.trim() || !user || !activeChat) return;
-
+  const sendChatMessage = async (content: string, file: File | null, viewOnce: boolean, sticker = false) => {
+    if (!user || !activeChat || (!content.trim() && !file)) return;
     setIsSending(true);
+    let uploadedMedia: { url: string; type: string } | null = null;
     try {
+      if (file) {
+        setIsUploadingMedia(true);
+        const formData = new FormData();
+        formData.append("file", file);
+        const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
+        const uploadData = await uploadRes.json();
+        if (!uploadRes.ok || !uploadData.results?.[0]) throw new Error(uploadData.error || "Upload failed");
+        uploadedMedia = {
+          url: uploadData.results[0].url,
+          type: uploadData.results[0].resource_type === "video" ? "video" : "image",
+        };
+      }
+
       const res = await fetch("/api/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          senderId: user.id,
-          senderName: user.fullName || "DEKUWEC Member",
           receiverId: activeChat.id,
-          receiverName: activeChat.name,
-          content: chatInput,
+          content: content.trim(),
+          mediaUrl: uploadedMedia?.url || "",
+          mediaType: uploadedMedia?.type || "",
+          viewOnce: Boolean(uploadedMedia && viewOnce),
+          sticker,
         }),
       });
-
-      if (res.ok) {
-        const { data: newMessage } = await res.json();
-        setChatHistory((prev) => [...prev, newMessage]);
-        setChatInput("");
-      }
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Message failed to send");
+      if (data.data) setChatHistory((previous) => [...previous, data.data]);
+      if (data.systemMessage) setChatHistory((previous) => [...previous, data.systemMessage]);
+      setWeeklyStreak(data.streakWeeks || weeklyStreak);
+      setChatInput("");
+      setMediaFile(null);
+      setMediaViewOnce(false);
+      setIsEmojiPickerOpen(false);
     } catch (error) {
       console.error("Failed to send message", error);
+      alert(error instanceof Error ? error.message : "Failed to send message");
     } finally {
       setIsSending(false);
+      setIsUploadingMedia(false);
     }
+  };
+
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await sendChatMessage(chatInput, mediaFile, mediaViewOnce);
+  };
+
+  const handleMediaSelection = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) return alert("Choose a photo or video.");
+    if (file.size > 25 * 1024 * 1024) return alert("Media must be 25 MB or smaller.");
+    setMediaFile(file);
+  };
+
+  const formatLastSeen = (lastSeenAt?: string | null) => {
+    if (!lastSeenAt) return "Last seen unavailable";
+    const minutes = Math.floor((Date.now() - new Date(lastSeenAt).getTime()) / 60000);
+    if (minutes < 1) return "Last seen just now";
+    if (minutes < 60) return `Last seen ${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `Last seen ${hours}h ago`;
+    return `Last seen ${new Date(lastSeenAt).toLocaleDateString()}`;
   };
 
   // Handle Clicking the Like Button
@@ -400,23 +550,26 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         id: contact.clerkId,
                         name: contact.fullName || "Member",
                         role: contact.status || "Pending",
-                        isOnline: true // Defaults active indicator for UI polish
+                        isOnline: presenceById[contact.clerkId]?.isOnline || false,
+                        lastSeenAt: presenceById[contact.clerkId]?.lastSeenAt || null,
                       })}
                       className="flex items-center gap-3 p-3 rounded-xl hover:bg-emerald-50 cursor-pointer transition border border-transparent hover:border-emerald-100 mb-1"
                     >
                       <div className="relative shrink-0">
                         {contact.imageUrl ? (
-                          <img src={contact.imageUrl} alt="Profile" className="h-10 w-10 rounded-full object-cover" />
+                          <img src={contact.imageUrl} alt="Profile" loading="lazy" className="h-10 w-10 rounded-full object-cover" />
                         ) : (
                           <div className="h-10 w-10 bg-emerald-100 text-emerald-700 font-bold flex items-center justify-center rounded-full">
                             {(contact.fullName || "U")[0]}
                           </div>
                         )}
-                        <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-emerald-500"></span>
+                        <span className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white ${presenceById[contact.clerkId]?.isOnline ? "bg-emerald-500" : "bg-gray-400"}`}></span>
                       </div>
                       <div className="flex-1 min-w-0">
                         <h4 className="text-sm font-bold text-gray-900 truncate">{contact.fullName}</h4>
-                        <p className="text-xs text-emerald-600 truncate font-semibold">{contact.status || "Pending"}</p>
+                        <p className="text-xs text-gray-500 truncate">
+                          {presenceById[contact.clerkId]?.isOnline ? "Online now" : formatLastSeen(presenceById[contact.clerkId]?.lastSeenAt)}
+                        </p>
                       </div>
                     </div>
                   ))}
@@ -437,7 +590,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     </div>
                     <div className="truncate">
                       <h4 className="text-sm font-bold text-gray-900 truncate">{activeChat.name}</h4>
-                      <p className="text-[10px] text-gray-500">{activeChat.isOnline ? 'Active now' : 'Offline'}</p>
+                      <p className="text-[10px] text-gray-500">
+                        {presenceById[activeChat.id]?.isOnline ? "Online now" : formatLastSeen(presenceById[activeChat.id]?.lastSeenAt || activeChat.lastSeenAt)}
+                        {weeklyStreak > 0 && <span className="ml-2 inline-flex items-center gap-0.5 font-bold text-orange-600"><Flame className="h-3 w-3" /> {weeklyStreak} week{weeklyStreak === 1 ? "" : "s"}</span>}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -462,8 +618,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                               {activeChat.name[0]}
                             </div>
                           )}
-                          <div className={`p-3 rounded-2xl text-sm max-w-[80%] shadow-sm ${isMe ? 'bg-emerald-600 text-white rounded-br-sm' : 'bg-white border border-gray-200 text-gray-800 rounded-bl-sm'}`}>
-                            {msg.content}
+                          <div className={`p-3 rounded-2xl text-sm max-w-[80%] shadow-sm ${msg.messageType === "system" ? "bg-orange-50 border border-orange-200 text-orange-900 text-xs" : isMe ? 'bg-emerald-600 text-white rounded-br-sm' : 'bg-white border border-gray-200 text-gray-800 rounded-bl-sm'}`}>
+                            {msg.messageType === "sticker" ? <span className="text-5xl leading-none" role="img" aria-label="Sticker">{msg.content}</span> : msg.content}
+                            <MessageAttachment message={msg} isMine={isMe} />
+                            <time className={`mt-1 block text-[9px] ${isMe ? "text-white/65" : "text-gray-400"}`} dateTime={msg.createdAt}>
+                              {new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                            </time>
                           </div>
                         </div>
                       );
@@ -471,21 +631,54 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   )}
                 </div>
 
+                {mediaFile && (
+                  <div className="flex items-center justify-between gap-2 border-t border-gray-100 bg-emerald-50 px-3 py-2 text-xs">
+                    <span className="min-w-0 truncate font-semibold text-emerald-900">{mediaFile.name}</span>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <label className="flex items-center gap-1 font-medium text-gray-700">
+                        <input type="checkbox" checked={mediaViewOnce} onChange={(event) => setMediaViewOnce(event.target.checked)} /> View once
+                      </label>
+                      <button type="button" onClick={() => setMediaFile(null)} aria-label="Remove attachment" className="p-1 text-gray-500 hover:text-rose-600"><X className="h-4 w-4" /></button>
+                    </div>
+                  </div>
+                )}
+                {isEmojiPickerOpen && (
+                  <div className="border-t border-gray-100 bg-white p-3">
+                    <div className="mb-2 flex gap-2 text-xs font-bold">
+                      <button type="button" onClick={() => setEmojiMode("emoji")} className={`rounded px-2 py-1 ${emojiMode === "emoji" ? "bg-emerald-100 text-emerald-900" : "text-gray-500"}`}>Emoji</button>
+                      <button type="button" onClick={() => setEmojiMode("sticker")} className={`rounded px-2 py-1 ${emojiMode === "sticker" ? "bg-emerald-100 text-emerald-900" : "text-gray-500"}`}>Stickers</button>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {(emojiMode === "emoji" ? ["😀", "😂", "🥰", "👍", "🙏", "🌿", "🌍", "🦋", "🐘", "🔥"] : ["🌱", "🐘", "🦋", "🌍", "🌳", "💚"]).map((emoji) => (
+                        <button key={emoji} type="button" aria-label={emojiMode === "sticker" ? `Send ${emoji} sticker` : `Insert ${emoji}`} onClick={() => emojiMode === "sticker" ? sendChatMessage(emoji, null, false, true) : setChatInput((value) => `${value}${emoji}`)} className={`${emojiMode === "sticker" ? "text-3xl" : "text-xl"} rounded-lg p-1 hover:bg-emerald-50`}>
+                          {emoji}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <form onSubmit={handleSendMessage} className="p-3 bg-white border-t border-gray-200 flex items-center gap-2">
+                  <input ref={mediaInputRef} type="file" accept="image/*,video/*" onChange={handleMediaSelection} className="hidden" />
+                  <button type="button" onClick={() => mediaInputRef.current?.click()} disabled={isSending} aria-label="Attach photo or video" title="Attach photo or video" className="p-2 text-gray-500 hover:bg-emerald-50 hover:text-emerald-700 rounded-full disabled:opacity-50">
+                    <ImagePlus className="h-5 w-5" />
+                  </button>
+                  <button type="button" onClick={() => setIsEmojiPickerOpen((open) => !open)} aria-label="Emoji and stickers" title="Emoji and stickers" className="p-2 text-gray-500 hover:bg-emerald-50 hover:text-emerald-700 rounded-full">
+                    <Smile className="h-5 w-5" />
+                  </button>
                   <input 
                     type="text" 
                     placeholder="Type a message..." 
                     className="flex-1 bg-gray-100 border-transparent focus:bg-white focus:border-emerald-500 focus:ring-0 text-sm rounded-full px-4 py-2 outline-none transition"
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
-                    disabled={isSending}
+                    disabled={isSending || isUploadingMedia}
                   />
                   <button 
                     type="submit" 
-                    disabled={isSending || !chatInput.trim()}
+                    disabled={isSending || isUploadingMedia || (!chatInput.trim() && !mediaFile)}
                     className="p-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white rounded-full transition shrink-0"
                   >
-                    {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                    {isSending || isUploadingMedia ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                   </button>
                 </form>
               </div>

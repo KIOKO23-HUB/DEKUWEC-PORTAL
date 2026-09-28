@@ -46,6 +46,9 @@ export async function POST(req: Request) {
     if (!files || files.length === 0) {
       return NextResponse.json({ error: "No files provided" }, { status: 400 });
     }
+    if (files.length > 5 || files.some((file) => file.size > 25 * 1024 * 1024)) {
+      return NextResponse.json({ error: "Upload up to five files, each no larger than 25 MB." }, { status: 413 });
+    }
 
     const uploadPromises = files.map(async (file) => {
       const bytes = await file.arrayBuffer();

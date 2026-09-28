@@ -6,23 +6,25 @@ import { useUser } from "@clerk/nextjs";
 import { 
   ArrowLeft, Calendar, Camera, GraduationCap, 
   BookOpen, Loader2, Award, CheckCircle, ShieldCheck,
-  MessageSquare, Send, X
+  MessageSquare, X
 } from "lucide-react";
+import MessageAttachment from "@/components/MessageAttachment";
+import MessageComposer from "@/components/MessageComposer";
 
 export default function PublicProfilePage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const { user, isLoaded } = useUser();
 
   const [profile, setProfile] = useState<any>(null);
+  const [presence, setPresence] = useState<{ isOnline: boolean; lastSeenAt: string | null }>({ isOnline: false, lastSeenAt: null });
+  const [chatStreak, setChatStreak] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
   // Direct Messaging States
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatHistory, setChatHistory] = useState<any[]>([]);
-  const [messageText, setMessageText] = useState("");
   const [isFetchingChat, setIsFetchingChat] = useState(false);
-  const [isSending, setIsSending] = useState(false);
   const chatScrollRef = useRef<HTMLDivElement>(null);
 
   // 1. Fetch Member Profile Data
@@ -43,24 +45,50 @@ export default function PublicProfilePage({ params }: { params: { id: string } }
       });
   }, [params.id]);
 
+  useEffect(() => {
+    if (!profile?.id) return;
+    const refreshPresence = async () => {
+      try {
+        const response = await fetch(`/api/messages/presence?userIds=${encodeURIComponent(profile.id)}`);
+        if (!response.ok) return;
+        const data = await response.json();
+        const entry = (data.presence || []).find((item: any) => item.clerkId === profile.id);
+        if (entry) setPresence({ isOnline: entry.isOnline, lastSeenAt: entry.lastSeenAt });
+      } catch (error) {
+        console.error("Failed to load member presence", error);
+      }
+    };
+    refreshPresence();
+    const interval = window.setInterval(refreshPresence, 30000);
+    return () => window.clearInterval(interval);
+  }, [profile?.id]);
+
   // 2. Fetch Chat History when Chat Modal is Opened
   useEffect(() => {
+    let isInitialLoad = true;
     const fetchChatHistory = async () => {
       if (!isChatOpen || !user || !profile) return;
-      setIsFetchingChat(true);
+      if (isInitialLoad) setIsFetchingChat(true);
       try {
         const res = await fetch(`/api/messages?user1=${user.id}&user2=${profile.id}`);
         if (res.ok) {
           const data = await res.json();
           setChatHistory(data.messages || []);
+          setChatStreak(data.streakWeeks || 0);
         }
       } catch (err) {
         console.error("Failed to load chat", err);
       } finally {
-        setIsFetchingChat(false);
+        if (isInitialLoad) {
+          setIsFetchingChat(false);
+          isInitialLoad = false;
+        }
       }
     };
     fetchChatHistory();
+    if (!isChatOpen || !user || !profile) return;
+    const interval = window.setInterval(fetchChatHistory, 5000);
+    return () => window.clearInterval(interval);
   }, [isChatOpen, user, profile]);
 
   // 3. Auto-scroll Chat to bottom
@@ -69,42 +97,6 @@ export default function PublicProfilePage({ params }: { params: { id: string } }
       chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
     }
   }, [chatHistory]);
-
-  // 4. Send Message Handler
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!messageText.trim() || !user || !profile) return;
-
-    const tempMessage = {
-      _id: Date.now().toString(),
-      senderId: user.id,
-      content: messageText,
-      createdAt: new Date().toISOString()
-    };
-
-    setChatHistory(prev => [...prev, tempMessage]);
-    const sentText = messageText;
-    setMessageText("");
-    setIsSending(true);
-
-    try {
-      await fetch("/api/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          senderId: user.id,
-          senderName: user.fullName || "Member",
-          receiverId: profile.id,
-          receiverName: profile.fullName,
-          content: sentText,
-        }),
-      });
-    } catch (err) {
-      console.error("Failed to send message", err);
-    } finally {
-      setIsSending(false);
-    }
-  };
 
   if (loading || !isLoaded) {
     return (
@@ -279,7 +271,11 @@ export default function PublicProfilePage({ params }: { params: { id: string } }
                 </div>
                 <div>
                   <h3 className="text-base font-black text-emerald-950 leading-tight">{profile.fullName}</h3>
-                  <p className="text-xs text-emerald-600 font-bold">{profile.status}</p>
+                  <p className="text-xs text-gray-500">
+                    <span className={`mr-1 inline-block h-2 w-2 rounded-full ${presence.isOnline ? "bg-emerald-500" : "bg-gray-400"}`} />
+                    {presence.isOnline ? "Online now" : presence.lastSeenAt ? `Last seen ${new Date(presence.lastSeenAt).toLocaleString()}` : "Last seen unavailable"}
+                    {chatStreak > 0 && <span className="ml-2 font-bold text-orange-600">🔥 {chatStreak} week{chatStreak === 1 ? "" : "s"}</span>}
+                  </p>
                 </div>
               </div>
               <button 
@@ -307,9 +303,10 @@ export default function PublicProfilePage({ params }: { params: { id: string } }
                   return (
                     <div key={i} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
                       <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm ${
-                        isMine ? 'bg-emerald-600 text-white rounded-br-sm shadow-sm' : 'bg-white border border-gray-200 text-gray-800 rounded-bl-sm shadow-sm'
+                        msg.messageType === "system" ? "bg-orange-50 border border-orange-200 text-orange-900" : isMine ? 'bg-emerald-600 text-white rounded-br-sm shadow-sm' : 'bg-white border border-gray-200 text-gray-800 rounded-bl-sm shadow-sm'
                       }`}>
-                        {msg.content}
+                        {msg.messageType === "sticker" ? <span className="text-5xl" role="img" aria-label="Sticker">{msg.content}</span> : msg.content}
+                        <MessageAttachment message={msg} isMine={isMine} />
                       </div>
                     </div>
                   );
@@ -317,26 +314,15 @@ export default function PublicProfilePage({ params }: { params: { id: string } }
               )}
             </div>
 
-            {/* Input Bar */}
-            <div className="p-4 bg-white border-t border-gray-100 shrink-0">
-              <form onSubmit={handleSendMessage} className="flex gap-2">
-                <input
-                  type="text"
-                  required
-                  placeholder={`Message ${firstName}...`}
-                  value={messageText}
-                  onChange={(e) => setMessageText(e.target.value)}
-                  className="flex-1 px-4 py-2.5 rounded-full border border-gray-200 text-sm focus:border-emerald-600 outline-none bg-gray-50 focus:bg-white transition"
-                />
-                <button
-                  type="submit"
-                  disabled={!messageText.trim() || isSending}
-                  className="p-3 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white transition disabled:opacity-50 shrink-0"
-                >
-                  {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                </button>
-              </form>
-            </div>
+            <MessageComposer
+              receiverId={profile.id}
+              placeholder={`Message ${firstName}...`}
+              onMessageSent={(data) => {
+                if (data.data) setChatHistory((previous) => [...previous, data.data]);
+                if (data.systemMessage) setChatHistory((previous) => [...previous, data.systemMessage]);
+                setChatStreak(data.streakWeeks || chatStreak);
+              }}
+            />
 
           </div>
         </div>

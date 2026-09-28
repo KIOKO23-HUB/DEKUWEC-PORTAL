@@ -5,9 +5,11 @@ import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation"; 
 import { 
   Users, CheckCircle2, Search, MessageSquare, 
-  UserCheck, Send, X, AlertCircle, Loader2,
+  UserCheck, X, AlertCircle, Loader2,
   Smartphone, CreditCard, CheckCircle
 } from "lucide-react";
+import MessageAttachment from "@/components/MessageAttachment";
+import MessageComposer from "@/components/MessageComposer";
 
 const rosterMembers = [
   "Edith Asachita", "Neema Kimutai", "Trecy Kipchoge", "Orville Awour",
@@ -41,6 +43,7 @@ export default function MembershipPortalPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   const [directoryMembers, setDirectoryMembers] = useState<any[]>([]);
+  const [presenceById, setPresenceById] = useState<Record<string, { isOnline: boolean; lastSeenAt: string | null }>>({});
   const [isFetchingDirectory, setIsFetchingDirectory] = useState(true);
 
   const [regForm, setRegForm] = useState({
@@ -63,10 +66,10 @@ export default function MembershipPortalPage() {
   const [paymentBalance, setPaymentBalance] = useState<number | null>(null);
 
   const [messagingTarget, setMessagingTarget] = useState<any>(null);
-  const [messageText, setMessageText] = useState("");
   
   const [chatHistory, setChatHistory] = useState<any[]>([]);
   const [isFetchingChat, setIsFetchingChat] = useState(false);
+  const [chatStreak, setChatStreak] = useState(0);
   const chatScrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -102,22 +105,56 @@ export default function MembershipPortalPage() {
   }, [isLoaded]);
 
   useEffect(() => {
+    if (!directoryMembers.length) return;
+    const refreshPresence = async () => {
+      try {
+        const ids = directoryMembers.map((member) => member.clerkId).filter(Boolean);
+        const response = await fetch("/api/messages/presence", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userIds: ids }),
+        });
+        if (!response.ok) return;
+        const data = await response.json();
+        const next: typeof presenceById = {};
+        (data.presence || []).forEach((entry: any) => {
+          next[entry.clerkId] = { isOnline: entry.isOnline, lastSeenAt: entry.lastSeenAt };
+        });
+        setPresenceById(next);
+      } catch (error) {
+        console.error("Failed to load member presence", error);
+      }
+    };
+    refreshPresence();
+    const interval = window.setInterval(refreshPresence, 30000);
+    return () => window.clearInterval(interval);
+  }, [directoryMembers]);
+
+  useEffect(() => {
+    let isInitialLoad = true;
     const fetchChatHistory = async () => {
       if (!messagingTarget || !user) return;
-      setIsFetchingChat(true);
+      if (isInitialLoad) setIsFetchingChat(true);
       try {
         const res = await fetch(`/api/messages?user1=${user.id}&user2=${messagingTarget.clerkId}`);
         if (res.ok) {
           const data = await res.json();
           setChatHistory(data.messages || []);
+          setChatStreak(data.streakWeeks || 0);
         }
       } catch (error) {
         console.error("Failed to load chat history", error);
       } finally {
-        setIsFetchingChat(false);
+        if (isInitialLoad) {
+          setIsFetchingChat(false);
+          isInitialLoad = false;
+        }
       }
     };
     fetchChatHistory();
+    if (!messagingTarget || !user) return;
+    const interval = window.setInterval(fetchChatHistory, 5000);
+    return () => window.clearInterval(interval);
   }, [messagingTarget, user]);
 
   useEffect(() => {
@@ -252,36 +289,6 @@ export default function MembershipPortalPage() {
       console.error("Payment submission error:", error);
       alert("Server connection failed.");
       setPaymentStep("checkout");
-    }
-  };
-
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!messageText.trim() || !user || !messagingTarget) return;
-    
-    const tempMessage = {
-      _id: Date.now().toString(),
-      senderId: user.id,
-      content: messageText,
-      createdAt: new Date().toISOString()
-    };
-    setChatHistory((prev) => [...prev, tempMessage]);
-    setMessageText("");
-
-    try {
-      await fetch("/api/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          senderId: user.id,
-          senderName: user.fullName || "Member",
-          receiverId: messagingTarget.clerkId, 
-          receiverName: messagingTarget.fullName,
-          content: tempMessage.content, 
-        }),
-      });
-    } catch (error) {
-      console.error("Failed to route message:", error);
     }
   };
 
@@ -486,18 +493,22 @@ export default function MembershipPortalPage() {
                   <div className="flex items-center gap-3">
                     <div className="relative">
                       {profileImg ? (
-                        <img src={profileImg} alt={firstName} className="h-10 w-10 rounded-full object-cover group-hover:ring-2 ring-emerald-200 transition" />
+                        <img src={profileImg} alt={firstName} loading="lazy" className="h-10 w-10 rounded-full object-cover group-hover:ring-2 ring-emerald-200 transition" />
                       ) : (
                         <div className="h-10 w-10 rounded-full bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center group-hover:ring-2 ring-emerald-200 transition">
                           {firstName[0]}
                         </div>
                       )}
+                      <span className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white ${presenceById[member.clerkId]?.isOnline ? "bg-emerald-500" : "bg-gray-400"}`} />
                     </div>
                     <div>
                       <h3 className="text-sm font-bold text-gray-900 leading-tight group-hover:text-emerald-700 transition">{member.fullName}</h3>
                       <span className={`inline-block mt-1 text-[10px] font-bold px-2 py-0.5 rounded-md ${displayStatus === "Registered Member" ? "text-emerald-700 bg-emerald-50 border border-emerald-200" : "text-amber-700 bg-amber-50 border border-amber-200"}`}>
                         {displayStatus}
                       </span>
+                      <p className="mt-1 text-[10px] text-gray-500">
+                        {presenceById[member.clerkId]?.isOnline ? "Online now" : presenceById[member.clerkId]?.lastSeenAt ? `Last seen ${new Date(presenceById[member.clerkId].lastSeenAt as string).toLocaleString()}` : "Last seen unavailable"}
+                      </p>
                     </div>
                   </div>
                   <button 
@@ -639,7 +650,10 @@ export default function MembershipPortalPage() {
             <div className="p-5 border-b border-gray-100 flex items-center justify-between bg-white shrink-0">
               <div>
                 <h3 className="text-lg font-black text-emerald-950">{messagingTarget.fullName.split(" ")[0]}</h3>
-                <p className="text-xs text-gray-500 mt-0.5">Direct Message</p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {presenceById[messagingTarget.clerkId]?.isOnline ? "Online now" : presenceById[messagingTarget.clerkId]?.lastSeenAt ? `Last seen ${new Date(presenceById[messagingTarget.clerkId].lastSeenAt as string).toLocaleString()}` : "Last seen unavailable"}
+                  {chatStreak > 0 && <span className="ml-2 font-bold text-orange-600">🔥 {chatStreak} week{chatStreak === 1 ? "" : "s"}</span>}
+                </p>
               </div>
               <button onClick={() => setMessagingTarget(null)} className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full transition">
                 <X className="h-5 w-5" />
@@ -656,8 +670,9 @@ export default function MembershipPortalPage() {
                   const isMine = msg.senderId === user?.id;
                   return (
                     <div key={i} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm ${isMine ? 'bg-emerald-600 text-white rounded-br-sm' : 'bg-white border border-gray-200 text-gray-800 rounded-bl-sm'}`}>
-                        {msg.content}
+                      <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm ${msg.messageType === "system" ? "bg-orange-50 border border-orange-200 text-orange-900" : isMine ? 'bg-emerald-600 text-white rounded-br-sm' : 'bg-white border border-gray-200 text-gray-800 rounded-bl-sm'}`}>
+                        {msg.messageType === "sticker" ? <span className="text-5xl" role="img" aria-label="Sticker">{msg.content}</span> : msg.content}
+                        <MessageAttachment message={msg} isMine={isMine} />
                       </div>
                     </div>
                   );
@@ -665,14 +680,14 @@ export default function MembershipPortalPage() {
               )}
             </div>
 
-            <div className="p-4 bg-white border-t border-gray-100 shrink-0">
-              <form onSubmit={handleSendMessage} className="flex gap-2">
-                <input type="text" required placeholder="Type a message..." value={messageText} onChange={(e) => setMessageText(e.target.value)} className="flex-1 px-4 py-2.5 rounded-full border border-gray-200 text-sm focus:border-emerald-600 outline-none bg-gray-50 focus:bg-white" />
-                <button type="submit" disabled={!messageText.trim()} className="p-3 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white transition disabled:opacity-50 shrink-0">
-                  <Send className="h-4 w-4" />
-                </button>
-              </form>
-            </div>
+            <MessageComposer
+              receiverId={messagingTarget.clerkId}
+              onMessageSent={(data) => {
+                if (data.data) setChatHistory((previous) => [...previous, data.data]);
+                if (data.systemMessage) setChatHistory((previous) => [...previous, data.systemMessage]);
+                setChatStreak(data.streakWeeks || chatStreak);
+              }}
+            />
           </div>
         </div>
       )}
