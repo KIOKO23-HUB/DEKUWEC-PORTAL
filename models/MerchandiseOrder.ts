@@ -10,6 +10,7 @@ export interface IMerchandiseOrder extends Document {
   imageUrl: string;
   amount: number;
   size?: string;
+  color?: string;
   customName?: string;
   paymentStatus: "Pending" | "Partial" | "Paid" | "Pay Later";
   collectionStatus: "Processing" | "Ready for Pickup" | "Collected";
@@ -28,6 +29,7 @@ const MerchandiseOrderSchema = new Schema<IMerchandiseOrder>({
   imageUrl: { type: String, required: true },
   amount: { type: Number, required: true },
   size: { type: String, default: "M" },
+  color: { type: String, default: "" },
   customName: { type: String, default: "" },
   paymentStatus: { type: String, default: "Pending" },
   collectionStatus: { type: String, default: "Processing" },

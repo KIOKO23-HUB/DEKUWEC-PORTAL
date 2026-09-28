@@ -39,6 +39,7 @@ export async function POST(req: Request) {
       imageUrl,
       amount,
       size,
+      color,
       customName,
       payLater
     } = body;
@@ -57,6 +58,7 @@ export async function POST(req: Request) {
       imageUrl,
       amount,
       size: size || "M",
+      color: color || "",
       customName: customName || "",
       paymentStatus: payLater ? "Pay Later" : "Pending",
       collectionStatus: "Processing",

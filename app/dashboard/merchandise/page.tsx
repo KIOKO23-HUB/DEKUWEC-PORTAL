@@ -16,6 +16,7 @@ export default function MerchandisePage() {
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
   const [customName, setCustomName] = useState("");
   const [selectedSize, setSelectedSize] = useState("M");
+  const [selectedColor, setSelectedColor] = useState("Green");
   const [paymentPhone, setPaymentPhone] = useState("");
   
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -44,8 +45,9 @@ export default function MerchandisePage() {
     setPaymentAmount(item.price);
     setCustomName((user?.firstName || "").toUpperCase());
     setSelectedSize(item.availableSizes?.[0] || "M");
+    setSelectedColor("Green");
     setPaymentPhone("");
-    setModalStep(item.allowCustomName ? "customize" : "ask_pay");
+    setModalStep(item.allowCustomName || item.category === "tshirt" ? "customize" : "ask_pay");
     setIsModalOpen(true);
   };
 
@@ -67,6 +69,7 @@ export default function MerchandisePage() {
           imageUrl: selectedItem.imageUrl,
           amount: currentAmount,
           size: selectedSize,
+          color: selectedItem.category === "tshirt" ? selectedColor : "",
           customName: selectedItem.allowCustomName ? customName.trim() : "",
           payLater
         })
@@ -227,7 +230,7 @@ export default function MerchandisePage() {
                 <div className="flex-1 min-w-0">
                   <h4 className="font-bold text-sm text-gray-900 truncate">{order.merchandiseTitle}</h4>
                   <p className="text-xs text-gray-500">
-                    Size: <strong>{order.size}</strong> {order.customName && `• Custom Name: "${order.customName}"`}
+                    Size: <strong>{order.size}</strong>{order.color && <> · Color: <strong>{order.color}</strong></>}{order.customName && ` · Custom Name: "${order.customName}"`}
                   </p>
                   
                   <div className="flex flex-wrap gap-2 mt-2">
@@ -258,40 +261,43 @@ export default function MerchandisePage() {
               <X className="h-5 w-5" />
             </button>
 
-            {/* STAGE 1: Customization (Visual T-Shirt Name Simulation) */}
+            {/* STAGE 1: Product options */}
             {modalStep === "customize" && (
               <div className="space-y-6">
                 <div>
-                  <h3 className="text-xl font-black text-emerald-950">Personalize Your Gear</h3>
-                  <p className="text-xs text-gray-500 mt-1">Preview how your printed name will appear on the shirt.</p>
+                  <h3 className="text-xl font-black text-emerald-950">Choose Your Options</h3>
+                  <p className="text-xs text-gray-500 mt-1">Select the size and color for {selectedItem.title}.</p>
                 </div>
 
-                <div className="relative aspect-[4/3] rounded-2xl overflow-hidden bg-gray-900 flex items-center justify-center border border-gray-200">
-                  <img src={selectedItem.imageUrl} alt="T-Shirt" className="w-full h-full object-contain opacity-90" />
-                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none p-4">
-                    <div className="bg-black/60 backdrop-blur-md px-6 py-2 rounded-xl border border-white/20 text-center shadow-2xl">
-                      <span className="text-[10px] uppercase text-emerald-300 font-extrabold tracking-widest block">FRONT PRINT PREVIEW</span>
-                      <span className="text-xl font-black tracking-widest text-white uppercase drop-shadow-md">
-                        {customName.trim() || "YOUR NAME"}
-                      </span>
+                {selectedItem.allowCustomName && (
+                  <>
+                    <div className="relative aspect-[4/3] rounded-2xl overflow-hidden bg-gray-900 flex items-center justify-center border border-gray-200">
+                      <img src={selectedItem.imageUrl} alt="T-Shirt" className="w-full h-full object-contain opacity-90" />
+                      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none p-4">
+                        <div className="bg-black/60 backdrop-blur-md px-6 py-2 rounded-xl border border-white/20 text-center shadow-2xl">
+                          <span className="text-[10px] uppercase text-emerald-300 font-extrabold tracking-widest block">FRONT PRINT PREVIEW</span>
+                          <span className="text-xl font-black tracking-widest text-white uppercase drop-shadow-md">
+                            {customName.trim() || "YOUR NAME"}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">Custom Name to Print</label>
+                      <input
+                        type="text"
+                        maxLength={15}
+                        value={customName}
+                        onChange={(e) => setCustomName(e.target.value.toUpperCase())}
+                        placeholder="e.g. KIOKO"
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 font-bold uppercase tracking-wider text-sm outline-none focus:border-emerald-600"
+                      />
+                      <span className="text-[10px] text-gray-400 mt-1 block">Max 15 characters. One name recommended for optimal clarity.</span>
+                    </div>
+                  </>
+                )}
 
                 <div className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-1">Custom Name to Print</label>
-                    <input
-                      type="text"
-                      maxLength={15}
-                      value={customName}
-                      onChange={(e) => setCustomName(e.target.value.toUpperCase())}
-                      placeholder="e.g. KIOKO"
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 font-bold uppercase tracking-wider text-sm outline-none focus:border-emerald-600"
-                    />
-                    <span className="text-[10px] text-gray-400 mt-1 block">Max 15 characters. One name recommended for optimal clarity.</span>
-                  </div>
-
                   <div>
                     <label className="block text-xs font-bold text-gray-700 mb-1">Select Size</label>
                     <div className="flex gap-3">
@@ -311,6 +317,31 @@ export default function MerchandisePage() {
                       ))}
                     </div>
                   </div>
+                  {selectedItem.category === "tshirt" && (
+                    <fieldset>
+                      <legend className="block text-xs font-bold text-gray-700 mb-2">Select T-shirt Color</legend>
+                      <div className="flex flex-wrap gap-2">
+                        {[
+                          { name: "Green", swatch: "bg-emerald-700" },
+                          { name: "Navy Blue", swatch: "bg-[#142b4a]" },
+                          { name: "Grey", swatch: "bg-gray-500" }
+                        ].map((color) => (
+                          <button
+                            key={color.name}
+                            type="button"
+                            aria-pressed={selectedColor === color.name}
+                            onClick={() => setSelectedColor(color.name)}
+                            className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-bold transition ${
+                              selectedColor === color.name ? "border-emerald-700 bg-emerald-50 text-emerald-950" : "border-gray-200 text-gray-700 hover:bg-gray-50"
+                            }`}
+                          >
+                            <span className={`h-4 w-4 rounded-full border border-black/10 ${color.swatch}`} />
+                            {color.name}
+                          </button>
+                        ))}
+                      </div>
+                    </fieldset>
+                  )}
                 </div>
 
                 <button

@@ -66,11 +66,11 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen flex flex-col bg-gradient-to-br from-emerald-50 via-teal-50/60 to-green-100 text-gray-900 font-sans selection:bg-emerald-600 selection:text-white">
+    <main className="min-h-screen flex flex-col bg-[linear-gradient(145deg,#ecfdf5_0%,#f8fff7_48%,#e0f2fe_100%)] text-gray-900 font-sans selection:bg-emerald-600 selection:text-white">
       
       {/* Navigation Header */}
       <header className="sticky top-0 z-40 w-full backdrop-blur-md bg-white/80 border-b border-emerald-100 shadow-sm transition">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-20 flex justify-between items-center">
+        <div className="max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 min-h-16 py-2 md:py-0 md:h-20 flex flex-wrap justify-between items-center gap-y-2">
           
           {/* Logo Brand */}
           <div 
@@ -95,7 +95,7 @@ export default function Home() {
           </div>
 
           {/* Interactive Header Navigation Tabs */}
-          <nav className="flex items-center gap-1 sm:gap-2 bg-emerald-950/5 p-1 rounded-2xl border border-emerald-200/40 text-xs sm:text-sm font-bold">
+          <nav className="order-3 w-full md:order-none md:w-auto flex items-center justify-center gap-1 sm:gap-2 bg-emerald-950/5 p-1 rounded-2xl border border-emerald-200/40 text-xs sm:text-sm font-bold">
             <button
               onClick={() => setActiveTab("home")}
               className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl transition ${
@@ -129,26 +129,26 @@ export default function Home() {
           </nav>
 
           {/* Auth Button */}
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center gap-1 sm:gap-2">
             {user ? (
               <Link 
                 href="/dashboard" 
-                className="px-4 sm:px-5 py-2 sm:py-2.5 bg-emerald-800 hover:bg-emerald-900 text-white text-xs sm:text-sm font-bold rounded-xl transition shadow-md flex items-center gap-1.5"
+                className="px-3 sm:px-5 py-2 sm:py-2.5 bg-emerald-800 hover:bg-emerald-900 text-white text-[11px] sm:text-sm font-bold rounded-xl transition shadow-md flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
               >
                 <span>Dashboard</span>
                 <ChevronRight className="h-4 w-4 hidden sm:inline" />
               </Link>
             ) : (
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center gap-1 sm:gap-2">
                 <Link 
                   href="/login" 
-                  className="px-3 sm:px-4 py-2 text-emerald-950 text-xs sm:text-sm font-bold hover:text-emerald-700 transition"
+                  className="px-2 sm:px-4 py-2 text-emerald-950 text-[11px] sm:text-sm font-bold hover:text-emerald-700 transition"
                 >
                   Sign In
                 </Link>
                 <Link 
                   href="/signup" 
-                  className="px-3.5 sm:px-5 py-2 sm:py-2.5 bg-emerald-800 hover:bg-emerald-900 text-white text-xs sm:text-sm font-bold rounded-xl transition shadow-sm"
+                  className="px-3 sm:px-5 py-2 sm:py-2.5 bg-emerald-800 hover:bg-emerald-900 text-white text-[11px] sm:text-sm font-bold rounded-xl transition shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
                 >
                   Join Us
                 </Link>
@@ -159,56 +159,73 @@ export default function Home() {
       </header>
 
       {/* Main Tab Content */}
-      <div className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 flex flex-col justify-center">
+      <div className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-12 flex flex-col justify-center">
 
         {/* TAB 1: OVERVIEW / HERO */}
         {activeTab === "home" && (
-          <div className="space-y-12 animate-in fade-in duration-300">
-            <div className="flex flex-col items-center text-center max-w-3xl mx-auto space-y-6 pt-4 sm:pt-8">
-              
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-100/80 border border-emerald-300 text-emerald-900 text-xs font-bold uppercase tracking-wider shadow-sm">
-                <Sparkles className="h-3.5 w-3.5 text-emerald-700" />
-                <span>Premier Student Conservation Body</span>
-              </div>
+          <div className="space-y-10 sm:space-y-12 animate-in fade-in duration-300">
+            <section className="landing-hero relative isolate -mx-4 sm:-mx-6 lg:-mx-8 overflow-hidden flex items-center min-h-[min(76svh,680px)] sm:min-h-[560px]">
+              <img
+                src="https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=2200&q=85"
+                alt="Sunlight filtering through a thriving forest"
+                className="landing-hero-image absolute inset-0 h-full w-full object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-r from-emerald-950/95 via-emerald-950/75 to-sky-950/35" />
+              <div className="absolute inset-0 bg-gradient-to-t from-emerald-950/55 via-transparent to-emerald-950/10" />
 
-              <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight text-emerald-950 leading-tight">
-                Dedan Kimathi Wildlife & Environmental Club
-              </h1>
+              <div className="relative z-10 w-full max-w-6xl mx-auto px-5 sm:px-8 lg:px-12 py-12 sm:py-16">
+                <div className="landing-reveal max-w-3xl space-y-5 sm:space-y-6">
+                  <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-lime-200/40 bg-emerald-950/35 px-3.5 py-2 text-[10px] sm:text-xs font-bold uppercase tracking-wider text-lime-100 backdrop-blur-sm">
+                    <Sparkles className="h-4 w-4 shrink-0 text-lime-300" />
+                    <span>Premier Student Conservation Body</span>
+                  </div>
 
-              <p className="text-sm sm:text-lg text-emerald-900/80 leading-relaxed font-medium max-w-2xl">
-                Dedicated to hands-on environmental conservation, mountain trail explorations, and sustainable biodiversity protection at Dedan Kimathi University of Technology.
-              </p>
+                  <h1 className="max-w-3xl text-[2.35rem] sm:text-5xl lg:text-6xl font-black text-white leading-[1.08] text-balance drop-shadow-lg">
+                    Dedan Kimathi Wildlife &amp; Environmental Club
+                  </h1>
 
-              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 w-full sm:w-auto justify-center pt-2">
-                {user ? (
-                  <Link 
-                    href="/dashboard" 
-                    className="px-8 py-3.5 bg-emerald-800 hover:bg-emerald-900 text-white font-bold rounded-xl shadow-lg transition text-center"
-                  >
-                    Open DEKUWEC Dashboard
-                  </Link>
-                ) : (
-                  <>
-                    <Link 
-                      href="/signup" 
-                      className="px-8 py-3.5 bg-emerald-800 hover:bg-emerald-900 text-white font-bold rounded-xl shadow-lg transition text-center"
+                  <p className="max-w-2xl text-sm sm:text-lg text-emerald-50 leading-relaxed font-medium">
+                    Hands-on conservation, mountain trail explorations, and biodiversity protection at Dedan Kimathi University of Technology.
+                  </p>
+
+                  <div className="flex w-full max-w-xl flex-col gap-3 pt-1 min-[440px]:flex-row">
+                    <Link
+                      href={user ? "/dashboard" : "/login"}
+                      className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-lime-300 px-5 py-3.5 text-center text-sm font-black text-emerald-950 shadow-lg shadow-emerald-950/20 transition hover:bg-lime-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-emerald-950"
                     >
-                      Open DEKUWEC Dashboard
+                      <span>Access Dashboard</span>
+                      <ChevronRight className="h-4 w-4" />
                     </Link>
-                    <button 
-                      onClick={() => setActiveTab("contact")} 
-                      className="px-8 py-3.5 bg-white/80 hover:bg-white text-emerald-950 font-bold rounded-xl shadow-sm border border-emerald-200 transition text-center"
-                    >
-                      Reach Out / Support
-                    </button>
-                  </>
-                )}
+                    {!user ? (
+                      <Link
+                        href="/signup"
+                        className="inline-flex min-h-12 flex-1 items-center justify-center rounded-xl border border-white/55 bg-white/10 px-5 py-3.5 text-center text-sm font-bold text-white backdrop-blur-sm transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-emerald-950"
+                      >
+                        Join DEKUWEC
+                      </Link>
+                    ) : (
+                      <button
+                        onClick={() => setActiveTab("about")}
+                        className="inline-flex min-h-12 flex-1 items-center justify-center rounded-xl border border-white/55 bg-white/10 px-5 py-3.5 text-center text-sm font-bold text-white backdrop-blur-sm transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-emerald-950"
+                      >
+                        Explore Our Impact
+                      </button>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={() => setActiveTab("contact")}
+                    className="inline-flex min-h-10 items-center gap-2 py-2 text-xs font-bold text-white/85 transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                  >
+                    Reach out to the club <ChevronRight className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               </div>
-            </div>
+            </section>
 
             {/* Feature Pillars */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-6">
-              <div className="bg-white/80 backdrop-blur-sm border border-emerald-100 p-6 rounded-3xl shadow-sm space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 pt-1 sm:pt-6">
+              <div className="landing-reveal bg-white/85 backdrop-blur-sm border border-emerald-100 p-5 sm:p-6 rounded-2xl shadow-sm space-y-3" style={{ animationDelay: "120ms" }}>
                 <div className="p-3 bg-emerald-100 text-emerald-800 rounded-2xl w-max">
                   <TreePine className="h-6 w-6" />
                 </div>
@@ -218,7 +235,7 @@ export default function Home() {
                 </p>
               </div>
 
-              <div className="bg-white/80 backdrop-blur-sm border border-emerald-100 p-6 rounded-3xl shadow-sm space-y-3">
+              <div className="landing-reveal bg-white/85 backdrop-blur-sm border border-sky-100 p-5 sm:p-6 rounded-2xl shadow-sm space-y-3" style={{ animationDelay: "220ms" }}>
                 <div className="p-3 bg-teal-100 text-teal-800 rounded-2xl w-max">
                   <Compass className="h-6 w-6" />
                 </div>
@@ -228,7 +245,7 @@ export default function Home() {
                 </p>
               </div>
 
-              <div className="bg-white/80 backdrop-blur-sm border border-emerald-100 p-6 rounded-3xl shadow-sm space-y-3">
+              <div className="landing-reveal bg-white/85 backdrop-blur-sm border border-lime-100 p-5 sm:p-6 rounded-2xl shadow-sm space-y-3" style={{ animationDelay: "320ms" }}>
                 <div className="p-3 bg-emerald-100 text-emerald-800 rounded-2xl w-max">
                   <Users className="h-6 w-6" />
                 </div>
@@ -321,8 +338,8 @@ export default function Home() {
                 Join our student membership roster today and gain access to Wildlife Clubs of Kenya (WCK) subsidized national park passes.
               </p>
               <div className="pt-2">
-                <Link href="/signup" className="px-6 py-3 bg-emerald-400 hover:bg-emerald-300 text-emerald-950 font-black rounded-xl inline-block text-xs uppercase tracking-wider transition shadow">
-                  Open DEKUWEC Dashboard
+                <Link href={user ? "/dashboard" : "/signup"} className="px-6 py-3 bg-emerald-400 hover:bg-emerald-300 text-emerald-950 font-black rounded-xl inline-block text-xs uppercase tracking-wider transition shadow">
+                  {user ? "Open Dashboard" : "Join DEKUWEC"}
                 </Link>
               </div>
             </div>

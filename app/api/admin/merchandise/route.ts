@@ -42,7 +42,16 @@ export async function DELETE(req: Request) {
   try {
     await connectToDatabase();
     const { searchParams } = new URL(req.url);
+    const orderId = searchParams.get("orderId");
     const id = searchParams.get("id");
+
+    if (orderId) {
+      const order = await MerchandiseOrder.findByIdAndDelete(orderId);
+      if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
+      return NextResponse.json({ success: true });
+    }
+
+    if (!id) return NextResponse.json({ error: "Missing merchandise id" }, { status: 400 });
     await Merchandise.findByIdAndDelete(id);
     return NextResponse.json({ success: true });
   } catch (error) {

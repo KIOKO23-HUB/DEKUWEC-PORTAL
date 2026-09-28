@@ -462,6 +462,18 @@ export default function DekuwecAdminDashboard() {
     if (res.ok) fetchAllAdminData();
   };
 
+  const handleDeleteMerchOrder = async (orderId: string) => {
+    if (!confirm("Permanently delete this merchandise order? This cannot be undone.")) return;
+
+    try {
+      const res = await fetch(`/api/admin/merchandise?orderId=${orderId}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Delete failed");
+      setMerchandiseOrders((orders) => orders.filter((order) => order._id !== orderId));
+    } catch {
+      alert("Failed to delete merchandise order.");
+    }
+  };
+
   const handleUpdateOrderStatus = async (orderId: string, collectionStatus: string) => {
     try {
       const res = await fetch("/api/admin/merchandise", {
@@ -1564,6 +1576,7 @@ export default function DekuwecAdminDashboard() {
                             </td>
                             <td className="p-4 font-bold text-gray-800">
                               <div>Size: {ord.size}</div>
+                              {ord.color && <div className="text-xs font-semibold text-gray-600">Color: {ord.color}</div>}
                               <div className="text-xs text-emerald-700">KES {ord.amount}</div>
                             </td>
                             <td className="p-4">
@@ -1581,15 +1594,26 @@ export default function DekuwecAdminDashboard() {
                               </span>
                             </td>
                             <td className="p-4 text-right">
-                              <select 
-                                value={ord.collectionStatus}
-                                onChange={(e) => handleUpdateOrderStatus(ord._id, e.target.value)}
-                                className="px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs font-bold outline-none bg-white"
-                              >
-                                <option value="Processing">Processing</option>
-                                <option value="Ready for Pickup">Ready for Pickup</option>
-                                <option value="Collected">Collected</option>
-                              </select>
+                              <div className="flex items-center justify-end gap-2">
+                                <select
+                                  value={ord.collectionStatus}
+                                  onChange={(e) => handleUpdateOrderStatus(ord._id, e.target.value)}
+                                  className="px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs font-bold outline-none bg-white"
+                                >
+                                  <option value="Processing">Processing</option>
+                                  <option value="Ready for Pickup">Ready for Pickup</option>
+                                  <option value="Collected">Collected</option>
+                                </select>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteMerchOrder(ord._id)}
+                                  aria-label={`Delete order from ${ord.fullName}`}
+                                  title="Delete order"
+                                  className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         ))}
