@@ -18,6 +18,7 @@ export default function PublicProfilePage({ params }: { params: { id: string } }
   const [profile, setProfile] = useState<any>(null);
   const [presence, setPresence] = useState<{ isOnline: boolean; lastSeenAt: string | null }>({ isOnline: false, lastSeenAt: null });
   const [chatStreak, setChatStreak] = useState(0);
+  const [isPeerTyping, setIsPeerTyping] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
@@ -90,6 +91,27 @@ export default function PublicProfilePage({ params }: { params: { id: string } }
     const interval = window.setInterval(fetchChatHistory, 5000);
     return () => window.clearInterval(interval);
   }, [isChatOpen, user, profile]);
+
+  useEffect(() => {
+    if (!isChatOpen || !user || !profile) {
+      setIsPeerTyping(false);
+      return;
+    }
+    const checkTyping = async () => {
+      try {
+        const response = await fetch(`/api/messages/presence?typingWith=${encodeURIComponent(profile.id)}`, { cache: "no-store" });
+        if (response.ok) {
+          const data = await response.json();
+          setIsPeerTyping(Boolean(data.isTyping));
+        }
+      } catch {
+        setIsPeerTyping(false);
+      }
+    };
+    checkTyping();
+    const interval = window.setInterval(checkTyping, 2000);
+    return () => window.clearInterval(interval);
+  }, [isChatOpen, user?.id, profile?.id]);
 
   // 3. Auto-scroll Chat to bottom
   useEffect(() => {
@@ -273,7 +295,7 @@ export default function PublicProfilePage({ params }: { params: { id: string } }
                   <h3 className="text-base font-black text-emerald-950 leading-tight">{profile.fullName}</h3>
                   <p className="text-xs text-gray-500">
                     <span className={`mr-1 inline-block h-2 w-2 rounded-full ${presence.isOnline ? "bg-emerald-500" : "bg-gray-400"}`} />
-                    {presence.isOnline ? "Online now" : presence.lastSeenAt ? `Last seen ${new Date(presence.lastSeenAt).toLocaleString()}` : "Last seen unavailable"}
+                    {isPeerTyping ? "Typing..." : presence.isOnline ? "Online now" : presence.lastSeenAt ? `Last seen ${new Date(presence.lastSeenAt).toLocaleString()}` : "Last seen unavailable"}
                     {chatStreak > 0 && <span className="ml-2 font-bold text-orange-600">🔥 {chatStreak} week{chatStreak === 1 ? "" : "s"}</span>}
                   </p>
                 </div>

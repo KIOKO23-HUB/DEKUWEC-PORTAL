@@ -45,12 +45,19 @@ export async function GET(req: Request) {
       ]
     };
     const after = searchParams.get("after");
-    if (after && mongoose.Types.ObjectId.isValid(after)) {
+    const afterAt = searchParams.get("afterAt");
+    if (afterAt && !Number.isNaN(Date.parse(afterAt))) {
+      const cursorDate = new Date(afterAt);
+      criteria.createdAt = { $gte: cursorDate };
+      if (after && mongoose.Types.ObjectId.isValid(after)) {
+        criteria._id = { $gt: new mongoose.Types.ObjectId(after) };
+      }
+    } else if (after && mongoose.Types.ObjectId.isValid(after)) {
       criteria._id = { $gt: new mongoose.Types.ObjectId(after) };
     }
     await Message.updateMany({ senderId: user2, receiverId: userId, isRead: false }, { $set: { isRead: true } });
     const [messages, conversation] = await Promise.all([
-      Message.find(criteria).sort({ createdAt: -1 }).limit(100).lean(),
+      Message.find(criteria).sort({ createdAt: -1, _id: -1 }).limit(100).lean(),
       MessageConversation.findOne({ participantKey: [userId, user2].sort().join(":") }).lean()
     ]);
 

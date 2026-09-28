@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ImagePlus, Loader2, Send, Smile, X } from "lucide-react";
 
 type MessageComposerProps = {
@@ -18,10 +18,42 @@ export default function MessageComposer({ receiverId, disabled = false, placehol
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerMode, setPickerMode] = useState<"emoji" | "sticker">("emoji");
   const inputRef = useRef<HTMLInputElement>(null);
+  const typingTimerRef = useRef<number | null>(null);
+
+  const clearTyping = () => {
+    if (typingTimerRef.current !== null) window.clearTimeout(typingTimerRef.current);
+    typingTimerRef.current = null;
+    fetch("/api/messages/presence", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ typingTo: null }),
+    }).catch(() => {});
+  };
+
+  useEffect(() => () => {
+    if (typingTimerRef.current !== null) window.clearTimeout(typingTimerRef.current);
+  }, []);
+
+  const updateText = (value: string) => {
+    setText(value);
+    if (typingTimerRef.current !== null) window.clearTimeout(typingTimerRef.current);
+    if (!value.trim()) {
+      clearTyping();
+      return;
+    }
+    typingTimerRef.current = window.setTimeout(() => {
+      fetch("/api/messages/presence", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ typingTo: receiverId }),
+      }).catch(() => {});
+    }, 250);
+  };
 
   const send = async (messageText = text, sticker = false) => {
     if (disabled || isSending || (!messageText.trim() && !file)) return;
     setIsSending(true);
+    clearTyping();
     try {
       let media: { url: string; type: string } | null = null;
       if (file) {
@@ -115,7 +147,7 @@ export default function MessageComposer({ receiverId, disabled = false, placehol
         <button type="button" onClick={() => setPickerOpen((open) => !open)} disabled={disabled} aria-label="Emoji and stickers" title="Emoji and stickers" className="rounded-full p-2 text-gray-500 hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-50">
           <Smile className="h-5 w-5" />
         </button>
-        <input type="text" placeholder={placeholder} value={text} onChange={(event) => setText(event.target.value)} disabled={disabled || isSending} className="min-w-0 flex-1 rounded-full bg-gray-100 px-4 py-2 text-sm outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-1 focus:ring-emerald-500" />
+        <input type="text" placeholder={placeholder} value={text} onChange={(event) => updateText(event.target.value)} disabled={disabled || isSending} className="min-w-0 flex-1 rounded-full bg-gray-100 px-4 py-2 text-sm outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-1 focus:ring-emerald-500" />
         <button type="submit" disabled={disabled || isSending || (!text.trim() && !file)} aria-label="Send message" className="shrink-0 rounded-full bg-emerald-600 p-2.5 text-white transition hover:bg-emerald-700 disabled:opacity-50">
           {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
         </button>

@@ -43,11 +43,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // Live Database State
   const [notifications, setNotifications] = useState<any[]>([]);
   const [directoryContacts, setDirectoryContacts] = useState<any[]>([]);
+  const [inboxByContactId, setInboxByContactId] = useState<Record<string, any>>({});
+  const [unreadMessageTotal, setUnreadMessageTotal] = useState(0);
   const [isFetchingContacts, setIsFetchingContacts] = useState(false);
   const [activeChat, setActiveChat] = useState<any | null>(null);
   const [chatHistory, setChatHistory] = useState<any[]>([]);
   const [presenceById, setPresenceById] = useState<Record<string, { isOnline: boolean; lastSeenAt: string | null }>>({});
   const [weeklyStreak, setWeeklyStreak] = useState(0);
+  const [isPeerTyping, setIsPeerTyping] = useState(false);
   const [pendingContactId, setPendingContactId] = useState<string | null>(null);
   
   // Like Button State
@@ -58,6 +61,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [isSending, setIsSending] = useState(false);
   const [isLoadingChat, setIsLoadingChat] = useState(false);
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
+  const typingDebounceRef = useRef<number | null>(null);
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [mediaViewOnce, setMediaViewOnce] = useState(false);
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
@@ -66,6 +70,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   // Reliable Cloudinary Logo URL
   const logoUrl = "https://res.cloudinary.com/dnipaby6h/image/upload/v1789108366/WhatsApp_Image_2026-09-03_at_09.49.04_q31jcg.jpg";
+
+  const refreshInbox = async () => {
+    if (!user) return;
+    try {
+      const response = await fetch("/api/messages/inbox", { cache: "no-store" });
+      if (!response.ok) return;
+      const data = await response.json();
+      const summary: Record<string, any> = {};
+      (data.conversations || []).forEach((conversation: any) => {
+        summary[conversation.contactId] = conversation;
+      });
+      setInboxByContactId(summary);
+      setUnreadMessageTotal(data.unreadTotal || 0);
+    } catch (error) {
+      console.error("Failed to refresh message inbox", error);
+    }
+  };
 
   // Close menus when hitting Escape
   useEffect(() => {
@@ -133,6 +154,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     };
   }, [user?.id]);
 
+  useEffect(() => {
+    if (!user) return;
+    refreshInbox();
+    const interval = window.setInterval(refreshInbox, 5000);
+    return () => window.clearInterval(interval);
+  }, [user?.id]);
+
   // 3. Fetch REAL Contacts Directory when Message Sidebar is opened
   useEffect(() => {
     if (isMessagesOpen && directoryContacts.length === 0) {
@@ -194,9 +222,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (!user || !activeChat) return;
     let isFirstLoad = true;
     let lastMessageId: string | null = null;
+    let lastMessageAt: string | null = null;
     const loadChat = async () => {
       try {
-        const after = lastMessageId ? `&after=${lastMessageId}` : "";
+        const after = lastMessageId && lastMessageAt ? `&after=${lastMessageId}&afterAt=${encodeURIComponent(lastMessageAt)}` : "";
         const res = await fetch(`/api/messages?user1=${user.id}&user2=${activeChat.id}${after}`, { cache: "no-store" });
         if (!res.ok) throw new Error("Could not load messages");
         const data = await res.json();
@@ -209,9 +238,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               return [...previous, ...data.messages.filter((message: any) => !knownIds.has(message._id))];
             });
           }
-          if (data.messages.length) lastMessageId = data.messages[data.messages.length - 1]._id;
+          if (data.messages.length) {
+            const latest = data.messages[data.messages.length - 1];
+            lastMessageId = latest._id;
+            lastMessageAt = latest.createdAt;
+          }
         }
         setWeeklyStreak(data.streakWeeks || 0);
+        setIsPeerTyping(Boolean(data.isPeerTyping));
+        if (isFirstLoad) refreshInbox();
       } catch (error) {
         console.error("Failed to load chat", error);
       } finally {
@@ -224,6 +259,27 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const interval = window.setInterval(loadChat, 5000);
     return () => window.clearInterval(interval);
   }, [user, activeChat]);
+
+  useEffect(() => {
+    if (!user || !activeChat) {
+      setIsPeerTyping(false);
+      return;
+    }
+    const checkTyping = async () => {
+      try {
+        const response = await fetch(`/api/messages/presence?typingWith=${encodeURIComponent(activeChat.id)}`, { cache: "no-store" });
+        if (response.ok) {
+          const data = await response.json();
+          setIsPeerTyping(Boolean(data.isTyping));
+        }
+      } catch {
+        setIsPeerTyping(false);
+      }
+    };
+    checkTyping();
+    const interval = window.setInterval(checkTyping, 2000);
+    return () => window.clearInterval(interval);
+  }, [user?.id, activeChat?.id]);
 
   // Mark a single notification as read and route the user
   const handleNotificationClick = async (notif: any) => {
@@ -283,6 +339,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const sendChatMessage = async (content: string, file: File | null, viewOnce: boolean, sticker = false) => {
     if (!user || !activeChat || (!content.trim() && !file)) return;
     setIsSending(true);
+    if (typingDebounceRef.current) window.clearTimeout(typingDebounceRef.current);
+    fetch("/api/messages/presence", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ typingTo: null }),
+    }).catch(() => {});
     let uploadedMedia: { url: string; type: string } | null = null;
     try {
       if (file) {
@@ -333,6 +395,27 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     await sendChatMessage(chatInput, mediaFile, mediaViewOnce);
   };
 
+  const handleChatInputChange = (value: string) => {
+    setChatInput(value);
+    if (!activeChat || !user) return;
+    if (typingDebounceRef.current) window.clearTimeout(typingDebounceRef.current);
+    if (!value.trim()) {
+      fetch("/api/messages/presence", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ typingTo: null }),
+      }).catch(() => {});
+      return;
+    }
+    typingDebounceRef.current = window.setTimeout(() => {
+      fetch("/api/messages/presence", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ typingTo: activeChat.id }),
+      }).catch(() => {});
+    }, 300);
+  };
+
   const handleMediaSelection = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -370,6 +453,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   };
 
   const unreadNotifs = notifications.filter(n => !n.isRead).length;
+  const sortedDirectoryContacts = [...directoryContacts].sort((first, second) => {
+    const firstConversation = inboxByContactId[first.clerkId];
+    const secondConversation = inboxByContactId[second.clerkId];
+    const firstCount = firstConversation?.totalMessages || 0;
+    const secondCount = secondConversation?.totalMessages || 0;
+    if (firstCount !== secondCount) return secondCount - firstCount;
+    const firstTime = firstConversation?.lastMessageAt ? new Date(firstConversation.lastMessageAt).getTime() : 0;
+    const secondTime = secondConversation?.lastMessageAt ? new Date(secondConversation.lastMessageAt).getTime() : 0;
+    if (firstTime !== secondTime) return secondTime - firstTime;
+    return (first.fullName || "").localeCompare(second.fullName || "");
+  });
 
   return (
     <div className="flex min-h-screen bg-gray-50 font-sans overflow-hidden">
@@ -475,9 +569,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             
             <button 
               onClick={() => { setIsMessagesOpen(!isMessagesOpen); setIsNotifOpen(false); }}
+              aria-label={unreadMessageTotal ? `Messages, ${unreadMessageTotal} unread` : "Messages"}
               className={`relative p-2 rounded-full transition ${isMessagesOpen ? 'bg-emerald-100 text-emerald-800' : 'text-gray-500 hover:text-emerald-700 hover:bg-emerald-50'}`}
             >
               <MessageSquare className="h-5 w-5" />
+              {unreadMessageTotal > 0 && (
+                <span className="absolute -right-1 -top-1 min-w-5 h-5 px-1 rounded-full border-2 border-white bg-rose-600 text-white text-[10px] font-black flex items-center justify-center leading-none">
+                  {unreadMessageTotal > 99 ? "99+" : unreadMessageTotal}
+                </span>
+              )}
             </button>
 
             <div className="relative">
@@ -543,7 +643,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   {isFetchingContacts && <Loader2 className="h-3 w-3 animate-spin text-emerald-500" />}
                 </div>
                 <div className="flex-1 overflow-y-auto p-2">
-                  {directoryContacts.map((contact) => (
+                  {sortedDirectoryContacts.map((contact) => {
+                    const conversation = inboxByContactId[contact.clerkId];
+                    return (
                     <div 
                       key={contact.clerkId} 
                       onClick={() => setActiveChat({
@@ -566,13 +668,27 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         <span className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white ${presenceById[contact.clerkId]?.isOnline ? "bg-emerald-500" : "bg-gray-400"}`}></span>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h4 className="text-sm font-bold text-gray-900 truncate">{contact.fullName}</h4>
+                        <div className="flex items-center justify-between gap-2">
+                          <h4 className="text-sm font-bold text-gray-900 truncate">{contact.fullName}</h4>
+                          {conversation?.unreadCount > 0 && (
+                            <span className="min-w-5 h-5 px-1 rounded-full bg-rose-600 text-white text-[10px] font-black flex items-center justify-center">
+                              {conversation.unreadCount > 99 ? "99+" : conversation.unreadCount}
+                            </span>
+                          )}
+                        </div>
                         <p className="text-xs text-gray-500 truncate">
                           {presenceById[contact.clerkId]?.isOnline ? "Online now" : formatLastSeen(presenceById[contact.clerkId]?.lastSeenAt)}
                         </p>
+                        {conversation && <p className="text-[11px] text-gray-400 truncate">{conversation.lastMediaType ? `Photo/video · ${conversation.totalMessages} messages` : conversation.lastMessage || `${conversation.totalMessages} messages`}</p>}
+                        {inboxByContactId[contact.clerkId]?.streakWeeks > 0 && (
+                          <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-bold text-orange-600">
+                            <Flame className="h-3 w-3" /> {inboxByContactId[contact.clerkId].streakWeeks} week streak
+                          </span>
+                        )}
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                   {!isFetchingContacts && directoryContacts.length === 0 && (
                     <div className="p-4 text-center text-xs text-gray-400 mt-4">No members found.</div>
                   )}
@@ -591,7 +707,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     <div className="truncate">
                       <h4 className="text-sm font-bold text-gray-900 truncate">{activeChat.name}</h4>
                       <p className="text-[10px] text-gray-500">
-                        {presenceById[activeChat.id]?.isOnline ? "Online now" : formatLastSeen(presenceById[activeChat.id]?.lastSeenAt || activeChat.lastSeenAt)}
+                        {isPeerTyping ? <span className="font-semibold text-emerald-700">Typing...</span> : presenceById[activeChat.id]?.isOnline ? "Online now" : formatLastSeen(presenceById[activeChat.id]?.lastSeenAt || activeChat.lastSeenAt)}
                         {weeklyStreak > 0 && <span className="ml-2 inline-flex items-center gap-0.5 font-bold text-orange-600"><Flame className="h-3 w-3" /> {weeklyStreak} week{weeklyStreak === 1 ? "" : "s"}</span>}
                       </p>
                     </div>
@@ -670,7 +786,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     placeholder="Type a message..." 
                     className="flex-1 bg-gray-100 border-transparent focus:bg-white focus:border-emerald-500 focus:ring-0 text-sm rounded-full px-4 py-2 outline-none transition"
                     value={chatInput}
-                    onChange={(e) => setChatInput(e.target.value)}
+                    onChange={(e) => handleChatInputChange(e.target.value)}
                     disabled={isSending || isUploadingMedia}
                   />
                   <button 

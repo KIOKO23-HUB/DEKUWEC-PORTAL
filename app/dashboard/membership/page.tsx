@@ -44,6 +44,7 @@ export default function MembershipPortalPage() {
   
   const [directoryMembers, setDirectoryMembers] = useState<any[]>([]);
   const [presenceById, setPresenceById] = useState<Record<string, { isOnline: boolean; lastSeenAt: string | null }>>({});
+  const [inboxByContactId, setInboxByContactId] = useState<Record<string, any>>({});
   const [isFetchingDirectory, setIsFetchingDirectory] = useState(true);
 
   const [regForm, setRegForm] = useState({
@@ -70,6 +71,7 @@ export default function MembershipPortalPage() {
   const [chatHistory, setChatHistory] = useState<any[]>([]);
   const [isFetchingChat, setIsFetchingChat] = useState(false);
   const [chatStreak, setChatStreak] = useState(0);
+  const [isPeerTyping, setIsPeerTyping] = useState(false);
   const chatScrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -131,6 +133,27 @@ export default function MembershipPortalPage() {
   }, [directoryMembers]);
 
   useEffect(() => {
+    if (!user) return;
+    const refreshInbox = async () => {
+      try {
+        const response = await fetch("/api/messages/inbox", { cache: "no-store" });
+        if (!response.ok) return;
+        const data = await response.json();
+        const summaries: Record<string, any> = {};
+        (data.conversations || []).forEach((conversation: any) => {
+          summaries[conversation.contactId] = conversation;
+        });
+        setInboxByContactId(summaries);
+      } catch (error) {
+        console.error("Failed to load directory conversation summaries", error);
+      }
+    };
+    refreshInbox();
+    const interval = window.setInterval(refreshInbox, 10000);
+    return () => window.clearInterval(interval);
+  }, [user?.id]);
+
+  useEffect(() => {
     let isInitialLoad = true;
     const fetchChatHistory = async () => {
       if (!messagingTarget || !user) return;
@@ -156,6 +179,27 @@ export default function MembershipPortalPage() {
     const interval = window.setInterval(fetchChatHistory, 5000);
     return () => window.clearInterval(interval);
   }, [messagingTarget, user]);
+
+  useEffect(() => {
+    if (!messagingTarget || !user) {
+      setIsPeerTyping(false);
+      return;
+    }
+    const checkTyping = async () => {
+      try {
+        const response = await fetch(`/api/messages/presence?typingWith=${encodeURIComponent(messagingTarget.clerkId)}`, { cache: "no-store" });
+        if (response.ok) {
+          const data = await response.json();
+          setIsPeerTyping(Boolean(data.isTyping));
+        }
+      } catch {
+        setIsPeerTyping(false);
+      }
+    };
+    checkTyping();
+    const interval = window.setInterval(checkTyping, 2000);
+    return () => window.clearInterval(interval);
+  }, [messagingTarget?.clerkId, user?.id]);
 
   useEffect(() => {
     if (chatScrollRef.current) {
@@ -299,6 +343,16 @@ export default function MembershipPortalPage() {
   const filteredDirectory = directoryMembers.filter((member) =>
     (member.fullName || "").toLowerCase().includes(directorySearch.toLowerCase())
   );
+  const sortedFilteredDirectory = [...filteredDirectory].sort((first, second) => {
+    const firstSummary = inboxByContactId[first.clerkId];
+    const secondSummary = inboxByContactId[second.clerkId];
+    const frequencyDifference = (secondSummary?.totalMessages || 0) - (firstSummary?.totalMessages || 0);
+    if (frequencyDifference) return frequencyDifference;
+    const firstDate = firstSummary?.lastMessageAt ? new Date(firstSummary.lastMessageAt).getTime() : 0;
+    const secondDate = secondSummary?.lastMessageAt ? new Date(secondSummary.lastMessageAt).getTime() : 0;
+    if (firstDate !== secondDate) return secondDate - firstDate;
+    return (first.fullName || "").localeCompare(second.fullName || "");
+  });
 
   if (!isLoaded) return null;
 
@@ -479,10 +533,11 @@ export default function MembershipPortalPage() {
            <div className="p-8 text-center text-gray-500"><p>No members found in the directory yet.</p></div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {filteredDirectory.map((member, index) => {
+            {sortedFilteredDirectory.map((member, index) => {
               const displayStatus = member.status || "Pending Approval";
               const firstName = (member.fullName || "Unknown").split(" ")[0];
               const profileImg = member.imageUrl || member.photoURL;
+              const conversation = inboxByContactId[member.clerkId];
 
               return (
                 <div 
@@ -490,8 +545,8 @@ export default function MembershipPortalPage() {
                   onClick={() => router.push(`/dashboard/member/${member.clerkId}`)}
                   className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm hover:border-emerald-300 transition flex items-center justify-between group cursor-pointer"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="relative">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="relative shrink-0">
                       {profileImg ? (
                         <img src={profileImg} alt={firstName} loading="lazy" className="h-10 w-10 rounded-full object-cover group-hover:ring-2 ring-emerald-200 transition" />
                       ) : (
@@ -502,13 +557,17 @@ export default function MembershipPortalPage() {
                       <span className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white ${presenceById[member.clerkId]?.isOnline ? "bg-emerald-500" : "bg-gray-400"}`} />
                     </div>
                     <div>
-                      <h3 className="text-sm font-bold text-gray-900 leading-tight group-hover:text-emerald-700 transition">{member.fullName}</h3>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-sm font-bold text-gray-900 leading-tight group-hover:text-emerald-700 transition truncate">{member.fullName}</h3>
+                        {conversation?.unreadCount > 0 && <span className="min-w-5 h-5 px-1 rounded-full bg-rose-600 text-white text-[10px] font-black flex items-center justify-center">{conversation.unreadCount > 99 ? "99+" : conversation.unreadCount}</span>}
+                      </div>
                       <span className={`inline-block mt-1 text-[10px] font-bold px-2 py-0.5 rounded-md ${displayStatus === "Registered Member" ? "text-emerald-700 bg-emerald-50 border border-emerald-200" : "text-amber-700 bg-amber-50 border border-amber-200"}`}>
                         {displayStatus}
                       </span>
                       <p className="mt-1 text-[10px] text-gray-500">
                         {presenceById[member.clerkId]?.isOnline ? "Online now" : presenceById[member.clerkId]?.lastSeenAt ? `Last seen ${new Date(presenceById[member.clerkId].lastSeenAt as string).toLocaleString()}` : "Last seen unavailable"}
                       </p>
+                      {conversation?.streakWeeks > 0 && <p className="mt-1 text-[10px] font-bold text-orange-600">🔥 {conversation.streakWeeks} week streak</p>}
                     </div>
                   </div>
                   <button 
@@ -651,7 +710,7 @@ export default function MembershipPortalPage() {
               <div>
                 <h3 className="text-lg font-black text-emerald-950">{messagingTarget.fullName.split(" ")[0]}</h3>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  {presenceById[messagingTarget.clerkId]?.isOnline ? "Online now" : presenceById[messagingTarget.clerkId]?.lastSeenAt ? `Last seen ${new Date(presenceById[messagingTarget.clerkId].lastSeenAt as string).toLocaleString()}` : "Last seen unavailable"}
+                  {isPeerTyping ? "Typing..." : presenceById[messagingTarget.clerkId]?.isOnline ? "Online now" : presenceById[messagingTarget.clerkId]?.lastSeenAt ? `Last seen ${new Date(presenceById[messagingTarget.clerkId].lastSeenAt as string).toLocaleString()}` : "Last seen unavailable"}
                   {chatStreak > 0 && <span className="ml-2 font-bold text-orange-600">🔥 {chatStreak} week{chatStreak === 1 ? "" : "s"}</span>}
                 </p>
               </div>
