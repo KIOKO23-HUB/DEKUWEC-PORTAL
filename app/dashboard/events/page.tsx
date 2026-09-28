@@ -23,24 +23,6 @@ import {
   MessageSquare
 } from "lucide-react";
 
-// Initial fallbacks so the UI remains complete while loading or if DB is empty
-const FALLBACK_UPCOMING = [
-  {
-    _id: "default_up_1",
-    title: "Aberdare Forest Excursion & Tree Planting",
-    date: "Saturday, Oct 10, 2026",
-    time: "6:30 AM",
-    location: "Main Gate, DeKUT",
-    description: "Join our student expedition to restore native highland biodiversity. We will be planting indigenous seedlings and exploring the Karuru and Magura waterfalls trails.",
-    imageUrl: "https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?q=80&w=1000&auto=format&fit=crop",
-    status: "Registration Open",
-    category: "upcoming",
-    isFree: false,
-    likes: [],
-    comments: []
-  },
-];
-
 const FALLBACK_PREVIOUS = [
   {
     _id: "default_prev_1",
@@ -84,6 +66,22 @@ const otherEvents = [
   "Monthly Campus Clean-up Drives"
 ];
 
+function getEventImageUrl(url: string, width: number) {
+  try {
+    const imageUrl = new URL(url);
+    if (imageUrl.hostname === "res.cloudinary.com" && imageUrl.pathname.includes("/image/upload/")) {
+      imageUrl.pathname = imageUrl.pathname.replace(
+        "/image/upload/",
+        `/image/upload/f_auto,q_auto:good,w_${width},c_limit/`
+      );
+      return imageUrl.toString();
+    }
+  } catch {
+    return url;
+  }
+  return url;
+}
+
 // --- Smart Multi-Media Carousel Component ---
 const EventMediaCarousel = ({ event, fallbackImage }: { event: any, fallbackImage: string }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -112,7 +110,7 @@ const EventMediaCarousel = ({ event, fallbackImage }: { event: any, fallbackImag
   }, [currentIndex, allMedia.length, allMedia]);
 
   if (allMedia.length === 0) {
-    return <img src={fallbackImage} alt="Event Cover" className="w-full h-full object-cover bg-emerald-50" />;
+    return <img src={getEventImageUrl(fallbackImage, 960)} alt="Event Cover" loading="lazy" decoding="async" className="w-full h-full object-cover bg-emerald-50" />;
   }
 
   const currentMedia = allMedia[currentIndex];
@@ -123,17 +121,20 @@ const EventMediaCarousel = ({ event, fallbackImage }: { event: any, fallbackImag
         <video 
           key={currentMedia.url}
           src={currentMedia.url} 
-          autoPlay 
           muted 
           controls 
           playsInline 
+          preload="none"
           onEnded={handleNext} 
           className="w-full h-full object-cover" 
         />
       ) : (
         <img 
-          src={currentMedia.url} 
+          src={getEventImageUrl(currentMedia.url, 1280)}
           alt="Event Media" 
+          loading="lazy"
+          decoding="async"
+          sizes="(max-width: 768px) 100vw, 50vw"
           className="w-full h-full object-cover transition-transform duration-700 hover:scale-105" 
         />
       )}
@@ -516,7 +517,7 @@ export default function EventsPage() {
   if (!isLoaded) return null;
 
   const dynamicUpcoming = events.filter((e) => e.category === "upcoming");
-  const upcomingEvents = dynamicUpcoming.length > 0 ? dynamicUpcoming : FALLBACK_UPCOMING;
+  const upcomingEvents = dynamicUpcoming;
 
   const dynamicPrevious = events.filter((e) => e.category === "previous");
   const previousEvents = dynamicPrevious.length > 0 ? dynamicPrevious : FALLBACK_PREVIOUS;
@@ -550,8 +551,14 @@ export default function EventsPage() {
               <h2 className="text-2xl font-black text-emerald-950">Upcoming Events</h2>
             </div>
             
-            <div className="grid grid-cols-1 gap-6">
-              {upcomingEvents.map((event) => {
+            {upcomingEvents.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-gray-300 bg-white/70 px-6 py-12 text-center">
+                <Calendar className="mx-auto h-8 w-8 text-gray-400" />
+                <p className="mt-3 text-sm font-semibold text-gray-600">There are no upcoming events at the moment.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-6">
+                {upcomingEvents.map((event) => {
                 const status = userRsvpStatus[event.title];
                 const isFree = event.isFree === true;
 
@@ -625,8 +632,9 @@ export default function EventsPage() {
                     </div>
                   </div>
                 );
-              })}
-            </div>
+                })}
+              </div>
+            )}
           </section>
 
           {/* Previous Events Section */}
