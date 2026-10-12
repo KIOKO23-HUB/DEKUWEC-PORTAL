@@ -72,6 +72,18 @@ export default function DekuwecAdminDashboard() {
   const [leaders, setLeaders] = useState<any[]>([]);
   const [feedbacks, setFeedbacks] = useState<any[]>([]);
   const [adminLogs, setAdminLogs] = useState<any[]>([]);
+
+  // Leadership election applications & admin controlled timeline
+  const [leadershipApplications, setLeadershipApplications] = useState<any[]>([]);
+  const [leadershipConfig, setLeadershipConfig] = useState({
+    debateDate: "",
+    campaignDate: "",
+    electionDate: "",
+    venue: "",
+    notes: "",
+    applicationsOpen: true,
+  });
+  const [expandedApplicationId, setExpandedApplicationId] = useState<string | null>(null);
   
   const [payments, setPayments] = useState<any[]>([]);
   const [feeConfig, setFeeConfig] = useState({ member: 100, wckUnder23: 100, wckOver23: 230 });
@@ -288,6 +300,18 @@ export default function DekuwecAdminDashboard() {
         setLeaders(data.leaders || []);
         setFeedbacks(data.feedbacks || []);
         setAdminLogs(data.adminLogs || []);
+        setLeadershipApplications(data.leadershipApplications || []);
+
+        if (data.leadershipConfig) {
+          setLeadershipConfig({
+            debateDate: data.leadershipConfig.debateDate || "",
+            campaignDate: data.leadershipConfig.campaignDate || "",
+            electionDate: data.leadershipConfig.electionDate || "",
+            venue: data.leadershipConfig.venue || "",
+            notes: data.leadershipConfig.notes || "",
+            applicationsOpen: data.leadershipConfig.applicationsOpen !== false,
+          });
+        }
 
         // Load prices for live event fee editing (Supports multiple tiers)
         const tiersObj: Record<string, any[]> = {};
@@ -837,6 +861,84 @@ export default function DekuwecAdminDashboard() {
     if (res.ok) fetchAllAdminData();
   };
 
+  // --- LEADERSHIP ELECTIONS ---
+
+  const handleReviewLeadership = async (id: string, status: "Approved" | "Rejected") => {
+    const application = leadershipApplications.find((app) => app._id === id);
+    let reviewNote = "";
+
+    if (status === "Rejected") {
+      if (!confirm(`Reject the application for ${application?.fullName || "this applicant"}?`)) return;
+      reviewNote = prompt("Optional note sent to the applicant with the rejection email:") || "";
+    } else {
+      if (
+        !confirm(
+          `Approve ${application?.fullName || "this applicant"} to run for ${application?.role || "this position"}? They will be published on the portal and notified by email.`
+        )
+      )
+        return;
+    }
+
+    setApprovingId(id);
+    try {
+      const res = await fetch("/api/admin/leadership", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, status, reviewNote }),
+      });
+
+      if (res.ok) {
+        alert(
+          status === "Approved"
+            ? "Application approved. The candidate is now live on the portal and has been emailed."
+            : "Application rejected. The applicant has been notified."
+        );
+        fetchAllAdminData();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(`Backend Error: ${err.error || "Failed to update the application."}`);
+      }
+    } finally {
+      setApprovingId(null);
+    }
+  };
+
+  const handleDeleteLeadership = async (id: string) => {
+    if (!confirm("Remove this leadership application permanently? This cannot be undone.")) return;
+    const res = await fetch(`/api/admin/leadership?id=${id}`, { method: "DELETE" });
+    if (res.ok) fetchAllAdminData();
+    else alert("Failed to remove the application.");
+  };
+
+  const handleSaveLeadershipTimeline = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/admin/leadership", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(leadershipConfig),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setLeadershipConfig({
+          debateDate: data.config?.debateDate || "",
+          campaignDate: data.config?.campaignDate || "",
+          electionDate: data.config?.electionDate || "",
+          venue: data.config?.venue || "",
+          notes: data.config?.notes || "",
+          applicationsOpen: data.config?.applicationsOpen !== false,
+        });
+        alert("Election timeline saved. Applicants will now see these dates.");
+      } else {
+        alert("Failed to save the election timeline.");
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleBroadcast = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
@@ -991,6 +1093,7 @@ export default function DekuwecAdminDashboard() {
             { id: "events", icon: Calendar, label: `Events & RSVPs (${events.length})` },
             { id: "ecopulse", icon: Radio, label: `EcoPulse (${ecoPulsePosts.length})` },
             { id: "snaps", icon: Camera, label: `Nature Snaps (${snaps.length})` },
+            { id: "leadership", icon: Award, label: `Leadership (${leadershipApplications.length})` },
             { id: "leaders", icon: Crown, label: `Leaders (${leaders.length})` },
             { id: "broadcast", icon: Megaphone, label: "Broadcasts" },
             { id: "feedback", icon: MessageSquare, label: `Feedback (${feedbacks.length})` },
@@ -2269,6 +2372,247 @@ export default function DekuwecAdminDashboard() {
           )}
 
           {/* 9. LEADERS TAB */}
+          {activeTab === "leadership" && (
+            <div className="space-y-8 animate-in fade-in">
+              {/* Election timeline */}
+              <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100">
+                <h2 className="text-xl sm:text-2xl font-black text-emerald-950 flex items-center gap-2 mb-2">
+                  <Calendar className="text-emerald-600 shrink-0" /> Leadership Election Timeline
+                </h2>
+                <p className="text-sm text-gray-500 mb-6">
+                  These dates are shown to every applicant and on the public leadership applicants page.
+                </p>
+
+                <form onSubmit={handleSaveLeadershipTimeline} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">
+                        Debate & Interrogation
+                      </label>
+                      <input
+                        type="date"
+                        value={leadershipConfig.debateDate}
+                        onChange={(e) => setLeadershipConfig({ ...leadershipConfig, debateDate: e.target.value })}
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-emerald-600"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">
+                        Campaigns & Petitions
+                      </label>
+                      <input
+                        type="date"
+                        value={leadershipConfig.campaignDate}
+                        onChange={(e) => setLeadershipConfig({ ...leadershipConfig, campaignDate: e.target.value })}
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-emerald-600"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">
+                        Election Day (Physical Voting)
+                      </label>
+                      <input
+                        type="date"
+                        value={leadershipConfig.electionDate}
+                        onChange={(e) => setLeadershipConfig({ ...leadershipConfig, electionDate: e.target.value })}
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-emerald-600"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <input
+                      type="text"
+                      placeholder="Venue (e.g. School of Business Room 5)"
+                      value={leadershipConfig.venue}
+                      onChange={(e) => setLeadershipConfig({ ...leadershipConfig, venue: e.target.value })}
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-emerald-600"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Extra instructions for applicants (optional)"
+                      value={leadershipConfig.notes}
+                      onChange={(e) => setLeadershipConfig({ ...leadershipConfig, notes: e.target.value })}
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-emerald-600"
+                    />
+                  </div>
+
+                  <label className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-xl p-4 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={leadershipConfig.applicationsOpen}
+                      onChange={(e) =>
+                        setLeadershipConfig({ ...leadershipConfig, applicationsOpen: e.target.checked })
+                      }
+                      className="h-4 w-4 accent-emerald-600"
+                    />
+                    <span className="text-sm font-bold text-gray-700">
+                      Leadership applications are open for this season
+                    </span>
+                  </label>
+
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white font-bold px-6 py-3.5 rounded-xl text-sm transition"
+                  >
+                    {submitting ? "Saving..." : "Save Election Timeline"}
+                  </button>
+                </form>
+              </div>
+
+              {/* Applications review */}
+              <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                  <div>
+                    <h2 className="text-xl sm:text-2xl font-black text-emerald-950 flex items-center gap-2">
+                      <Award className="text-emerald-600 shrink-0" /> Leadership Applications (
+                      {leadershipApplications.length})
+                    </h2>
+                    <p className="text-sm text-gray-500 mt-1">
+                      Approve an application to publish the candidate profile in the category they vie for.
+                    </p>
+                  </div>
+                  <button
+                    onClick={fetchAllAdminData}
+                    className="hidden sm:inline-block text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-xl transition shrink-0"
+                  >
+                    Refresh
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3 mb-6">
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                    <p className="text-[10px] font-black uppercase tracking-wider text-amber-700">Pending Review</p>
+                    <p className="text-xl font-black text-amber-900 mt-1">
+                      {leadershipApplications.filter((app) => app.status === "Pending Review").length}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                    <p className="text-[10px] font-black uppercase tracking-wider text-emerald-700">Approved</p>
+                    <p className="text-xl font-black text-emerald-900 mt-1">
+                      {leadershipApplications.filter((app) => app.status === "Approved").length}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4">
+                    <p className="text-[10px] font-black uppercase tracking-wider text-rose-700">Rejected</p>
+                    <p className="text-xl font-black text-rose-900 mt-1">
+                      {leadershipApplications.filter((app) => app.status === "Rejected").length}
+                    </p>
+                  </div>
+                </div>
+
+                {leadershipApplications.length === 0 ? (
+                  <div className="text-center py-12 text-gray-400 font-medium bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+                    No leadership applications have been submitted yet.
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {leadershipApplications.map((app) => {
+                      const isExpanded = expandedApplicationId === app._id;
+                      const statusStyles =
+                        app.status === "Approved"
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                          : app.status === "Rejected"
+                          ? "bg-rose-50 text-rose-700 border-rose-200"
+                          : "bg-amber-50 text-amber-700 border-amber-200";
+
+                      return (
+                        <div key={app._id} className="rounded-2xl border border-gray-200 overflow-hidden">
+                          <div className="p-5 flex flex-col lg:flex-row lg:items-center gap-4 justify-between">
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <h3 className="font-bold text-gray-900">{app.fullName}</h3>
+                                <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border ${statusStyles}`}>
+                                  {app.status}
+                                </span>
+                                {!app.isRegisteredMember && (
+                                  <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border bg-gray-50 text-gray-500 border-gray-200">
+                                    Membership: {app.memberStatus || "Unverified"}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-xs font-bold text-emerald-700 uppercase tracking-wider mt-1">
+                                {app.role}
+                              </p>
+                              <p className="text-xs text-gray-500 mt-1">
+                                Reg No: {app.regNo} &middot; {app.email}
+                              </p>
+                              <p className="text-xs text-gray-400 mt-1">
+                                {app.impressions || 0} impressions &middot; Previous post:{" "}
+                                {app.heldPositionBefore ? app.previousRole || "Yes (not specified)" : "None"}
+                              </p>
+                            </div>
+
+                            <div className="flex flex-wrap gap-2 shrink-0">
+                              <button
+                                onClick={() => setExpandedApplicationId(isExpanded ? null : app._id)}
+                                className="px-3 py-2 rounded-xl bg-gray-50 hover:bg-gray-100 border border-gray-200 text-xs font-bold text-gray-700 transition"
+                              >
+                                {isExpanded ? "Hide Responses" : "Read Responses"}
+                              </button>
+                              <button
+                                onClick={() => handleReviewLeadership(app._id, "Approved")}
+                                disabled={approvingId === app._id}
+                                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white text-xs font-bold transition"
+                              >
+                                <ThumbsUp className="h-3.5 w-3.5" /> Approve
+                              </button>
+                              <button
+                                onClick={() => handleReviewLeadership(app._id, "Rejected")}
+                                disabled={approvingId === app._id}
+                                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 disabled:bg-amber-300 text-white text-xs font-bold transition"
+                              >
+                                <ThumbsDown className="h-3.5 w-3.5" /> Reject
+                              </button>
+                              <button
+                                onClick={() => handleDeleteLeadership(app._id)}
+                                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 text-xs font-bold transition"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" /> Remove
+                              </button>
+                            </div>
+                          </div>
+
+                          {isExpanded && (
+                            <div className="border-t border-gray-100 bg-gray-50 p-5 space-y-4 text-sm">
+                              <div>
+                                <p className="text-[10px] font-black uppercase tracking-wider text-emerald-700 mb-1">
+                                  What Aspires Them To Take This Role
+                                </p>
+                                <p className="text-gray-700 whitespace-pre-wrap">{app.motivation}</p>
+                              </div>
+                              <div>
+                                <p className="text-[10px] font-black uppercase tracking-wider text-emerald-700 mb-1">
+                                  What Is New They Will Do For The Club
+                                </p>
+                                <p className="text-gray-700 whitespace-pre-wrap">{app.newIdeas}</p>
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-gray-600">
+                                <p>
+                                  <strong>Confirmed requirements:</strong>{" "}
+                                  {app.confirmedRequirements ? "Yes" : "No"}
+                                </p>
+                                <p>
+                                  <strong>Membership record:</strong> {app.memberStatus || "Not Registered"}
+                                </p>
+                                {app.reviewNote && (
+                                  <p className="sm:col-span-2">
+                                    <strong>Review note:</strong> {app.reviewNote}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {activeTab === "leaders" && (
             <div className="space-y-8 animate-in fade-in">
               <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100">

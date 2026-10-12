@@ -10,6 +10,8 @@ import NatureSnap from "@/models/NatureSnap";
 import Leader from "@/models/Leader";
 import Inquiry from "@/models/Inquiry";
 import AdminLog from "@/models/AdminLog"; // NEW: Import the Admin Logs
+import LeadershipApplication from "@/models/LeadershipApplication";
+import LeadershipConfig, { LEADERSHIP_SEASON } from "@/models/LeadershipConfig";
 
 export const dynamic = 'force-dynamic';
 
@@ -42,6 +44,14 @@ export async function GET() {
       AdminLog.find({}).sort({ lastActive: -1 }) // Most recently active at the top
     ]);
 
+    // Leadership election applications & admin controlled timeline
+    const [leadershipApplications, existingLeadershipConfig] = await Promise.all([
+      LeadershipApplication.find({}).sort({ createdAt: -1 }),
+      LeadershipConfig.findOne({ season: LEADERSHIP_SEASON })
+    ]);
+    const leadershipConfig =
+      existingLeadershipConfig || (await LeadershipConfig.create({ season: LEADERSHIP_SEASON }));
+
     const client = await clerkClient();
     const clerkUsers = await client.users.getUserList({ limit: 500 });
 
@@ -71,7 +81,9 @@ export async function GET() {
       snaps,
       leaders,
       feedbacks,
-      adminLogs // Send live database logs to frontend
+      adminLogs, // Send live database logs to frontend
+      leadershipApplications,
+      leadershipConfig
     }, { status: 200 });
   } catch (error: any) {
     console.error("Master Admin Fetch Error:", error);

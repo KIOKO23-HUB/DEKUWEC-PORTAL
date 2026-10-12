@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useUser } from "@clerk/nextjs";
+import LeadershipSection from "@/components/LeadershipSection";
 import { 
   Clock, 
   MapPin, 
@@ -244,6 +245,11 @@ export default function SupportPage() {
           )}
         </div>
       </div>
+
+      <div className="w-full h-px bg-gray-200 my-4"></div>
+
+      {/* Leadership Application & Elections Section */}
+      <LeadershipSection />
 
       <div className="w-full h-px bg-gray-200 my-4"></div>
 
