@@ -5,6 +5,10 @@ warnings to expect along the way.
 
 Live at **https://dekuwec-app.pages.dev** (Cloudflare Pages).
 
+> This file lives in `docs/` on purpose. Cloudflare Pages serves **every** file in the deploy
+> folder — `.assetsignore` is not honoured on direct uploads — so nothing that shouldn't be public
+> goes in `download-site/`. Keep this folder to assets only.
+
 ## Files
 
 | Path | Purpose |
