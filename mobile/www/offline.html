@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>DEKUWEC &middot; Offline</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+      }
+      body {
+        display: grid;
+        place-items: center;
+        padding: 28px calc(20px + env(safe-area-inset-right)) calc(28px + env(safe-area-inset-bottom))
+          calc(20px + env(safe-area-inset-left));
+        background: radial-gradient(120% 90% at 50% 0%, #065f46 0%, #052e16 55%, #031c0e 100%);
+        color: #ecfdf5;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        -webkit-user-select: none;
+        user-select: none;
+      }
+      .card {
+        width: 100%;
+        max-width: 380px;
+        padding: 30px 24px 26px;
+        border: 1px solid rgba(134, 239, 172, 0.22);
+        border-radius: 26px;
+        background: rgba(3, 28, 14, 0.55);
+        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+        text-align: center;
+      }
+      .badge {
+        width: 88px;
+        height: 88px;
+        margin: 0 auto 18px;
+        border-radius: 999px;
+        border: 2px solid #16a34a;
+        background: #052e16;
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+      }
+      .badge img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      h1 {
+        margin: 0 0 6px;
+        font-size: 21px;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+      }
+      .sub {
+        margin: 0 0 20px;
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #4ade80;
+      }
+      .icon {
+        margin: 0 0 14px;
+        color: #86efac;
+      }
+      p {
+        margin: 0 0 22px;
+        font-size: 14.5px;
+        line-height: 1.6;
+        color: #d1fae5;
+      }
+      button {
+        width: 100%;
+        padding: 15px 20px;
+        border: 0;
+        border-radius: 14px;
+        background: #16a34a;
+        color: #ffffff;
+        font-size: 15.5px;
+        font-weight: 700;
+        font-family: inherit;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+        transition: transform 0.15s ease, background 0.15s ease;
+      }
+      button:active {
+        transform: scale(0.98);
+      }
+      button[disabled] {
+        background: #14532d;
+        color: #86efac;
+        cursor: default;
+      }
+      .status {
+        margin: 14px 0 0;
+        font-size: 12.5px;
+        color: #6ee7b7;
+        min-height: 16px;
+      }
+      .foot {
+        margin: 20px 0 0;
+        font-size: 11.5px;
+        line-height: 1.5;
+        color: #64748b;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <div class="badge"><img src="icons/icon-192.png" alt="DEKUWEC logo" /></div>
+      <h1>DEKUWEC Portal</h1>
+      <div class="sub">DeKUT Conservation</div>
+
+      <svg class="icon" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M2 8.5a15 15 0 0 1 20 0" />
+        <path d="M5 12.5a10.5 10.5 0 0 1 14 0" />
+        <path d="M8.5 16a5.5 5.5 0 0 1 7 0" />
+        <circle cx="12" cy="19.5" r="1.1" fill="currentColor" stroke="none" />
+        <path d="M3 3l18 18" />
+      </svg>
+
+      <p>
+        You&rsquo;re offline. The portal needs an internet connection to load your dashboard,
+        events and M&#8209;Pesa payments.
+      </p>
+
+      <button id="retry" type="button">Try again</button>
+      <div class="status" id="status"></div>
+      <p class="foot">
+        Reconnecting automatically&hellip;<br />
+        Dedan Kimathi University of Technology &middot; DEKUWEC
+      </p>
+    </main>
+
+    <script>
+      (function () {
+        var APP_URL = "https://www.dekuwec.app";
+        var PROBE_URL = APP_URL + "/favicon.ico";
+        var button = document.getElementById("retry");
+        var status = document.getElementById("status");
+        var busy = false;
+        var timer = null;
+
+        function setStatus(text) {
+          status.textContent = text || "";
+        }
+
+        function go() {
+          setStatus("Connecting\u2026");
+          window.location.replace(APP_URL);
+        }
+
+        function probe(timeoutMs) {
+          return new Promise(function (resolve) {
+            var done = false;
+            var controller =
+              typeof AbortController !== "undefined" ? new AbortController() : null;
+            var timerId = setTimeout(function () {
+              if (done) return;
+              done = true;
+              if (controller) controller.abort();
+              resolve(false);
+            }, timeoutMs);
+
+            // This page is served from Capacitor's local origin (https://localhost), so a
+            // normal CORS fetch to the portal would be rejected even while online. An
+            // opaque no-cors request still resolves as soon as the host responds.
+            fetch(PROBE_URL + "?t=" + Date.now(), {
+              method: "GET",
+              mode: "no-cors",
+              cache: "no-store",
+              signal: controller ? controller.signal : undefined,
+            })
+              .then(function () {
+                if (done) return;
+                done = true;
+                clearTimeout(timerId);
+                resolve(true);
+              })
+              .catch(function () {
+                if (done) return;
+                done = true;
+                clearTimeout(timerId);
+                resolve(false);
+              });
+          });
+        }
+
+        function check(manual) {
+          if (busy) return;
+          busy = true;
+          if (manual) button.disabled = true;
+          setStatus("Checking connection\u2026");
+
+          probe(6000).then(function (online) {
+            busy = false;
+            if (manual) button.disabled = false;
+            if (online) {
+              go();
+            } else if (manual) {
+              setStatus("Still offline \u2014 check your data or Wi-Fi.");
+            } else {
+              setStatus("");
+            }
+          });
+        }
+
+        button.addEventListener("click", function () {
+          check(true);
+        });
+
+        document.addEventListener("visibilitychange", function () {
+          if (!document.hidden) check(false);
+        });
+
+        window.addEventListener("online", function () {
+          check(false);
+        });
+
+        // Poll while the page is visible so the app recovers on its own.
+        timer = setInterval(function () {
+          if (!document.hidden) check(false);
+        }, 15000);
+
+        check(false);
+      })();
+    </script>
+  </body>
+</html>

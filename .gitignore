@@ -47,3 +47,7 @@ next-env.d.ts
 .wrangler
 .dev.vars*
 !.dev.vars.example
+
+# Android app wrapper
+/mobile/node_modules
+/mobile/dist

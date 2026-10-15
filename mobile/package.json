@@ -1,0 +1,25 @@
+{
+  "name": "dekuwec-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Android app wrapper for the DEKUWEC Portal (https://www.dekuwec.app)",
+  "scripts": {
+    "sync": "cap sync android",
+    "icons": "node scripts/generate-icons.js",
+    "open": "cap open android",
+    "apk:debug": "cap sync android && cd android && gradlew.bat assembleDebug",
+    "apk:release": "cap sync android && cd android && gradlew.bat assembleRelease",
+    "aab:release": "cap sync android && cd android && gradlew.bat bundleRelease"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^7.0.0",
+    "@capacitor/app": "^7.0.0",
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^7.0.0",
+    "@capacitor/core": "^7.0.0",
+    "@capacitor/network": "^7.0.0",
+    "@capacitor/splash-screen": "^7.0.0",
+    "@capacitor/status-bar": "^7.0.0",
+    "sharp": "^0.35.5"
+  }
+}
