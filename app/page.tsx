@@ -213,6 +213,22 @@ export default function Home() {
                     )}
                   </div>
 
+                  <div className="flex flex-col gap-4 pt-1 min-[620px]:flex-row min-[620px]:items-center">
+                    <Link
+                      href="/leadership"
+                      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-lime-300/70 bg-emerald-900/50 px-5 py-3 text-sm font-black text-lime-100 backdrop-blur-sm transition hover:bg-emerald-800/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-200 focus-visible:ring-offset-2 focus-visible:ring-offset-emerald-950"
+                    >
+                      <Award className="h-4 w-4" />
+                      Apply as Leader
+                    </Link>
+                    <blockquote className="max-w-md border-l-2 border-lime-300/70 pl-3 text-xs italic leading-relaxed text-emerald-100/90 sm:text-sm">
+                      &ldquo;Conservation leadership is not a title &mdash; it is the courage to leave the wild better than you found it.&rdquo;
+                      <span className="mt-1 block text-[10px] font-bold uppercase not-italic tracking-[0.14em] text-lime-200/80">
+                        DEKUWEC &middot; 2026/2027 Elections
+                      </span>
+                    </blockquote>
+                  </div>
+
                   <button
                     onClick={() => setActiveTab("contact")}
                     className="inline-flex min-h-10 items-center gap-2 py-2 text-xs font-bold text-white/85 transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
