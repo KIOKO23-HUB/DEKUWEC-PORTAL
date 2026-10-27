@@ -11,6 +11,8 @@ export interface IEventItem extends Document {
   description: string;
   media?: any[];
   isFree?: boolean;
+  ticketPrice?: number;
+  paymentTiers?: { id: string; label: string; amount: number }[];
   likes: string[]; // NEW: Stores Clerk User IDs
   comments: {
     clerkId: string;
@@ -32,6 +34,11 @@ const EventItemSchema = new Schema<IEventItem>({
   description: { type: String, required: true },
   media: { type: Array, default: [] },
   isFree: { type: Boolean, default: false },
+  ticketPrice: { type: Number, default: 0 },
+  paymentTiers: {
+    type: [{ id: String, label: String, amount: Number }],
+    default: [],
+  },
   
   // NEW FIELDS FOR INTERACTION
   likes: { type: [String], default: [] },
