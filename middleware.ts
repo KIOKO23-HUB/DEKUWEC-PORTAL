@@ -22,8 +22,16 @@ const ZERO_WIDTH_GLOBAL = /[\u200B-\u200F\u2060\uFEFF]/g;
 
 export default clerkMiddleware((auth, request) => {
   const url = new URL(request.url);
-  if (ZERO_WIDTH_TEST.test(url.pathname)) {
-    const cleanPath = url.pathname.replace(ZERO_WIDTH_GLOBAL, "");
+
+  // Percent-encoded input keeps the raw character out of pathname, so decode first.
+  let decodedPath = url.pathname;
+  try {
+    decodedPath = decodeURIComponent(url.pathname);
+  } catch {
+    // Malformed escape sequence: leave the path untouched.
+  }
+  if (ZERO_WIDTH_TEST.test(decodedPath)) {
+    const cleanPath = decodedPath.replace(ZERO_WIDTH_GLOBAL, "");
     return NextResponse.redirect(new URL(`${cleanPath}${url.search}`, url), 308);
   }
 
