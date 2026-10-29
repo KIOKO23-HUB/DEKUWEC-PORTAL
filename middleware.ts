@@ -1,4 +1,5 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { NextResponse } from "next/server";
 
 // Define the routes that do not require authentication
 const isPublicRoute = createRouteMatcher([
@@ -15,7 +16,17 @@ const isPublicRoute = createRouteMatcher([
   '/api/payments(.*)'
 ]);
 
+// Stray zero-width characters (e.g. U+2060 pasted into a link) used to 404 valid routes.
+const ZERO_WIDTH_TEST = /[\u200B-\u200F\u2060\uFEFF]/;
+const ZERO_WIDTH_GLOBAL = /[\u200B-\u200F\u2060\uFEFF]/g;
+
 export default clerkMiddleware((auth, request) => {
+  const url = new URL(request.url);
+  if (ZERO_WIDTH_TEST.test(url.pathname)) {
+    const cleanPath = url.pathname.replace(ZERO_WIDTH_GLOBAL, "");
+    return NextResponse.redirect(new URL(`${cleanPath}${url.search}`, url), 308);
+  }
+
   // Protect all routes that are NOT explicitly marked as public above
   if (!isPublicRoute(request)) {
     auth().protect();

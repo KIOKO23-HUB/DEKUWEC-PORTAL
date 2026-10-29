@@ -28,20 +28,28 @@ export async function GET(req: Request) {
       }
     }
 
-    const payment = await Payment.findOne(query);
+    const payment = (await Payment.findOne(query)
+      .select("status mpesaReceipt amount totalDue clerkId category reference")
+      .lean()) as any;
 
     if (!payment) {
       return NextResponse.json({ status: "Pending" }, { status: 200 });
     }
 
-    const completedPayments = await Payment.find({
-      clerkId: payment.clerkId,
-      category: payment.category,
-      reference: payment.reference,
-      status: "Completed"
-    }).select("amount totalDue").lean();
     const totalDue = Number(payment.totalDue || payment.amount || 0);
-    const totalPaid = completedPayments.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+
+    // The client only needs the running balance once the payment succeeds, so
+    // skip the aggregation on every pending poll (halves the query count).
+    let totalPaid = 0;
+    if (payment.status === "Completed") {
+      const completedPayments = await Payment.find({
+        clerkId: payment.clerkId,
+        category: payment.category,
+        reference: payment.reference,
+        status: "Completed"
+      }).select("amount").lean();
+      totalPaid = completedPayments.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    }
 
     return NextResponse.json({
       status: payment.status || "Pending",

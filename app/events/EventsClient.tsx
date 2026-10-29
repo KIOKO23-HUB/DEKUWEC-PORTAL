@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type Tier = { id: string; label: string; amount: number };
 
@@ -31,6 +31,14 @@ const CLUB_EMAIL = "wildlifeandenvironmentalclub@dkut.ac.ke";
 
 function EventCard({ event }: { event: PublicEvent }) {
   const [step, setStep] = useState<Step>("idle");
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const stopPolling = () => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  };
+  useEffect(() => stopPolling, []);
   const [form, setForm] = useState({ fullName: "", regNo: "", email: "", phone: "", tierId: event.tiers[0]?.id || "" });
   const [registration, setRegistration] = useState<Registration | null>(null);
   const [payPhone, setPayPhone] = useState("");
@@ -105,19 +113,20 @@ function EventCard({ event }: { event: PublicEvent }) {
 
       setNotice("Check your phone and enter your M-Pesa PIN.");
       let attempts = 0;
-      const timer = setInterval(async () => {
+      stopPolling();
+      pollRef.current = setInterval(async () => {
         attempts += 1;
         try {
           const statusRes = await fetch(`/api/mpesa/status?id=${pushData.paymentId}`);
           const statusData = await statusRes.json();
           if (statusData.status === "Completed") {
-            clearInterval(timer);
+            stopPolling();
             setReceipt(statusData.receipt || "");
             setNotice("");
             setStep("success");
             setBusy(false);
           } else if (statusData.status === "Failed" || attempts >= 30) {
-            clearInterval(timer);
+            stopPolling();
             setError(
               statusData.status === "Failed"
                 ? "Payment failed. Please check your balance and try again."

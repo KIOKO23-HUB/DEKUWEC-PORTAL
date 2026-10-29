@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { CreditCard, CheckCircle, Shield, Loader2, X, Smartphone, AlertCircle } from "lucide-react";
 import { useUser } from "@clerk/nextjs";
 
@@ -22,6 +22,14 @@ export default function WckCardPage() {
   // Dynamic Payment States
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalStep, setModalStep] = useState<"ask_pay" | "checkout" | "polling" | "success">("ask_pay");
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const stopPolling = () => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  };
+  useEffect(() => stopPolling, []);
   const [paymentPhone, setPaymentPhone] = useState("");
   
   // NEW: Dynamic fee configuration 
@@ -138,9 +146,10 @@ export default function WckCardPage() {
       // 2. Start Polling the Database for "Completed" Status
       const paymentId = pushData.paymentId;
       let attempts = 0;
-      const maxAttempts = 30; // Stop checking after 60 seconds (30 attempts * 2s)
+      const maxAttempts = 30; // Stop checking after 90 seconds (30 attempts * 3s)
 
-      const pollInterval = setInterval(async () => {
+      stopPolling();
+      pollRef.current = setInterval(async () => {
         attempts++;
         
         try {
@@ -148,7 +157,7 @@ export default function WckCardPage() {
           const statusData = await statusRes.json();
 
           if (statusData.status === "Completed") {
-            clearInterval(pollInterval);
+            stopPolling();
             setPaymentBalance(statusData.balance ?? 0);
             
             // Mark the local state as paid to update the UI instantly
@@ -161,14 +170,14 @@ export default function WckCardPage() {
             }, 3000);
             
           } else if (statusData.status === "Failed" || attempts >= maxAttempts) {
-            clearInterval(pollInterval);
+            stopPolling();
             alert("Payment failed or timed out. Please check your funds and try again.");
             setModalStep("checkout");
           }
         } catch (pollErr) {
           console.error("Polling error", pollErr);
         }
-      }, 2000); // Check every 2 seconds
+      }, 3000); // Check every 3 seconds
 
     } catch (error) {
       console.error("Payment submission error:", error);

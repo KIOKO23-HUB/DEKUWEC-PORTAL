@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useUser } from "@clerk/nextjs";
 import { 
   ShoppingBag, CheckCircle, Clock, Smartphone, CreditCard, 
@@ -21,6 +21,14 @@ export default function MerchandisePage() {
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalStep, setModalStep] = useState<"customize" | "ask_pay" | "checkout" | "polling" | "success">("customize");
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const stopPolling = () => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  };
+  useEffect(() => stopPolling, []);
   const [currentOrderId, setCurrentOrderId] = useState<string | null>(null);
   const [currentAmount, setCurrentAmount] = useState<number>(0);
   const [paymentAmount, setPaymentAmount] = useState<number>(0);
@@ -126,28 +134,29 @@ export default function MerchandisePage() {
       let attempts = 0;
       const maxAttempts = 30;
 
-      const pollInterval = setInterval(async () => {
+      stopPolling();
+      pollRef.current = setInterval(async () => {
         attempts++;
         try {
           const statusRes = await fetch(`/api/mpesa/status?id=${paymentId}`);
           const statusData = await statusRes.json();
 
           if (statusData.status === "Completed") {
-            clearInterval(pollInterval);
+            stopPolling();
             setPaymentBalance(statusData.balance ?? 0);
             setMyOrders((prev) =>
               prev.map((o) => (o._id === currentOrderId ? { ...o, paymentStatus: "Paid" } : o))
             );
             setModalStep("success");
           } else if (statusData.status === "Failed" || attempts >= maxAttempts) {
-            clearInterval(pollInterval);
+            stopPolling();
             alert("Payment failed or timed out. You can retry later from your orders list.");
             setModalStep("checkout");
           }
         } catch (err) {
           console.error(err);
         }
-      }, 2000);
+      }, 3000);
     } catch {
       alert("Payment initiation failed.");
       setModalStep("checkout");

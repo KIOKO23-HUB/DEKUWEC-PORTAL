@@ -18,4 +18,8 @@ const PaymentSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
+// Status polling and balance lookups filter on these fields on every poll.
+PaymentSchema.index({ clerkId: 1, category: 1, reference: 1, status: 1 });
+PaymentSchema.index({ status: 1, createdAt: -1 });
+
 export default mongoose.models.Payment || mongoose.model("Payment", PaymentSchema);

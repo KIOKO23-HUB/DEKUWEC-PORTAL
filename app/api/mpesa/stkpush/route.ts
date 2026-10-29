@@ -9,6 +9,28 @@ export const dynamic = "force-dynamic";
 const TOKEN_URL = "https://api.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials";
 const STK_URL = "https://api.safaricom.co.ke/mpesa/stkpush/v1/processrequest";
 
+// Safaricom access tokens live ~1 hour. Cache them per worker isolate so each
+// prompt does not pay for an extra OAuth round trip before the STK push.
+let cachedToken: { value: string; expiresAt: number } | null = null;
+
+async function getAccessToken(consumerKey: string, consumerSecret: string): Promise<string> {
+  if (cachedToken && cachedToken.expiresAt > Date.now() + 60_000) {
+    return cachedToken.value;
+  }
+  const authHeader = Buffer.from(`${consumerKey}:${consumerSecret}`).toString("base64");
+  const tokenRes = await fetch(TOKEN_URL, {
+    method: "GET",
+    headers: { Authorization: `Basic ${authHeader}` },
+  });
+  if (!tokenRes.ok) {
+    throw new Error(`Safaricom Auth Failed: ${await tokenRes.text()}`);
+  }
+  const tokenData = await tokenRes.json();
+  const ttl = Number(tokenData.expires_in) > 0 ? Number(tokenData.expires_in) : 3599;
+  cachedToken = { value: tokenData.access_token, expiresAt: Date.now() + ttl * 1000 };
+  return cachedToken.value;
+}
+
 function formatPhoneNumber(phone: string): string {
   let cleaned = (phone || "").replace(/\D/g, "");
   if (cleaned.startsWith("0")) {
@@ -57,26 +79,21 @@ export async function POST(req: Request) {
       );
     }
 
-    // 1. Authenticate with Safaricom Production Server
-    const authHeader = Buffer.from(`${consumerKey}:${consumerSecret}`).toString("base64");
-    const tokenRes = await fetch(TOKEN_URL, {
-      method: "GET",
-      headers: {
-        Authorization: `Basic ${authHeader}`,
-      },
-    });
+    // Warm the database connection while Safaricom is being contacted.
+    const dbReady = connectToDatabase();
+    dbReady.catch(() => {}); // handled at await below; avoid an unhandled rejection meanwhile
 
-    if (!tokenRes.ok) {
-      const errText = await tokenRes.text();
-      console.error("Daraja Production Auth Error:", errText);
+    // 1. Authenticate with Safaricom Production Server (cached token)
+    let accessToken: string;
+    try {
+      accessToken = await getAccessToken(consumerKey, consumerSecret);
+    } catch (authErr: any) {
+      console.error("Daraja Production Auth Error:", authErr?.message);
       return NextResponse.json(
-        { error: `Safaricom Auth Failed: ${errText}` },
+        { error: authErr?.message || "Safaricom authentication failed." },
         { status: 502 }
       );
     }
-
-    const tokenData = await tokenRes.json();
-    const accessToken = tokenData.access_token;
 
     // 2. Generate Cryptographic Password and Timestamp
     const timestamp = getTimestamp();
@@ -122,7 +139,7 @@ export async function POST(req: Request) {
     }
 
     // 4. Save Pending Record in Database
-    await connectToDatabase();
+    await dbReady;
     const payment = await Payment.create({
       clerkId: clerkId || "anonymous",
       fullName: fullName || "Member",

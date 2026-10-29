@@ -156,9 +156,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   useEffect(() => {
     if (!user) return;
-    refreshInbox();
-    const interval = window.setInterval(refreshInbox, 5000);
-    return () => window.clearInterval(interval);
+    const poll = () => {
+      if (document.visibilityState === "visible") refreshInbox();
+    };
+    poll();
+    const interval = window.setInterval(poll, 30000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refreshInbox();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [user?.id]);
 
   // 3. Fetch REAL Contacts Directory when Message Sidebar is opened

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useUser } from "@clerk/nextjs";
 import { 
   Calendar, 
@@ -288,6 +288,14 @@ export default function EventsPage() {
   // Modal Flow States
   const [activeModalEvent, setActiveModalEvent] = useState<any | null>(null);
   const [modalStep, setModalStep] = useState<"form" | "ask_pay" | "checkout" | "polling" | "success">("form");
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const stopPolling = () => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  };
+  useEffect(() => stopPolling, []);
   
   // Form & Payment Inputs
   const [formData, setFormData] = useState({ name: "", regNo: "", phone: "" });
@@ -307,15 +315,19 @@ export default function EventsPage() {
 
   useEffect(() => {
     async function loadData() {
+      // Fire all three requests together instead of waiting for them one by one.
+      const eventsPromise = fetch("/api/admin/events");
+      const activityPromise = user ? fetch(`/api/account/activity?clerkId=${user.id}`) : null;
+      const feePromise = fetch("/api/admin/fees");
       try {
-        const res = await fetch("/api/admin/events");
+        const res = await eventsPromise;
         const data = await res.json();
         if (data.events && data.events.length > 0) {
           setEvents(data.events);
         }
 
-        if (user) {
-          const userActivity = await fetch(`/api/account/activity?clerkId=${user.id}`);
+        if (activityPromise) {
+          const userActivity = await activityPromise;
           const actData = await userActivity.json();
           if (actData.rsvps) {
             const statusMap: { [key: string]: string } = {};
@@ -330,7 +342,7 @@ export default function EventsPage() {
       }
 
       try {
-        const feeRes = await fetch("/api/admin/fees");
+        const feeRes = await feePromise;
         if (feeRes.ok) {
           const feeData = await feeRes.json();
           if (feeData && feeData.eventTiers && Array.isArray(feeData.eventTiers) && feeData.eventTiers.length > 0) {
@@ -473,9 +485,10 @@ export default function EventsPage() {
       // 2. Start Polling the Database for "Completed" Status
       const paymentId = pushData.paymentId;
       let attempts = 0;
-      const maxAttempts = 30; // Stop checking after 60 seconds (30 attempts * 2s)
+      const maxAttempts = 30; // Stop checking after 90 seconds (30 attempts * 3s)
 
-      const pollInterval = setInterval(async () => {
+      stopPolling();
+      pollRef.current = setInterval(async () => {
         attempts++;
         
         try {
@@ -483,7 +496,7 @@ export default function EventsPage() {
           const statusData = await statusRes.json();
 
           if (statusData.status === "Completed") {
-            clearInterval(pollInterval);
+            stopPolling();
             setPaymentBalance(statusData.balance ?? 0);
             
             // Mark local state as paid to update UI
@@ -498,14 +511,14 @@ export default function EventsPage() {
             }, 3000);
             
           } else if (statusData.status === "Failed" || attempts >= maxAttempts) {
-            clearInterval(pollInterval);
+            stopPolling();
             alert("Payment failed or timed out. Please check your funds and try again.");
             setModalStep("checkout");
           }
         } catch (pollErr) {
           console.error("Polling error", pollErr);
         }
-      }, 2000); // Check every 2 seconds
+      }, 3000); // Check every 3 seconds
 
     } catch (error) {
       console.error("Payment submission error:", error);

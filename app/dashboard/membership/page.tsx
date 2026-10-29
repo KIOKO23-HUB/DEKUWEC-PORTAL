@@ -58,6 +58,14 @@ export default function MembershipPortalPage() {
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   // UPDATED: Added polling and success to the modal steps
   const [paymentStep, setPaymentStep] = useState<"ask_pay" | "checkout" | "polling" | "success">("ask_pay");
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const stopPolling = () => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  };
+  useEffect(() => stopPolling, []);
   const [paymentPhone, setPaymentPhone] = useState("");
   
   // Dynamic Fee Configuration (Controlled by Admin Portal)
@@ -76,8 +84,11 @@ export default function MembershipPortalPage() {
 
   useEffect(() => {
     const fetchDirectoryAndFees = async () => {
+      const directoryPromise = fetch("/api/directory");
+      const feePromise = fetch("/api/admin/fees");
+
       try {
-        const res = await fetch("/api/directory");
+        const res = await directoryPromise;
         if (res.ok) {
           const data = await res.json();
           setDirectoryMembers(data);
@@ -90,7 +101,7 @@ export default function MembershipPortalPage() {
 
       // Fetch dynamic fee structures set by Admin
       try {
-        const feeRes = await fetch("/api/admin/fees");
+        const feeRes = await feePromise;
         if (feeRes.ok) {
           const feeData = await feeRes.json();
           if (feeData && feeData.member) {
@@ -298,9 +309,10 @@ export default function MembershipPortalPage() {
       // 2. Start Polling the Database for "Completed" Status
       const paymentId = pushData.paymentId;
       let attempts = 0;
-      const maxAttempts = 30; // Stop checking after 60 seconds (30 attempts * 2s)
+      const maxAttempts = 30; // Stop checking after 90 seconds (30 attempts * 3s)
 
-      const pollInterval = setInterval(async () => {
+      stopPolling();
+      pollRef.current = setInterval(async () => {
         attempts++;
         
         try {
@@ -308,7 +320,7 @@ export default function MembershipPortalPage() {
           const statusData = await statusRes.json();
 
           if (statusData.status === "Completed") {
-            clearInterval(pollInterval);
+            stopPolling();
             setPaymentBalance(statusData.balance ?? 0);
             
             setPaymentStep("success");
@@ -320,14 +332,14 @@ export default function MembershipPortalPage() {
             }, 3000);
             
           } else if (statusData.status === "Failed" || attempts >= maxAttempts) {
-            clearInterval(pollInterval);
+            stopPolling();
             alert("Payment failed or timed out. Please check your funds and try again.");
             setPaymentStep("checkout");
           }
         } catch (pollErr) {
           console.error("Polling error", pollErr);
         }
-      }, 2000); // Check every 2 seconds
+      }, 3000); // Check every 3 seconds
 
     } catch (error) {
       console.error("Payment submission error:", error);

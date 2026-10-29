@@ -18,9 +18,19 @@ export const connectToDatabase = async () => {
     return cached.conn;
   }
   if (!cached.promise) {
-    cached.promise = mongoose.connect(MONGODB_URI).then((mongoose) => {
-      return mongoose;
-    });
+    cached.promise = mongoose
+      .connect(MONGODB_URI, {
+        serverSelectionTimeoutMS: 8000,
+        connectTimeoutMS: 8000,
+        socketTimeoutMS: 20000,
+        maxPoolSize: 5,
+        bufferCommands: false,
+      })
+      .catch((err: unknown) => {
+        // Never leave a rejected promise cached: the next request must be able to retry.
+        cached.promise = null;
+        throw err;
+      });
   }
   cached.conn = await cached.promise;
   return cached.conn;

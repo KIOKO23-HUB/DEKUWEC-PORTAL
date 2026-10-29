@@ -14,12 +14,13 @@ export async function GET() {
     const clerkUsers = await client.users.getUserList({ limit: 500 }); 
 
     // 2. Fetch the database records to see who is officially approved/paid
-    const dbMembers = await Member.find({});
+    const dbMembers = await Member.find({}).select("clerkId fullName status").lean();
+    const dbByClerkId = new Map(dbMembers.map((m) => [m.clerkId, m]));
 
     // 3. Merge them together
     const directory = clerkUsers.data.map((user) => {
       // Look for a matching database record
-      const dbMatch = dbMembers.find((m) => m.clerkId === user.id);
+      const dbMatch = dbByClerkId.get(user.id);
       
       // Combine Clerk's profile picture with the DB's official status
       return {
@@ -37,7 +38,11 @@ export async function GET() {
       return a.fullName.localeCompare(b.fullName);
     });
 
-    return NextResponse.json(directory, { status: 200 });
+    return NextResponse.json(directory, {
+      status: 200,
+      // Clerk's user list is the slow part of this route; let browsers reuse it briefly.
+      headers: { "Cache-Control": "private, max-age=30, stale-while-revalidate=120" },
+    });
   } catch (error: any) {
     console.error("Directory fetch error:", error);
     return NextResponse.json({ error: "Failed to load directory" }, { status: 500 });
