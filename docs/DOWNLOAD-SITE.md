@@ -44,9 +44,9 @@ unreachable or rate-limited the hard-coded values stay in place, so the page nev
 npx wrangler pages deploy download-site --project-name dekuwec-app
 ```
 
-Wrangler prints a warning about `wrangler.jsonc` missing `pages_build_output_dir`; that file
-configures the Cloudflare Worker for the portal, so it is deliberately left alone and the warning
-can be ignored.
+Wrangler prints a warning about `pages_build_output_dir` because this repository has no
+`wrangler.jsonc`; the portal itself deploys to Vercel, so wrangler is only used for this static
+folder and the warning can be ignored.
 
 ## Attaching a custom domain
 
