@@ -166,9 +166,10 @@ export default function Home() {
           <div className="space-y-10 sm:space-y-12 animate-in fade-in duration-300">
             <section className="landing-hero relative isolate -mx-4 sm:-mx-6 lg:-mx-8 overflow-hidden flex items-center min-h-[min(76svh,680px)] sm:min-h-[560px]">
               <img
-                src="https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=2200&q=85"
-                alt="Sunlight filtering through a thriving forest"
+                src="/dekut-aerial.jpg"
+                alt="Aerial view of Dedan Kimathi University of Technology campus"
                 className="landing-hero-image absolute inset-0 h-full w-full object-cover"
+                fetchPriority="high"
               />
               <div className="absolute inset-0 bg-gradient-to-r from-emerald-950/95 via-emerald-950/75 to-sky-950/35" />
               <div className="absolute inset-0 bg-gradient-to-t from-emerald-950/55 via-transparent to-emerald-950/10" />
