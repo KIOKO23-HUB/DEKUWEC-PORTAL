@@ -12,6 +12,7 @@ import {
   Info,
   Loader2
 } from "lucide-react";
+import { optimizedImage } from "@/lib/image";
 
 // Fallback Question
 const DEFAULT_QUESTION = {
@@ -191,7 +192,7 @@ export default function EcoPulseDispatchPage() {
                     {topic.imageUrl && (
                       <div className="h-48 w-full overflow-hidden bg-gray-100 flex items-center justify-center p-2">
                         {/* Adjusted to object-contain to match admin panel upload scale */}
-                        <img src={topic.imageUrl} alt={topic.title} className="w-full h-full object-contain group-hover:scale-105 transition duration-700" />
+                        <img src={optimizedImage(topic.imageUrl, 700)} alt={topic.title} className="w-full h-full object-contain group-hover:scale-105 transition duration-700" />
                       </div>
                     )}
                     <div className="p-6 sm:p-8 flex flex-col flex-grow">
@@ -233,7 +234,7 @@ export default function EcoPulseDispatchPage() {
                     {topic.imageUrl && (
                       <div className="h-48 w-full overflow-hidden bg-gray-100 flex items-center justify-center p-2">
                         {/* Adjusted to object-contain to match admin panel upload scale */}
-                        <img src={topic.imageUrl} alt={topic.title} className="w-full h-full object-contain group-hover:scale-105 transition duration-700" />
+                        <img src={optimizedImage(topic.imageUrl, 700)} alt={topic.title} className="w-full h-full object-contain group-hover:scale-105 transition duration-700" />
                       </div>
                     )}
                     <div className="p-6 sm:p-8 flex flex-col flex-grow">

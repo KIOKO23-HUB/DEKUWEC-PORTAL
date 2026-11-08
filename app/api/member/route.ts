@@ -1,23 +1,10 @@
 import { NextResponse } from "next/server";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { connectToDatabase } from "@/lib/mongodb";
-import mongoose from "mongoose";
 import { sendEmail } from "@/lib/brevo";
 import Notification from "@/models/Notification";
-
-// Define Mongoose Schema & Model
-const MemberSchema = new mongoose.Schema({
-  clerkId: { type: String, required: true, unique: true },
-  email: { type: String, required: true },
-  displayName: { type: String, default: "" },
-  course: { type: String, default: "" },
-  year: { type: String, default: "Year 1" },
-  photoURL: { type: String, default: "" },
-  status: { type: String, enum: ["Unregistered", "Pending", "Approved", "Rejected"], default: "Unregistered" },
-  updatedAt: { type: Date, default: Date.now },
-});
-
-const Member = mongoose.models.Member || mongoose.model("Member", MemberSchema);
+import Member from "@/models/Member";
+import { ensureMember, linkGuestRecords } from "@/lib/members";
 
 export async function GET(req: Request) {
   try {
@@ -31,18 +18,17 @@ export async function GET(req: Request) {
     const firstName = user?.firstName || "Nature Enthusiast";
 
     await connectToDatabase();
+    await linkGuestRecords(userId, email);
 
-    let member = await Member.findOne({ clerkId: userId });
+    const existingMember = await Member.findOne({ clerkId: userId });
+    let member = await ensureMember({
+      clerkId: userId,
+      email,
+      fullName: user?.firstName ? `${user.firstName} ${user.lastName || ""}`.trim() : "",
+    });
     
     // IF THIS IS A BRAND NEW USER, CREATE THEM AND SEND THE WELCOME EMAIL
-    if (!member) {
-      member = await Member.create({
-        clerkId: userId,
-        email,
-        displayName: user?.firstName ? `${user.firstName} ${user.lastName || ""}`.trim() : "",
-        photoURL: user?.imageUrl || "",
-      });
-
+    if (!existingMember) {
       // Draft the highly detailed Welcome Email
       const welcomeEmailHtml = `
         <div style="font-family: Arial, sans-serif; max-w: 600px; margin: 0 auto; color: #064e3b; line-height: 1.6;">
@@ -119,6 +105,7 @@ export async function POST(req: Request) {
     const email = user?.emailAddresses[0]?.emailAddress || "";
 
     await connectToDatabase();
+    await ensureMember({ clerkId: userId, email, fullName: displayName });
 
     const updateData: any = {
       email,

@@ -14,6 +14,7 @@ import {
   ArrowRight,
   Loader2
 } from "lucide-react";
+import { optimizedImage } from "@/lib/image";
 
 // Fallback slides in case the database is completely empty
 const FALLBACK_SLIDES = [
@@ -171,7 +172,7 @@ export default function DashboardHomePage() {
               >
                 {/* Changed to object-contain so event flyers don't get chopped off! */}
                 <img 
-                  src={slide.image} 
+                  src={optimizedImage(slide.image, 1400)} 
                   alt={slide.title} 
                   className="w-full h-full object-contain opacity-90 bg-emerald-950"
                 />

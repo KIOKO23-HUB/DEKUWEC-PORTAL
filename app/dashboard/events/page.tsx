@@ -22,6 +22,7 @@ import {
   Heart,
   MessageSquare
 } from "lucide-react";
+import { optimizedImage } from "@/lib/image";
 
 const FALLBACK_PREVIOUS = [
   {
@@ -110,7 +111,7 @@ const EventMediaCarousel = ({ event, fallbackImage }: { event: any, fallbackImag
   }, [currentIndex, allMedia.length, allMedia]);
 
   if (allMedia.length === 0) {
-    return <img src={getEventImageUrl(fallbackImage, 960)} alt="Event Cover" loading="lazy" decoding="async" className="w-full h-full object-cover bg-emerald-50" />;
+    return <img src={optimizedImage(getEventImageUrl(fallbackImage, 960), 700)} alt="Event Cover" loading="lazy" decoding="async" className="w-full h-full object-cover bg-emerald-50" />;
   }
 
   const currentMedia = allMedia[currentIndex];

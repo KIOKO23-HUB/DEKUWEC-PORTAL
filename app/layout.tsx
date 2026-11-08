@@ -10,9 +10,16 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://dekuwec.app"),
   title: "DEKUWEC Portal - Dedan Kimathi Wildlife & Environmental Club",
   description: "Official membership portal for the Dedan Kimathi Wildlife and Environmental Club",
   manifest: "/manifest.json",
+  openGraph: {
+    siteName: "DEKUWEC",
+    type: "website",
+    images: [{ url: "/icon-512.png", width: 512, height: 512, alt: "DEKUWEC" }],
+  },
+  twitter: { card: "summary_large_image" },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",

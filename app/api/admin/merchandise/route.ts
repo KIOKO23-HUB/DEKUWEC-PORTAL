@@ -2,13 +2,15 @@ import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/mongodb";
 import Merchandise from "@/models/Merchandise";
 import MerchandiseOrder from "@/models/MerchandiseOrder";
+import { normalizeSizes } from "@/lib/merchandise";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
     await connectToDatabase();
-    const items = await Merchandise.find({}).sort({ createdAt: -1 });
+    const rawItems = await Merchandise.find({}).sort({ createdAt: -1 }).lean<any[]>();
+    const items = rawItems.map((item) => ({ ...item, availableSizes: normalizeSizes(item) }));
     const orders = await MerchandiseOrder.find({}).sort({ createdAt: -1 });
     return NextResponse.json({ items, orders });
   } catch (error) {

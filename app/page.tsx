@@ -19,7 +19,10 @@ import {
   ShieldCheck,
   Loader2,
   Sparkles,
-  Globe
+  Globe,
+  Camera,
+  ShoppingBag,
+  CalendarDays
 } from "lucide-react";
 
 export default function Home() {
@@ -238,6 +241,30 @@ export default function Home() {
                   </button>
                 </div>
               </div>
+            </section>
+
+            {/* Direct share links */}
+            <section className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
+              <Link href="/nature-snaps" className="group flex flex-col gap-2 rounded-2xl border border-emerald-100 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+                <Camera className="h-5 w-5 text-emerald-600" />
+                <span className="text-sm font-black text-emerald-950">Nature Snaps</span>
+                <span className="text-[11px] text-gray-500">Upload, vote &amp; see winners</span>
+              </Link>
+              <Link href="/merchandise" className="group flex flex-col gap-2 rounded-2xl border border-emerald-100 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+                <ShoppingBag className="h-5 w-5 text-emerald-600" />
+                <span className="text-sm font-black text-emerald-950">Merchandise</span>
+                <span className="text-[11px] text-gray-500">Order official club gear</span>
+              </Link>
+              <Link href="/wck" className="group flex flex-col gap-2 rounded-2xl border border-emerald-100 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+                <ShieldCheck className="h-5 w-5 text-emerald-600" />
+                <span className="text-sm font-black text-emerald-950">WCK Card</span>
+                <span className="text-[11px] text-gray-500">Apply for your WCK card</span>
+              </Link>
+              <Link href="/events" className="group flex flex-col gap-2 rounded-2xl border border-emerald-100 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+                <CalendarDays className="h-5 w-5 text-emerald-600" />
+                <span className="text-sm font-black text-emerald-950">Events</span>
+                <span className="text-[11px] text-gray-500">See what&apos;s coming up</span>
+              </Link>
             </section>
 
             {/* Feature Pillars */}

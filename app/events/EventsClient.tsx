@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { optimizedImage } from "@/lib/image";
 
 type Tier = { id: string; label: string; amount: number };
 
@@ -153,7 +154,7 @@ function EventCard({ event }: { event: PublicEvent }) {
         <div className="w-full bg-slate-100">
           {/* Poster shown in full, never cropped, on any screen size */}
           <img
-            src={event.imageUrl}
+            src={optimizedImage(event.imageUrl, 1000)}
             alt={`${event.title} poster`}
             className="block h-auto w-full object-contain"
             loading="eager"

@@ -10,6 +10,8 @@ import {
   UploadCloud, Phone, Video, Download, Award, ThumbsUp, ThumbsDown,
   Wallet, Clock, Tag, Plus, ShoppingBag, PackageCheck
 } from "lucide-react";
+import { optimizedImage } from "@/lib/image";
+import { uploadImage } from "@/lib/clientUpload";
 
 // --- HELPER: Admin Active Time Formatter ---
 function formatActiveStatus(lastActiveDate: string) {
@@ -147,30 +149,10 @@ export default function DekuwecAdminDashboard() {
     
     setUploadingMedia(true);
     try {
-      const signRes = await fetch("/api/upload", { method: "GET" });
-      if (!signRes.ok) throw new Error("Failed to authenticate upload.");
-      const signData = await signRes.json();
-
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("api_key", signData.apiKey);
-      formData.append("timestamp", signData.timestamp);
-      formData.append("signature", signData.signature);
-      formData.append("folder", "dekuwec_portal");
-
-      const uploadRes = await fetch(`https://api.cloudinary.com/v1_1/${signData.cloudName}/auto/upload`, {
-        method: "POST",
-        body: formData
-      });
-
-      if (uploadRes.ok) {
-        const data = await uploadRes.json();
-        formSetter((prev: any) => ({ ...prev, [fieldName]: data.secure_url }));
-      } else {
-        alert("Image upload rejected by Cloudinary.");
-      }
-    } catch (err) {
-      alert("Error bypassing server for direct upload.");
+      const secureUrl = await uploadImage(file);
+      formSetter((prev: any) => ({ ...prev, [fieldName]: secureUrl }));
+    } catch (err: any) {
+      alert(err?.message || "Image upload failed. Please try again.");
     } finally {
       setUploadingMedia(false);
       e.target.value = ""; 
@@ -749,7 +731,7 @@ export default function DekuwecAdminDashboard() {
       });
 
       if (res.ok) {
-        if (isNew) triggerAutoNotification(`New Nature Snap`, `Check out '${snapForm.title}' by ${snapForm.photographer}!`, "/dashboard/snaps");
+        if (isNew) triggerAutoNotification(`New Nature Snap`, `Check out '${snapForm.title}' by ${snapForm.photographer}!`, "/nature-snaps");
         alert(isNew ? "Nature Snap published & Notification sent!" : "Nature Snap updated!");
         setEditingSnapId(null);
         setSnapForm({ title: "", photographer: "", imageUrl: "", type: "winner", description: "" });
@@ -1005,7 +987,7 @@ export default function DekuwecAdminDashboard() {
       <div className="min-h-screen bg-emerald-950 flex items-center justify-center p-4">
         <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl space-y-6 text-center animate-in fade-in zoom-in duration-200">
           <div className="mx-auto w-24 h-24 rounded-full overflow-hidden border-4 border-emerald-500 shadow-md">
-            <img src="https://res.cloudinary.com/dnipaby6h/image/upload/v1789108366/WhatsApp_Image_2026-09-03_at_09.49.04_q31jcg.jpg" alt="DEKUWEC Official Logo" className="w-full h-full object-cover" />
+            <img src="https://res.cloudinary.com/dnipaby6h/image/upload/f_auto,q_auto,w_200/v1789108366/WhatsApp_Image_2026-09-03_at_09.49.04_q31jcg.jpg" alt="DEKUWEC Official Logo" className="w-full h-full object-cover" />
           </div>
           <div>
             <h1 className="text-xl font-black text-emerald-950 tracking-tight">DEKUWEC ADMINS</h1>
@@ -1048,7 +1030,7 @@ export default function DekuwecAdminDashboard() {
       {/* Mobile Top Header */}
       <div className="md:hidden bg-emerald-950 text-white p-4 flex items-center justify-between sticky top-0 z-30 shadow-md">
         <div className="flex items-center gap-3">
-          <img src="https://res.cloudinary.com/dnipaby6h/image/upload/v1789108366/WhatsApp_Image_2026-09-03_at_09.49.04_q31jcg.jpg" alt="DEKUWEC Logo" className="w-8 h-8 rounded-full border border-emerald-400 object-cover" />
+          <img src="https://res.cloudinary.com/dnipaby6h/image/upload/f_auto,q_auto,w_200/v1789108366/WhatsApp_Image_2026-09-03_at_09.49.04_q31jcg.jpg" alt="DEKUWEC Logo" className="w-8 h-8 rounded-full border border-emerald-400 object-cover" />
           <div><h1 className="text-xs font-black tracking-tight leading-tight">DEKUWEC ADMINS</h1></div>
         </div>
         <div className="flex items-center gap-2">
@@ -1070,7 +1052,7 @@ export default function DekuwecAdminDashboard() {
       <aside className={`fixed md:relative inset-y-0 left-0 z-50 w-64 bg-emerald-950 text-white flex-shrink-0 flex flex-col h-screen transform transition-transform duration-300 ease-in-out md:translate-x-0 ${isMobileMenuOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full"}`}>
         <div className="p-5 flex items-center justify-between md:justify-start gap-3 border-b border-emerald-900/60">
           <div className="flex items-center gap-3 overflow-hidden">
-            <img src="https://res.cloudinary.com/dnipaby6h/image/upload/v1789108366/WhatsApp_Image_2026-09-03_at_09.49.04_q31jcg.jpg" alt="DEKUWEC Logo" className="w-10 h-10 rounded-full border-2 border-emerald-400 object-cover shrink-0 hidden md:block" />
+            <img src="https://res.cloudinary.com/dnipaby6h/image/upload/f_auto,q_auto,w_200/v1789108366/WhatsApp_Image_2026-09-03_at_09.49.04_q31jcg.jpg" alt="DEKUWEC Logo" className="w-10 h-10 rounded-full border-2 border-emerald-400 object-cover shrink-0 hidden md:block" />
             <div className="overflow-hidden hidden md:block">
               <h1 className="text-xs font-black tracking-tight leading-tight text-white truncate">DEKUWEC ADMINS</h1>
               <span className="text-[10px] text-emerald-400 font-bold block">Executive Portal</span>
@@ -1517,7 +1499,7 @@ export default function DekuwecAdminDashboard() {
                         <div className="flex items-center gap-3">
                           {merchForm.imageUrl && (
                             <div className="relative h-12 w-16 bg-gray-100 rounded-lg flex items-center justify-center shrink-0 p-1 border border-gray-200 shadow-sm">
-                              <img src={merchForm.imageUrl} alt="Preview" className="h-full w-full object-contain rounded-md" />
+                              <img src={optimizedImage(merchForm.imageUrl, 600)} alt="Preview" className="h-full w-full object-contain rounded-md" />
                               <button type="button" onClick={() => setMerchForm({ ...merchForm, imageUrl: "" })} className="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full p-1 shadow-md hover:bg-rose-600 transition z-10">
                                 <X className="h-3 w-3" />
                               </button>
@@ -1602,7 +1584,7 @@ export default function DekuwecAdminDashboard() {
                       <div key={item._id} className="p-4 rounded-2xl border border-gray-200 bg-gray-50 flex flex-col justify-between">
                         <div>
                           <div className="aspect-video bg-gray-200 rounded-xl overflow-hidden mb-3">
-                            <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover" />
+                            <img src={optimizedImage(item.imageUrl, 600)} alt={item.title} className="w-full h-full object-cover" />
                           </div>
                           <h4 className="font-bold text-sm text-gray-900 leading-snug">{item.title}</h4>
                           <p className="text-xs font-black text-emerald-800 mt-1">KES {item.price}</p>
@@ -1803,7 +1785,7 @@ export default function DekuwecAdminDashboard() {
                       <div className="flex items-center gap-3">
                         {eventForm.imageUrl && (
                           <div className="relative h-12 w-16 bg-gray-100 rounded-lg flex items-center justify-center shrink-0 p-1 border border-gray-200 shadow-sm">
-                            <img src={eventForm.imageUrl} alt="Preview" className="h-full w-full object-contain rounded-md" />
+                            <img src={optimizedImage(eventForm.imageUrl, 600)} alt="Preview" className="h-full w-full object-contain rounded-md" />
                             <button type="button" onClick={() => setEventForm({...eventForm, imageUrl: ""})} className="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full p-1 shadow-md hover:bg-rose-600 transition z-10">
                               <X className="h-3 w-3" />
                             </button>
@@ -1850,7 +1832,7 @@ export default function DekuwecAdminDashboard() {
                             {m.type === 'video' ? (
                               <video src={m.url} className="w-full h-full object-cover opacity-80" />
                             ) : (
-                              <img src={m.url} className="w-full h-full object-cover opacity-80"/>
+                              <img src={optimizedImage(m.url, 600)} className="w-full h-full object-cover opacity-80"/>
                             )}
                             <button 
                               type="button" 
@@ -2106,7 +2088,7 @@ export default function DekuwecAdminDashboard() {
                           <div className="flex items-center gap-3">
                             {ecoArticleForm.imageUrl && (
                               <div className="relative h-12 w-16 bg-gray-100 rounded-lg flex items-center justify-center shrink-0 p-1 border border-gray-200 shadow-sm">
-                                <img src={ecoArticleForm.imageUrl} alt="Preview" className="h-full w-full object-contain rounded-md" />
+                                <img src={optimizedImage(ecoArticleForm.imageUrl, 600)} alt="Preview" className="h-full w-full object-contain rounded-md" />
                                 <button type="button" onClick={() => setEcoArticleForm({...ecoArticleForm, imageUrl: ""})} className="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full p-1 shadow-md hover:bg-rose-600 transition z-10">
                                   <X className="h-3 w-3" />
                                 </button>
@@ -2239,7 +2221,8 @@ export default function DekuwecAdminDashboard() {
                       className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-semibold outline-none focus:border-emerald-600"
                     >
                       <option value="winner">Main Pic of the Week (Winner)</option>
-                      <option value="top_submission">Top Honorable Mention</option>
+                      <option value="honourable">2nd / 3rd Place (Honourable Mention)</option>
+                      <option value="top_submission">Gallery / Other Upload</option>
                     </select>
                     <input
                       type="text"
@@ -2265,7 +2248,7 @@ export default function DekuwecAdminDashboard() {
                       <div className="flex items-center gap-3">
                         {snapForm.imageUrl && (
                           <div className="relative h-12 w-16 bg-gray-100 rounded-lg flex items-center justify-center shrink-0 p-1 border border-gray-200 shadow-sm">
-                            <img src={snapForm.imageUrl} alt="Preview" className="h-full w-full object-contain rounded-md" />
+                            <img src={optimizedImage(snapForm.imageUrl, 600)} alt="Preview" className="h-full w-full object-contain rounded-md" />
                             <button type="button" onClick={() => setSnapForm({...snapForm, imageUrl: ""})} className="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full p-1 shadow-md hover:bg-rose-600 transition z-10">
                               <X className="h-3 w-3" />
                             </button>
@@ -2321,7 +2304,7 @@ export default function DekuwecAdminDashboard() {
                     {communitySnaps.map(snap => (
                       <div key={snap._id} className="bg-emerald-900 rounded-2xl p-4 border border-emerald-800 flex flex-col">
                         <div className="aspect-square bg-black rounded-xl overflow-hidden mb-3 relative">
-                          <img src={snap.imageUrl} alt="User submission" className="w-full h-full object-cover" />
+                          <img src={optimizedImage(snap.imageUrl, 600)} alt="User submission" className="w-full h-full object-cover" />
                           <button onClick={() => handleDeleteCommunitySnap(snap._id)} className="absolute top-2 right-2 bg-rose-500 text-white p-1.5 rounded-full shadow-md hover:bg-rose-600 transition"><Trash2 className="h-3 w-3"/></button>
                         </div>
                         <div className="mb-4">
@@ -2336,8 +2319,8 @@ export default function DekuwecAdminDashboard() {
                           <button onClick={() => handlePromoteCommunitySnap(snap, "winner")} className="bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold py-2 rounded-lg flex items-center justify-center gap-1 transition">
                             <Award className="h-3 w-3"/> Make Winner
                           </button>
-                          <button onClick={() => handlePromoteCommunitySnap(snap, "top_submission")} className="bg-emerald-800 hover:bg-emerald-700 text-emerald-100 text-[10px] font-bold py-2 rounded-lg transition">
-                            Honorable Mention
+                          <button onClick={() => handlePromoteCommunitySnap(snap, "honourable")} className="bg-emerald-800 hover:bg-emerald-700 text-emerald-100 text-[10px] font-bold py-2 rounded-lg transition">
+                            Honourable Mention
                           </button>
                         </div>
                       </div>
@@ -2354,7 +2337,7 @@ export default function DekuwecAdminDashboard() {
                     <div key={snap._id} className="p-4 rounded-2xl border border-gray-200 bg-gray-50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="min-w-0">
                         <h4 className="font-bold text-sm text-gray-900 truncate">{snap.title}</h4>
-                        <span className="text-xs text-emerald-700 font-semibold">{snap.photographer} • {snap.type}</span>
+                        <span className="text-xs text-emerald-700 font-semibold">{snap.photographer} • {snap.type === "winner" ? "Winner" : snap.type === "honourable" ? "Honourable Mention" : "Gallery"}</span>
                       </div>
                       <div className="flex gap-2 shrink-0">
                         <button onClick={() => handleEditSnap(snap)} className="p-2 text-emerald-700 hover:bg-emerald-100 rounded-lg transition">
@@ -2675,7 +2658,7 @@ export default function DekuwecAdminDashboard() {
                     <div className="flex items-center gap-4 bg-gray-50 p-2 rounded-xl border border-gray-200 border-dashed">
                       {leaderForm.imageUrl ? (
                         <div className="relative group shrink-0">
-                          <img src={leaderForm.imageUrl} alt="Preview" className="h-16 w-16 rounded-full object-cover border-2 border-white shadow-sm" />
+                          <img src={optimizedImage(leaderForm.imageUrl, 600)} alt="Preview" className="h-16 w-16 rounded-full object-cover border-2 border-white shadow-sm" />
                           <button type="button" onClick={() => setLeaderForm({...leaderForm, imageUrl: ""})} className="absolute -top-1 -right-1 bg-rose-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition shadow-sm z-10">
                             <X className="h-3 w-3" />
                           </button>
@@ -2726,7 +2709,7 @@ export default function DekuwecAdminDashboard() {
                       <div key={ldr._id} className="p-4 rounded-2xl border border-gray-200 bg-gray-50 flex items-center justify-between">
                         <div className="flex items-center gap-3 overflow-hidden">
                           <img 
-                            src={ldr.imageUrl || "https://res.cloudinary.com/dnipaby6h/image/upload/v1789108366/WhatsApp_Image_2026-09-03_at_09.49.04_q31jcg.jpg"} 
+                            src={ldr.imageUrl || "https://res.cloudinary.com/dnipaby6h/image/upload/f_auto,q_auto,w_200/v1789108366/WhatsApp_Image_2026-09-03_at_09.49.04_q31jcg.jpg"} 
                             alt={ldr.name} 
                             className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-sm shrink-0"
                           />
@@ -2788,7 +2771,7 @@ export default function DekuwecAdminDashboard() {
                     <div className="flex items-center gap-3">
                       {broadcastData.imageUrl && (
                         <div className="relative h-12 w-16 bg-gray-100 rounded-lg flex items-center justify-center shrink-0 p-1 border border-gray-200 shadow-sm group">
-                          <img src={broadcastData.imageUrl} alt="Preview" className="h-full w-full object-contain rounded-md" />
+                          <img src={optimizedImage(broadcastData.imageUrl, 600)} alt="Preview" className="h-full w-full object-contain rounded-md" />
                           <button type="button" onClick={() => setBroadcastData({...broadcastData, imageUrl: ""})} className="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full p-1 shadow-md hover:bg-rose-600 transition z-10 opacity-0 group-hover:opacity-100">
                             <X className="h-3 w-3" />
                           </button>

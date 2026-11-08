@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/mongodb";
 import Merchandise from "@/models/Merchandise";
 import MerchandiseOrder from "@/models/MerchandiseOrder";
+import { normalizeSizes } from "@/lib/merchandise";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +12,8 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const clerkId = searchParams.get("clerkId");
 
-    const items = await Merchandise.find({ inStock: true }).sort({ createdAt: -1 });
+    const rawItems = await Merchandise.find({ inStock: true }).sort({ createdAt: -1 }).lean<any[]>();
+    const items = rawItems.map((item) => ({ ...item, availableSizes: normalizeSizes(item) }));
 
     let myOrders = [];
     if (clerkId) {

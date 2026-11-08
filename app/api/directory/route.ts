@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { clerkClient } from "@clerk/nextjs/server";
 import { connectToDatabase } from "@/lib/mongodb";
 import Member from "@/models/Member";
+import { isGuestClerkId } from "@/lib/members";
 
 export const dynamic = 'force-dynamic';
 
@@ -14,8 +15,8 @@ export async function GET() {
     const clerkUsers = await client.users.getUserList({ limit: 500 }); 
 
     // 2. Fetch the database records to see who is officially approved/paid
-    const dbMembers = await Member.find({}).select("clerkId fullName status").lean();
-    const dbByClerkId = new Map(dbMembers.map((m) => [m.clerkId, m]));
+    const dbMembers = await Member.find({}).select("clerkId fullName email status").lean();
+    const dbByClerkId = new Map(dbMembers.map((m: any) => [m.clerkId, m]));
 
     // 3. Merge them together
     const directory = clerkUsers.data.map((user) => {
@@ -29,6 +30,17 @@ export async function GET() {
         imageUrl: user.imageUrl, // Automatically grabs their Google/Clerk profile picture
         status: dbMatch?.status || "Unregistered", 
       };
+    });
+
+    // 3b. Email-only subscribers who applied or opted in from a shareable direct link
+    dbMembers.forEach((member: any) => {
+      if (!isGuestClerkId(member.clerkId)) return;
+      directory.push({
+        clerkId: member.clerkId,
+        fullName: member.fullName || member.email || "Subscriber",
+        imageUrl: "",
+        status: member.status || "Subscribed",
+      });
     });
 
     // 4. Sort the directory: Registered Members appear first, then sorted alphabetically

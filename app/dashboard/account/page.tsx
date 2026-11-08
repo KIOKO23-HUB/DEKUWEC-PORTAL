@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useUser } from "@clerk/nextjs";
+import { optimizedImage } from "@/lib/image";
 import { 
   UploadCloud, Mail, BookOpen, GraduationCap, Loader2, Save, 
-  Calendar, Camera, CreditCard, Award, CheckCircle 
+  Calendar, Camera, CreditCard, Award, CheckCircle, ShoppingBag 
 } from "lucide-react";
 
 // 1. Explicitly teach TypeScript the shape of your data
@@ -17,6 +18,7 @@ interface ActivityState {
   rsvps: any[];
   wck: WckData | null;
   snaps: any[];
+  merchandise: any[];
 }
 
 export default function ComprehensiveAccountPage() {
@@ -31,7 +33,8 @@ export default function ComprehensiveAccountPage() {
   const [activityData, setActivityData] = useState<ActivityState>({ 
     rsvps: [], 
     wck: null, 
-    snaps: [] 
+    snaps: [],
+    merchandise: []
   });
 
   useEffect(() => {
@@ -39,12 +42,10 @@ export default function ComprehensiveAccountPage() {
     
     const loadProfileData = async () => {
       try {
-        const [profileRes, activityRes] = await Promise.all([
-          fetch("/api/member"),
-          fetch(`/api/account/activity?clerkId=${user.id}`)
-        ]);
-        
+        // Load the profile first: it links any direct-link applications to this account.
+        const profileRes = await fetch("/api/member");
         const profileData = await profileRes.json();
+        const activityRes = await fetch(`/api/account/activity?clerkId=${user.id}`);
         const actData = await activityRes.json();
 
         if (profileData.member) {
@@ -60,7 +61,8 @@ export default function ComprehensiveAccountPage() {
         setActivityData({
           rsvps: actData.rsvps || [],
           wck: actData.wck || null,
-          snaps: actData.snaps || []
+          snaps: actData.snaps || [],
+          merchandise: actData.merchandise || []
         });
 
       } catch (err) {
@@ -132,7 +134,7 @@ export default function ComprehensiveAccountPage() {
             <div className="relative group w-28 h-28">
               <div className="w-full h-full rounded-full overflow-hidden bg-gray-100 border-4 border-emerald-100">
                 {displayImage ? (
-                  <img src={displayImage} alt="Profile" className="w-full h-full object-cover" />
+                  <img src={optimizedImage(displayImage, 300)} alt="Profile" className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center bg-emerald-50 text-emerald-800 font-bold text-2xl">
                     {member.email ? member.email.charAt(0).toUpperCase() : "U"}
@@ -229,6 +231,40 @@ export default function ComprehensiveAccountPage() {
               )}
             </div>
 
+            {/* Merchandise Applications */}
+            <div className="sm:col-span-2 bg-white border border-gray-200 rounded-3xl p-6 shadow-sm">
+              <h3 className="text-lg font-bold text-emerald-950 flex items-center gap-2 mb-4">
+                <ShoppingBag className="h-5 w-5 text-emerald-600" /> Merchandise Applications
+              </h3>
+              {activityData.merchandise.length === 0 ? (
+                <p className="text-sm text-gray-400">
+                  You haven't applied for any merchandise yet.{" "}
+                  <a href="/merchandise" className="font-bold text-emerald-700 hover:underline">Browse the merch page</a>.
+                </p>
+              ) : (
+                <ul className="space-y-3">
+                  {activityData.merchandise.map((order: any) => (
+                    <li key={order._id} className="p-3 bg-gray-50 rounded-xl border border-gray-100 flex items-center gap-3">
+                      {order.imageUrl ? (
+                        <img src={optimizedImage(order.imageUrl, 300)} alt={order.merchandiseTitle} className="h-12 w-12 rounded-lg object-cover shrink-0" />
+                      ) : null}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-bold text-gray-900 leading-tight truncate">{order.merchandiseTitle}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          KES {Number(order.amount || 0).toLocaleString()}
+                          {order.size ? ` • Size ${order.size}` : ""}
+                          {order.customName ? ` • "${order.customName}"` : ""}
+                        </p>
+                      </div>
+                      <span className="shrink-0 rounded-md bg-emerald-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-800">
+                        {order.paymentStatus}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
             {/* Nature Snaps */}
             <div className="sm:col-span-2 bg-white border border-gray-200 rounded-3xl p-6 shadow-sm">
               <h3 className="text-lg font-bold text-emerald-950 flex items-center gap-2 mb-4">
@@ -240,7 +276,7 @@ export default function ComprehensiveAccountPage() {
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                   {activityData.snaps.map((snap: any) => (
                     <div key={snap._id} className="relative aspect-square rounded-xl overflow-hidden group border border-gray-200 shadow-sm">
-                      <img src={snap.imageUrl} alt="My Snap" className="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
+                      <img src={optimizedImage(snap.imageUrl, 300)} alt="My Snap" className="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex flex-col justify-end p-2 opacity-0 group-hover:opacity-100 transition">
                         <p className="text-white text-[10px] font-bold line-clamp-1">{snap.caption}</p>
                         <p className="text-emerald-300 text-[10px] flex items-center gap-1 mt-0.5"><Award className="h-3 w-3" /> {snap.likes?.length || 0} Likes</p>

@@ -6,6 +6,8 @@ import {
   Camera, Trophy, Star, Loader2, X, ZoomIn, ExternalLink, 
   UploadCloud, Users, Medal, Cloud, Send, ThumbsUp, ThumbsDown, Trash2 
 } from "lucide-react";
+import { uploadImage } from "@/lib/clientUpload";
+import { optimizedImage } from "@/lib/image";
 
 const FALLBACK_WINNER = {
   _id: "default_win",
@@ -69,20 +71,10 @@ export default function NatureSnapsPage() {
     
     setIsUploading(true);
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await fetch("/api/upload", { method: "POST", body: formData });
-      
-      if (res.ok) {
-        const data = await res.json();
-        // Support both old backend response and new parallel array response
-        const secureUrl = data.results?.[0]?.url || data.secure_url || data.url;
-        setUploadForm(prev => ({ ...prev, imageUrl: secureUrl }));
-      } else {
-        alert("Image upload failed.");
-      }
-    } catch (err) {
-      alert("Error connecting to upload service.");
+      const secureUrl = await uploadImage(file);
+      setUploadForm(prev => ({ ...prev, imageUrl: secureUrl }));
+    } catch (err: any) {
+      alert(err?.message || "Image upload failed. Please try again.");
     } finally {
       setIsUploading(false);
       e.target.value = ""; 
@@ -251,7 +243,7 @@ export default function NatureSnapsPage() {
         >
           <div className="relative h-[320px] sm:h-[480px] w-full bg-gray-900">
             <img 
-              src={liveWinner.imageUrl} 
+              src={optimizedImage(liveWinner.imageUrl, 1200)} 
               alt={liveWinner.title} 
               className="w-full h-full object-cover group-hover:scale-105 transition duration-700 opacity-90"
             />
@@ -304,8 +296,10 @@ export default function NatureSnapsPage() {
                 className="relative h-40 sm:h-44 rounded-2xl overflow-hidden shadow-sm border border-gray-200 group cursor-pointer"
               >
                 <img 
-                  src={item.imageUrl} 
+                  src={optimizedImage(item.imageUrl, 600)} 
                   alt={item.title} 
+                  loading="lazy"
+                  decoding="async"
                   className="w-full h-full object-cover group-hover:scale-105 transition duration-500" 
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
@@ -337,21 +331,26 @@ export default function NatureSnapsPage() {
             <div className="w-full flex flex-col justify-center border-2 border-dashed border-emerald-200 bg-emerald-50/50 rounded-2xl p-4 text-center">
               {uploadForm.imageUrl ? (
                 <div className="relative w-full aspect-square rounded-xl overflow-hidden shadow-sm group">
-                  <img src={uploadForm.imageUrl} alt="Upload Preview" className="w-full h-full object-cover" />
+                  <img src={optimizedImage(uploadForm.imageUrl, 900)} alt="Upload Preview" className="w-full h-full object-cover" />
                   <button type="button" onClick={() => setUploadForm({ ...uploadForm, imageUrl: "" })} className="absolute top-2 right-2 bg-rose-500 text-white rounded-full p-1.5 sm:opacity-0 group-hover:opacity-100 transition shadow-md z-10">
                     <X className="h-4 w-4" />
                   </button>
                 </div>
               ) : (
-                <div className="py-8 flex flex-col items-center">
-                  <div className="h-12 w-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-3">
+                <div className="py-8 flex flex-col items-center gap-3">
+                  <div className="h-12 w-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center">
                     <UploadCloud className="h-6 w-6" />
                   </div>
                   <label className="cursor-pointer text-sm font-bold text-emerald-700 hover:text-emerald-800 transition">
                     Browse Files to Upload
                     <input type="file" accept="image/*" className="hidden" disabled={isUploading} onChange={handleImageUpload} />
                   </label>
-                  <p className="text-[10px] text-gray-400 mt-1">Supports JPG, PNG (Max 5MB)</p>
+                  <label className="cursor-pointer inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700 transition">
+                    <Camera className="h-3.5 w-3.5" />
+                    Take Photo
+                    <input type="file" accept="image/*" capture="environment" className="hidden" disabled={isUploading} onChange={handleImageUpload} />
+                  </label>
+                  <p className="text-[10px] text-gray-400">Supports JPG, PNG (Max 5MB)</p>
                 </div>
               )}
               {isUploading && <p className="text-xs font-bold text-emerald-600 mt-3 flex items-center justify-center gap-1"><Loader2 className="h-3 w-3 animate-spin"/> Uploading...</p>}
@@ -419,7 +418,7 @@ export default function NatureSnapsPage() {
                       className="aspect-square bg-gray-100 relative cursor-pointer group"
                       onClick={() => setPreviewSnap({ ...snap, photographer: snap.fullName, title: snap.caption || "Community Snap" })}
                     >
-                      <img src={snap.imageUrl} alt="Community Snap" className="w-full h-full object-cover" />
+                      <img src={optimizedImage(snap.imageUrl, 600)} alt="Community Snap" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                       <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
                         <ZoomIn className="text-white h-6 w-6 sm:h-8 sm:w-8" />
                       </div>
@@ -470,7 +469,7 @@ export default function NatureSnapsPage() {
 
             <div className="max-h-[60vh] sm:max-h-[75vh] w-full bg-black flex items-center justify-center overflow-hidden">
               <img 
-                src={previewSnap.imageUrl} 
+                src={optimizedImage(previewSnap.imageUrl, 1600)} 
                 alt={previewSnap.title} 
                 className="w-full h-full max-h-[60vh] sm:max-h-[75vh] object-contain" 
               />

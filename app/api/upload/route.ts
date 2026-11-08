@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { v2 as cloudinary, UploadApiResponse } from "cloudinary";
 
+// Cloudinary's Node SDK needs the Node.js runtime (not edge).
+export const runtime = "nodejs";
+export const maxDuration = 60;
+
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
@@ -40,7 +44,16 @@ export async function GET() {
 // POST: Handles standard server-side uploads via streams (prevents payload crashes)
 export async function POST(req: Request) {
   try {
-    const formData = await req.formData();
+    let formData: FormData;
+    try {
+      formData = await req.formData();
+    } catch {
+      return NextResponse.json(
+        { error: "That photo is too large for a direct upload. Please retry — it will be resized automatically." },
+        { status: 413 }
+      );
+    }
+
     const files = formData.getAll("file") as File[];
 
     if (!files || files.length === 0) {
@@ -53,12 +66,22 @@ export async function POST(req: Request) {
     const uploadPromises = files.map(async (file) => {
       const bytes = await file.arrayBuffer();
       const buffer = Buffer.from(bytes);
+      const isImage = file.type.startsWith("image/");
 
       return new Promise<{ url: string; resource_type: string }>((resolve, reject) => {
         const stream = cloudinary.uploader.upload_stream(
           {
             resource_type: "auto",
             folder: "dekuwec_portal",
+            // Store a web-sized, auto-format version so page loads stay fast.
+            ...(isImage
+              ? {
+                  transformation: [
+                    { width: 1800, crop: "limit" },
+                    { quality: "auto", fetch_format: "auto" },
+                  ],
+                }
+              : {}),
           },
           (error, result?: UploadApiResponse) => {
             if (error || !result) {

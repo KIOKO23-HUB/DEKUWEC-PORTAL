@@ -7,7 +7,7 @@ const NatureSnapSchema = new mongoose.Schema({
   imageUrl: { type: String, required: true },
   type: { 
     type: String, 
-    enum: ["winner", "top_submission"], 
+    enum: ["winner", "honourable", "top_submission"], 
     default: "top_submission" 
   },
   date: { 

@@ -6,6 +6,8 @@ import {
   ShoppingBag, CheckCircle, Clock, Smartphone, CreditCard, 
   Loader2, X, AlertCircle, Sparkles, MapPin, Calendar, Tag
 } from "lucide-react";
+import { optimizedImage } from "@/lib/image";
+import { normalizeSizes } from "@/lib/merchandise";
 
 export default function MerchandisePage() {
   const { user, isLoaded } = useUser();
@@ -197,7 +199,7 @@ export default function MerchandisePage() {
             {items.map((item) => (
               <div key={item._id} className="bg-white border border-gray-200 rounded-3xl overflow-hidden shadow-sm hover:shadow-md transition flex flex-col">
                 <div className="aspect-[4/3] bg-gray-100 relative overflow-hidden">
-                  <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover hover:scale-105 transition duration-500" />
+                  <img src={optimizedImage(item.imageUrl, 600)} alt={item.title} loading="lazy" decoding="async" className="w-full h-full object-cover hover:scale-105 transition duration-500" />
                   {item.allowCustomName && (
                     <span className="absolute top-4 left-4 bg-emerald-700 text-white text-[10px] uppercase tracking-wider font-extrabold px-3 py-1.5 rounded-full shadow">
                       Personalizable Name
@@ -235,7 +237,7 @@ export default function MerchandisePage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {myOrders.map((order) => (
               <div key={order._id} className="p-5 bg-white border border-gray-200 rounded-2xl flex gap-4 items-center shadow-sm">
-                <img src={order.imageUrl} alt={order.merchandiseTitle} className="w-20 h-20 rounded-xl object-cover bg-gray-100 shrink-0" />
+                <img src={optimizedImage(order.imageUrl, 200)} alt={order.merchandiseTitle} loading="lazy" decoding="async" className="w-20 h-20 rounded-xl object-cover bg-gray-100 shrink-0" />
                 <div className="flex-1 min-w-0">
                   <h4 className="font-bold text-sm text-gray-900 truncate">{order.merchandiseTitle}</h4>
                   <p className="text-xs text-gray-500">
@@ -281,7 +283,7 @@ export default function MerchandisePage() {
                 {selectedItem.allowCustomName && (
                   <>
                     <div className="relative aspect-[4/3] rounded-2xl overflow-hidden bg-gray-900 flex items-center justify-center border border-gray-200">
-                      <img src={selectedItem.imageUrl} alt="T-Shirt" className="w-full h-full object-contain opacity-90" />
+                      <img src={optimizedImage(selectedItem.imageUrl, 900)} alt="T-Shirt" className="w-full h-full object-contain opacity-90" />
                       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none p-4">
                         <div className="bg-black/60 backdrop-blur-md px-6 py-2 rounded-xl border border-white/20 text-center shadow-2xl">
                           <span className="text-[10px] uppercase text-emerald-300 font-extrabold tracking-widest block">FRONT PRINT PREVIEW</span>
@@ -310,7 +312,7 @@ export default function MerchandisePage() {
                   <div>
                     <label className="block text-xs font-bold text-gray-700 mb-1">Select Size</label>
                     <div className="flex gap-3">
-                      {(selectedItem.availableSizes || ["S", "M", "L", "XL"]).map((sz: string) => (
+                      {normalizeSizes(selectedItem).map((sz: string) => (
                         <button
                           key={sz}
                           type="button"
