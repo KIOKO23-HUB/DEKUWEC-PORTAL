@@ -60,6 +60,7 @@ export async function GET() {
           description: event.description || "",
           isFree: !!event.isFree,
           tiers: tiersFor(event),
+          posterTemplate: event.posterTemplate?.imageUrl ? event.posterTemplate : null,
         })),
       },
       { status: 200 }

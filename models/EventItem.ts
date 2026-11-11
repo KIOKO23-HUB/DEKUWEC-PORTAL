@@ -13,6 +13,13 @@ export interface IEventItem extends Document {
   isFree?: boolean;
   ticketPrice?: number;
   paymentTiers?: { id: string; label: string; amount: number }[];
+  // Custom marketing poster used to auto-generate personalised posters for applicants.
+  // All geometry is stored as percentages of the template's width/height.
+  posterTemplate?: {
+    imageUrl: string;
+    photo: { x: number; y: number; width: number; height: number };
+    name: { x: number; y: number; size: number; color: string; align: "left" | "center" | "right" };
+  };
   likes: string[]; // NEW: Stores Clerk User IDs
   comments: {
     clerkId: string;
@@ -38,6 +45,11 @@ const EventItemSchema = new Schema<IEventItem>({
   paymentTiers: {
     type: [{ id: String, label: String, amount: Number }],
     default: [],
+  },
+  posterTemplate: {
+    imageUrl: String,
+    photo: { x: Number, y: Number, width: Number, height: Number },
+    name: { x: Number, y: Number, size: Number, color: String, align: String },
   },
   
   // NEW FIELDS FOR INTERACTION

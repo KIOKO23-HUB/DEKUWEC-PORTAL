@@ -12,6 +12,33 @@ import {
 } from "lucide-react";
 import { optimizedImage } from "@/lib/image";
 import { uploadImage } from "@/lib/clientUpload";
+import type { PosterTemplate } from "@/lib/poster";
+
+const EMPTY_EVENT_FORM = () => ({
+  title: "",
+  category: "upcoming",
+  date: "",
+  time: "",
+  location: "",
+  imageUrl: "",
+  galleryLink: "",
+  description: "",
+  media: [] as any[],
+  isFree: false,
+  ticketPrice: "",
+  posterTemplate: null as PosterTemplate | null,
+});
+
+function groupRegistrationsByEvent(registrations: any[]) {
+  const groups = new Map<string, any[]>();
+  registrations.forEach((registration) => {
+    const key = registration.eventName || registration.eventTitle || "Unassigned Event";
+    const list = groups.get(key) || [];
+    list.push(registration);
+    groups.set(key, list);
+  });
+  return Array.from(groups.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+}
 
 // --- HELPER: Admin Active Time Formatter ---
 function formatActiveStatus(lastActiveDate: string) {
@@ -120,19 +147,9 @@ export default function DekuwecAdminDashboard() {
 
   const [broadcastData, setBroadcastData] = useState({ title: "", message: "", imageUrl: "", link: "" });
   
-  const [eventForm, setEventForm] = useState({ 
-    title: "", 
-    category: "upcoming", 
-    date: "", 
-    time: "", 
-    location: "", 
-    imageUrl: "", 
-    galleryLink: "", 
-    description: "", 
-    media: [] as any[],
-    isFree: false,
-    ticketPrice: ""
-  });
+  const [eventForm, setEventForm] = useState(EMPTY_EVENT_FORM());
+  const [posterMode, setPosterMode] = useState<"photo" | "name">("photo");
+  const [posterBoxStart, setPosterBoxStart] = useState<{ x: number; y: number } | null>(null);
   
   const [ecoType, setEcoType] = useState<"topic" | "quiz">("topic");
   const [ecoArticleForm, setEcoArticleForm] = useState({ title: "", category: "Conservation", imageUrl: "", link: "", content: "" });
@@ -157,6 +174,83 @@ export default function DekuwecAdminDashboard() {
       setUploadingMedia(false);
       e.target.value = ""; 
     }
+  };
+
+  const handlePosterTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingMedia(true);
+    try {
+      const secureUrl = await uploadImage(file);
+      setEventForm((prev) => ({
+        ...prev,
+        posterTemplate: {
+          imageUrl: secureUrl,
+          photo: prev.posterTemplate?.photo || { x: 38, y: 28, width: 24, height: 26 },
+          name: prev.posterTemplate?.name || { x: 50, y: 68, size: 5, color: "#ffffff", align: "center" },
+        },
+      }));
+      setPosterBoxStart(null);
+      setPosterMode("photo");
+    } catch (err: any) {
+      alert(err?.message || "Poster upload failed. Please try again.");
+    } finally {
+      setUploadingMedia(false);
+      e.target.value = "";
+    }
+  };
+
+  // First click marks the photo box top-left corner, second click marks bottom-right.
+  const handlePosterPlacement = (e: React.MouseEvent<HTMLDivElement>) => {
+    const template = eventForm.posterTemplate;
+    if (!template) return;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = Math.min(100, Math.max(0, ((e.clientX - rect.left) / rect.width) * 100));
+    const y = Math.min(100, Math.max(0, ((e.clientY - rect.top) / rect.height) * 100));
+
+    if (posterMode === "name") {
+      setEventForm({ ...eventForm, posterTemplate: { ...template, name: { ...template.name, x, y } } });
+      return;
+    }
+
+    if (!posterBoxStart) {
+      setPosterBoxStart({ x, y });
+      setEventForm({ ...eventForm, posterTemplate: { ...template, photo: { ...template.photo, x, y, width: 0, height: 0 } } });
+      return;
+    }
+
+    const start = posterBoxStart;
+    setPosterBoxStart(null);
+    setEventForm({
+      ...eventForm,
+      posterTemplate: {
+        ...template,
+        photo: {
+          x: Math.min(start.x, x),
+          y: Math.min(start.y, y),
+          width: Math.abs(x - start.x),
+          height: Math.abs(y - start.y),
+        },
+      },
+    });
+  };
+
+  const updatePosterPhoto = (field: "x" | "y" | "width" | "height", value: number) => {
+    setEventForm((prev) =>
+      prev.posterTemplate
+        ? { ...prev, posterTemplate: { ...prev.posterTemplate, photo: { ...prev.posterTemplate.photo, [field]: value } } }
+        : prev
+    );
+  };
+
+  const updatePosterName = (patch: Partial<PosterTemplate["name"]>) => {
+    setEventForm((prev) =>
+      prev.posterTemplate
+        ? { ...prev, posterTemplate: { ...prev.posterTemplate, name: { ...prev.posterTemplate.name, ...patch } } }
+        : prev
+    );
   };
 
   const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -608,7 +702,8 @@ export default function DekuwecAdminDashboard() {
       
       const payloadData = { 
         ...eventForm,
-        ticketPrice: Number(eventForm.ticketPrice) || 0
+        ticketPrice: Number(eventForm.ticketPrice) || 0,
+        posterTemplate: eventForm.posterTemplate?.imageUrl ? eventForm.posterTemplate : null,
       };
       
       const payload = isNew ? payloadData : { id: editingEventId, ...payloadData };
@@ -623,7 +718,7 @@ export default function DekuwecAdminDashboard() {
         if (isNew) triggerAutoNotification(`New Event: ${eventForm.title}`, `A new event has been scheduled for ${eventForm.date}. Tap to view details.`, "/dashboard/events");
         alert(isNew ? "New event published & Notification sent!" : "Event updated successfully!");
         setEditingEventId(null);
-        setEventForm({ title: "", category: "upcoming", date: "", time: "", location: "", imageUrl: "", galleryLink: "", description: "", media: [], isFree: false, ticketPrice: "" });
+        setEventForm(EMPTY_EVENT_FORM());
         fetchAllAdminData();
       } else {
         const errData = await res.json().catch(()=>({}));
@@ -649,7 +744,8 @@ export default function DekuwecAdminDashboard() {
       description: evt.description,
       media: evt.media || [],
       isFree: evt.isFree || false,
-      ticketPrice: evt.ticketPrice || ""
+      ticketPrice: evt.ticketPrice || "",
+      posterTemplate: evt.posterTemplate?.imageUrl ? evt.posterTemplate : null,
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -1722,7 +1818,8 @@ export default function DekuwecAdminDashboard() {
                     <button 
                       onClick={() => {
                         setEditingEventId(null);
-                        setEventForm({ title: "", category: "upcoming", date: "", time: "", location: "", imageUrl: "", galleryLink: "", description: "", media: [], isFree: false, ticketPrice: "" });
+                        setEventForm(EMPTY_EVENT_FORM());
+                        setPosterBoxStart(null);
                       }}
                       className="text-xs text-rose-600 font-bold hover:underline flex items-center gap-1 shrink-0"
                     >
@@ -1802,6 +1899,145 @@ export default function DekuwecAdminDashboard() {
                       </div>
                     </div>
                   </div>
+
+                  {eventForm.category === "upcoming" && (
+                    <div className="border border-emerald-100 rounded-xl p-4 bg-emerald-50/30">
+                      <label className="block text-xs font-bold uppercase text-emerald-800 mb-2 flex items-center gap-2">
+                        <ImageIcon className="h-4 w-4" /> Customised Marketing Poster (optional)
+                      </label>
+                      <p className="text-xs text-gray-500 mb-3">
+                        Upload the poster template. On the preview, <strong>click the top-left then bottom-right</strong> of the
+                        passport photo area, then switch to <strong>Mark name position</strong> and click where the name should sit.
+                        Applicants get their photo and name added automatically after registering.
+                      </p>
+
+                      <input
+                        key={eventForm.posterTemplate?.imageUrl ? "has-poster" : "no-poster"}
+                        type="file"
+                        accept="image/*"
+                        disabled={uploadingMedia}
+                        onChange={handlePosterTemplateUpload}
+                        className="w-full py-1.5 text-sm outline-none bg-white file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-emerald-100 file:text-emerald-700 hover:file:bg-emerald-200 disabled:opacity-50 cursor-pointer rounded-xl border border-gray-200"
+                      />
+
+                      {eventForm.posterTemplate?.imageUrl && (
+                        <>
+                          <div className="mt-3 flex flex-wrap items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => { setPosterMode("photo"); setPosterBoxStart(null); }}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${posterMode === "photo" ? "bg-emerald-600 text-white" : "bg-white border border-emerald-200 text-emerald-800"}`}
+                            >
+                              Mark photo area
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setPosterMode("name")}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${posterMode === "name" ? "bg-emerald-600 text-white" : "bg-white border border-emerald-200 text-emerald-800"}`}
+                            >
+                              Mark name position
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => { setEventForm({ ...eventForm, posterTemplate: null }); setPosterBoxStart(null); }}
+                              className="px-3 py-1.5 rounded-lg text-xs font-bold text-rose-600 bg-white border border-rose-200 hover:bg-rose-50"
+                            >
+                              Remove template
+                            </button>
+                            <span className="text-[11px] font-semibold text-emerald-700">
+                              {posterMode === "photo"
+                                ? posterBoxStart ? "Now click the bottom-right corner of the photo area." : "Click the top-left corner of the photo area."
+                                : "Click where the applicant's name should be centred."}
+                            </span>
+                          </div>
+
+                          <div
+                            className="relative mt-3 w-full max-w-md cursor-crosshair overflow-hidden rounded-xl border border-emerald-200 bg-white"
+                            onClick={handlePosterPlacement}
+                            style={{ ["containerType" as any]: "inline-size" }}
+                          >
+                            <img src={optimizedImage(eventForm.posterTemplate.imageUrl, 1200)} alt="Poster template" className="block w-full" />
+                            <div
+                              className="pointer-events-none absolute border-2 border-dashed border-emerald-500 bg-emerald-500/20"
+                              style={{
+                                left: `${eventForm.posterTemplate.photo.x}%`,
+                                top: `${eventForm.posterTemplate.photo.y}%`,
+                                width: `${eventForm.posterTemplate.photo.width}%`,
+                                height: `${eventForm.posterTemplate.photo.height}%`,
+                              }}
+                            />
+                            <div
+                              className="pointer-events-none absolute whitespace-nowrap font-bold"
+                              style={{
+                                left: `${eventForm.posterTemplate.name.x}%`,
+                                top: `${eventForm.posterTemplate.name.y}%`,
+                                color: eventForm.posterTemplate.name.color,
+                                fontSize: `${eventForm.posterTemplate.name.size}cqw`,
+                                transform: `translate(${eventForm.posterTemplate.name.align === "center" ? "-50%" : eventForm.posterTemplate.name.align === "right" ? "-100%" : "0"}, -50%)`,
+                                textShadow: "0 1px 3px rgba(0,0,0,0.55)",
+                              }}
+                            >
+                              Participant Name
+                            </div>
+                          </div>
+
+                          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                            {(["x", "y", "width", "height"] as const).map((field) => (
+                              <label key={field} className="text-[10px] font-bold uppercase text-gray-500">
+                                Photo {field} %
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={100}
+                                  step={0.5}
+                                  value={Math.round((eventForm.posterTemplate?.photo[field] ?? 0) * 10) / 10}
+                                  onChange={(e) => updatePosterPhoto(field, Number(e.target.value))}
+                                  className="mt-1 w-full rounded-lg border border-emerald-200 bg-white px-2 py-1.5 text-xs outline-none focus:border-emerald-600"
+                                />
+                              </label>
+                            ))}
+                          </div>
+
+                          <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-5">
+                            {(["x", "y", "size"] as const).map((field) => (
+                              <label key={field} className="text-[10px] font-bold uppercase text-gray-500">
+                                Name {field}{field === "size" ? " %" : " %"}
+                                <input
+                                  type="number"
+                                  min={0}
+                                  step={0.5}
+                                  value={Math.round((eventForm.posterTemplate?.name[field] ?? 0) * 10) / 10}
+                                  onChange={(e) => updatePosterName(field === "x" ? { x: Number(e.target.value) } : field === "y" ? { y: Number(e.target.value) } : { size: Number(e.target.value) })}
+                                  className="mt-1 w-full rounded-lg border border-emerald-200 bg-white px-2 py-1.5 text-xs outline-none focus:border-emerald-600"
+                                />
+                              </label>
+                            ))}
+                            <label className="text-[10px] font-bold uppercase text-gray-500">
+                              Colour
+                              <input
+                                type="color"
+                                value={eventForm.posterTemplate.name.color}
+                                onChange={(e) => updatePosterName({ color: e.target.value })}
+                                className="mt-1 h-[30px] w-full rounded-lg border border-emerald-200 bg-white px-1"
+                              />
+                            </label>
+                            <label className="text-[10px] font-bold uppercase text-gray-500">
+                              Align
+                              <select
+                                value={eventForm.posterTemplate.name.align}
+                                onChange={(e) => updatePosterName({ align: e.target.value as PosterTemplate["name"]["align"] })}
+                                className="mt-1 w-full rounded-lg border border-emerald-200 bg-white px-2 py-1.5 text-xs outline-none focus:border-emerald-600"
+                              >
+                                <option value="left">Left</option>
+                                <option value="center">Centre</option>
+                                <option value="right">Right</option>
+                              </select>
+                            </label>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
 
                   {/* Cloudinary Multi-Media Upload Section */}
                   <div className="border border-emerald-100 rounded-xl p-4 bg-emerald-50/30">
@@ -1960,57 +2196,98 @@ export default function DekuwecAdminDashboard() {
                     No event registrations recorded yet.
                   </div>
                 ) : (
-                  <div className="overflow-x-auto rounded-2xl border border-gray-100">
-                    <table className="w-full text-left border-collapse min-w-[700px]">
-                      <thead>
-                        <tr className="bg-gray-50 text-xs uppercase text-gray-500 font-bold border-b border-gray-200">
-                          <th className="p-4">Participant Name</th>
-                          <th className="p-4">Phone Number</th>
-                          <th className="p-4">DeKUT Reg No</th>
-                          <th className="p-4">Event Name</th>
-                          <th className="p-4 text-right">Action</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {eventRegistrations.map((reg) => {
-                          const parsedName = reg.fullName || reg.name || "Member";
-                          const parsedPhone = reg.phoneNumber || reg.phone || "—";
-                          const displayRegNo = reg.registrationNumber || reg.regNo || "—";
-                          const displayEvent = reg.eventName || reg.eventTitle || "Upcoming Event";
+                  <div className="space-y-5">
+                    {groupRegistrationsByEvent(eventRegistrations).map(([eventName, registrations]) => {
+                      const posterCount = registrations.filter((reg) => reg.posterPhotoUrl).length;
+                      return (
+                        <div key={eventName} className="overflow-hidden rounded-2xl border border-gray-200">
+                          <div className="flex flex-col gap-2 bg-gray-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                              <h4 className="text-sm font-bold text-emerald-950">{eventName}</h4>
+                              <p className="text-xs text-gray-500">
+                                {registrations.length} applicant{registrations.length === 1 ? "" : "s"} ·{" "}
+                                {posterCount} uploaded a personalised poster
+                              </p>
+                            </div>
+                            <a
+                              href={`/api/admin/registrations/pdf?eventName=${encodeURIComponent(eventName)}`}
+                              className="inline-flex items-center gap-2 self-start rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-emerald-700 sm:self-auto"
+                            >
+                              <Download className="h-4 w-4" /> Download PDF list
+                            </a>
+                          </div>
+                          <div className="overflow-x-auto">
+                            <table className="w-full min-w-[760px] border-collapse text-left">
+                              <thead>
+                                <tr className="border-b border-gray-200 bg-white text-xs font-bold uppercase text-gray-500">
+                                  <th className="p-4">Participant Name</th>
+                                  <th className="p-4">Phone Number</th>
+                                  <th className="p-4">DeKUT Reg No</th>
+                                  <th className="p-4">Payment</th>
+                                  <th className="p-4">Poster</th>
+                                  <th className="p-4 text-right">Action</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {registrations.map((reg) => {
+                                  const parsedName = reg.fullName || reg.name || "Member";
+                                  const parsedPhone = reg.phoneNumber || reg.phone || "—";
+                                  const displayRegNo = reg.registrationNumber || reg.regNo || "—";
 
-                          return (
-                            <tr key={reg._id} className="border-b border-gray-100 hover:bg-gray-50 text-sm">
-                              <td className="p-4 font-bold text-gray-900">
-                                {parsedName}
-                                {reg.email && (
-                                  <span className="block text-xs font-normal text-gray-400 mt-0.5">{reg.email}</span>
-                                )}
-                              </td>
-                              <td className="p-4 font-semibold text-gray-600">
-                                {parsedPhone}
-                              </td>
-                              <td className="p-4 font-semibold text-emerald-700">
-                                <span className="bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg text-xs font-mono">
-                                  {displayRegNo}
-                                </span>
-                              </td>
-                              <td className="p-4 font-bold text-gray-800">
-                                {displayEvent}
-                              </td>
-                              <td className="p-4 text-right">
-                                <button 
-                                  onClick={() => handleDeleteRegistration(reg._id)} 
-                                  className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition ml-auto flex"
-                                  title="Remove participant"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                                  return (
+                                    <tr key={reg._id} className="border-b border-gray-100 text-sm hover:bg-gray-50">
+                                      <td className="p-4 font-bold text-gray-900">
+                                        {parsedName}
+                                        {reg.email && (
+                                          <span className="mt-0.5 block text-xs font-normal text-gray-400">{reg.email}</span>
+                                        )}
+                                      </td>
+                                      <td className="p-4 font-semibold text-gray-600">{parsedPhone}</td>
+                                      <td className="p-4 font-semibold text-emerald-700">
+                                        <span className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 font-mono text-xs">
+                                          {displayRegNo}
+                                        </span>
+                                      </td>
+                                      <td className="p-4">
+                                        <span className={`rounded-lg px-2 py-1 text-[11px] font-bold ${reg.paymentStatus === "Paid" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+                                          {reg.paymentStatus || "Unknown"}
+                                        </span>
+                                      </td>
+                                      <td className="p-4">
+                                        {reg.posterPhotoUrl ? (
+                                          <div className="flex items-center gap-2">
+                                            <CheckCircle className="h-4 w-4 shrink-0 text-emerald-600" />
+                                            <a
+                                              href={reg.posterImageUrl || reg.posterPhotoUrl}
+                                              target="_blank"
+                                              rel="noreferrer"
+                                              className="text-xs font-bold text-emerald-700 hover:underline"
+                                            >
+                                              View poster
+                                            </a>
+                                          </div>
+                                        ) : (
+                                          <span className="text-xs font-semibold text-gray-400">Not uploaded</span>
+                                        )}
+                                      </td>
+                                      <td className="p-4 text-right">
+                                        <button
+                                          onClick={() => handleDeleteRegistration(reg._id)}
+                                          className="ml-auto flex rounded-lg p-2 text-rose-600 transition hover:bg-rose-50"
+                                          title="Remove participant"
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>

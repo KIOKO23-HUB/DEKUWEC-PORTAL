@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { optimizedImage } from "@/lib/image";
+import { uploadImage } from "@/lib/clientUpload";
+import { renderPoster, type PosterTemplate } from "@/lib/poster";
 
 type Tier = { id: string; label: string; amount: number };
 
@@ -16,6 +18,7 @@ type PublicEvent = {
   description: string;
   isFree: boolean;
   tiers: Tier[];
+  posterTemplate?: PosterTemplate | null;
 };
 
 type Step = "idle" | "details" | "paying" | "success";
@@ -29,6 +32,117 @@ type Registration = {
 };
 
 const CLUB_EMAIL = "wildlifeandenvironmentalclub@dkut.ac.ke";
+
+function PosterStudio({
+  template,
+  defaultName,
+  registrationId,
+  clerkId,
+}: {
+  template: PosterTemplate;
+  defaultName: string;
+  registrationId?: string;
+  clerkId?: string;
+}) {
+  const [name, setName] = useState(defaultName);
+  const [photo, setPhoto] = useState<File | null>(null);
+  const [preview, setPreview] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const build = async (file: File, finalName: string) => {
+    setBusy(true);
+    setError("");
+    try {
+      const { blob, dataUrl } = await renderPoster(template, file, finalName);
+      setPreview(dataUrl);
+
+      if (registrationId) {
+        try {
+          const [photoUrl, posterUrl] = await Promise.all([
+            uploadImage(file),
+            uploadImage(new File([blob], "event-poster.jpg", { type: "image/jpeg" })),
+          ]);
+          const res = await fetch("/api/public/events/poster", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ registrationId, clerkId, posterPhotoUrl: photoUrl, posterImageUrl: posterUrl }),
+          });
+          if (res.ok) setSaved(true);
+        } catch {
+          setError("Your poster is ready but could not be saved for the club. You can still download it.");
+        }
+      }
+    } catch {
+      setError("We couldn't build your poster. Please try another photo.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mt-4 rounded-2xl border border-emerald-200 bg-white p-4 text-slate-900">
+      <p className="text-sm font-bold text-emerald-900">Get your personalised event poster 🖼️</p>
+      <p className="mt-1 text-xs text-slate-600">
+        Upload a clear passport photo. We&apos;ll place it on the event poster with your name — great for sharing.
+      </p>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <label className="block text-xs">
+          <span className="mb-1 block font-semibold text-slate-700">Your name on the poster</span>
+          <input value={name} onChange={(e) => setName(e.target.value)} maxLength={40}
+            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-emerald-500" />
+        </label>
+        <label className="block text-xs">
+          <span className="mb-1 block font-semibold text-slate-700">Passport photo</span>
+          <input
+            type="file"
+            accept="image/*"
+            disabled={busy}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              setPhoto(file);
+              void build(file, name);
+            }}
+            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs file:mr-3 file:rounded-full file:border-0 file:bg-emerald-50 file:px-3 file:py-1.5 file:text-xs file:font-bold file:text-emerald-700 disabled:opacity-50"
+          />
+        </label>
+      </div>
+
+      {busy && <p className="mt-3 text-xs font-semibold text-emerald-700">Creating your poster…</p>}
+      {error && <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">{error}</p>}
+      {saved && <p className="mt-3 text-xs font-semibold text-emerald-700">The club can now see that you uploaded your poster. ✓</p>}
+
+      {preview && (
+        <div className="mt-4 space-y-3">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={preview} alt="Your personalised event poster" className="w-full rounded-xl border border-slate-200" />
+          <div className="flex flex-wrap gap-2">
+            <a
+              href={preview}
+              download={`${(name || "dekuwec").replace(/\s+/g, "-")}-event-poster.jpg`}
+              className="rounded-xl bg-emerald-900 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-800"
+            >
+              Download poster
+            </a>
+            {photo && (
+              <button
+                type="button"
+                onClick={() => void build(photo, name)}
+                disabled={busy}
+                className="rounded-xl border border-emerald-200 px-4 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-50 disabled:opacity-50"
+              >
+                Update name on poster
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function EventCard({ event }: { event: PublicEvent }) {
   const [step, setStep] = useState<Step>("idle");
@@ -278,6 +392,15 @@ function EventCard({ event }: { event: PublicEvent }) {
               Need help? Email {CLUB_EMAIL}
             </p>
           </div>
+        )}
+
+        {registration && event.posterTemplate && (
+          <PosterStudio
+            template={event.posterTemplate}
+            defaultName={form.fullName}
+            registrationId={registration.registrationId}
+            clerkId={registration.clerkId}
+          />
         )}
       </div>
     </article>

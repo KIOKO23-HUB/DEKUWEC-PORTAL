@@ -10,6 +10,10 @@ const EventRegistrationSchema = new mongoose.Schema({
   eventName: { type: String },
   paymentStatus: { type: String, default: "Not Yet Paid" }, 
   amountPaid: { type: Number, default: 0 },
+  // Personalised poster assets submitted by the applicant
+  posterPhotoUrl: { type: String },
+  posterImageUrl: { type: String },
+  posterUploadedAt: { type: Date },
 }, { timestamps: true, strict: false }); 
 
 const EventRegistration = mongoose.models.EventRegistration || mongoose.model("EventRegistration", EventRegistrationSchema);
