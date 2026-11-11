@@ -49,7 +49,6 @@ function PosterStudio({
   const [preview, setPreview] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [saved, setSaved] = useState(false);
 
   const build = async (file: File, finalName: string) => {
     setBusy(true);
@@ -69,9 +68,11 @@ function PosterStudio({
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ registrationId, clerkId, posterPhotoUrl: photoUrl, posterImageUrl: posterUrl }),
           });
-          if (res.ok) setSaved(true);
+          if (!res.ok) {
+            setError("Your poster is ready, but we couldn't save a copy. You can still download it.");
+          }
         } catch {
-          setError("Your poster is ready but could not be saved for the club. You can still download it.");
+          setError("Your poster is ready, but we couldn't save a copy. You can still download it.");
         }
       }
     } catch {
@@ -113,7 +114,6 @@ function PosterStudio({
 
       {busy && <p className="mt-3 text-xs font-semibold text-emerald-700">Creating your poster…</p>}
       {error && <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">{error}</p>}
-      {saved && <p className="mt-3 text-xs font-semibold text-emerald-700">The club can now see that you uploaded your poster. ✓</p>}
 
       {preview && (
         <div className="mt-4 space-y-3">
