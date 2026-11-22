@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useUser } from "@clerk/nextjs";
 import { 
   Camera, Trophy, Star, Loader2, X, ZoomIn, ExternalLink, 
@@ -49,6 +49,8 @@ export default function NatureSnapsPage() {
   const [isUploading, setIsUploading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadForm, setUploadForm] = useState({ imageUrl: "", caption: "" });
+  const browseInputRef = useRef<HTMLInputElement | null>(null);
+  const cameraInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -328,7 +330,12 @@ export default function NatureSnapsPage() {
           <p className="text-xs text-gray-500 mb-6">Submit your best campus or excursion capture for the community to vote on!</p>
 
           <form onSubmit={handlePublishSnap} className="space-y-4">
-            <div className="w-full flex flex-col justify-center border-2 border-dashed border-emerald-200 bg-emerald-50/50 rounded-2xl p-4 text-center">
+            <div
+              className="w-full flex flex-col justify-center border-2 border-dashed border-emerald-200 bg-emerald-50/50 rounded-2xl p-4 text-center cursor-pointer"
+              onClick={() => {
+                if (!uploadForm.imageUrl) browseInputRef.current?.click();
+              }}
+            >
               {uploadForm.imageUrl ? (
                 <div className="relative w-full aspect-square rounded-xl overflow-hidden shadow-sm group">
                   <img src={optimizedImage(uploadForm.imageUrl, 900)} alt="Upload Preview" className="w-full h-full object-cover" />
@@ -341,15 +348,29 @@ export default function NatureSnapsPage() {
                   <div className="h-12 w-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center">
                     <UploadCloud className="h-6 w-6" />
                   </div>
-                  <label className="cursor-pointer text-sm font-bold text-emerald-700 hover:text-emerald-800 transition">
+                  <button
+                    type="button"
+                    onClick={(clickEvent) => {
+                      clickEvent.stopPropagation();
+                      browseInputRef.current?.click();
+                    }}
+                    className="cursor-pointer text-sm font-bold text-emerald-700 hover:text-emerald-800 transition"
+                  >
                     Browse Files to Upload
-                    <input type="file" accept="image/*" className="hidden" disabled={isUploading} onChange={handleImageUpload} />
-                  </label>
-                  <label className="cursor-pointer inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700 transition">
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(clickEvent) => {
+                      clickEvent.stopPropagation();
+                      cameraInputRef.current?.click();
+                    }}
+                    className="cursor-pointer inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700 transition"
+                  >
                     <Camera className="h-3.5 w-3.5" />
                     Take Photo
-                    <input type="file" accept="image/*" capture="environment" className="hidden" disabled={isUploading} onChange={handleImageUpload} />
-                  </label>
+                  </button>
+                  <input ref={browseInputRef} type="file" accept="image/*" className="hidden" disabled={isUploading} onChange={handleImageUpload} />
+                  <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" disabled={isUploading} onChange={handleImageUpload} />
                   <p className="text-[10px] text-gray-400">Supports JPG, PNG (Max 5MB)</p>
                 </div>
               )}

@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { useUser } from "@clerk/nextjs";
+import { Heart, MessageCircle, Share2 } from "lucide-react";
 import { optimizedImage } from "@/lib/image";
 import { uploadImage } from "@/lib/clientUpload";
 import { renderPoster, type PosterTemplate } from "@/lib/poster";
@@ -19,6 +21,8 @@ type PublicEvent = {
   isFree: boolean;
   tiers: Tier[];
   posterTemplate?: PosterTemplate | null;
+  likes?: string[];
+  comments?: { clerkId: string; fullName: string; text: string; createdAt?: string }[];
 };
 
 type Step = "idle" | "details" | "paying" | "success";
@@ -145,6 +149,7 @@ function PosterStudio({
 }
 
 function EventCard({ event }: { event: PublicEvent }) {
+  const { user, isSignedIn } = useUser();
   const [step, setStep] = useState<Step>("idle");
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const stopPolling = () => {
@@ -161,8 +166,87 @@ function EventCard({ event }: { event: PublicEvent }) {
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [receipt, setReceipt] = useState("");
+  const [likes, setLikes] = useState<string[]>(event.likes || []);
+  const [comments, setComments] = useState(event.comments || []);
+  const [comment, setComment] = useState("");
+  const [interactionBusy, setInteractionBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const tier = event.tiers.find((item) => item.id === form.tierId) || event.tiers[0];
+  const liked = !!user && likes.includes(user.id);
+
+  const toggleLike = async () => {
+    if (!isSignedIn || !user) {
+      window.location.href = `/login?redirect_url=${encodeURIComponent(`/events?event=${event._id}`)}`;
+      return;
+    }
+    setInteractionBusy(true);
+    try {
+      const res = await fetch("/api/events/interact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventId: event._id,
+          clerkId: user.id,
+          action: liked ? "unlike" : "like",
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) setLikes(data.event?.likes || []);
+    } finally {
+      setInteractionBusy(false);
+    }
+  };
+
+  const postComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isSignedIn || !user) {
+      window.location.href = `/login?redirect_url=${encodeURIComponent(`/events?event=${event._id}`)}`;
+      return;
+    }
+    const text = comment.trim();
+    if (!text) return;
+    setInteractionBusy(true);
+    try {
+      const res = await fetch("/api/events/interact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventId: event._id,
+          clerkId: user.id,
+          action: "comment",
+          commentData: {
+            clerkId: user.id,
+            fullName: user.fullName || user.username || "DEKUWEC member",
+            text,
+          },
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setComments(data.event?.comments || []);
+        setComment("");
+      }
+    } finally {
+      setInteractionBusy(false);
+    }
+  };
+
+  const shareEvent = async () => {
+    const url = `${window.location.origin}/events?event=${event._id}`;
+    const text = `${event.title} | Upcoming event on DEKUWEC`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: event.title, text, url });
+      } else {
+        await navigator.clipboard.writeText(url);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2500);
+      }
+    } catch {
+      // User dismissed the native share sheet.
+    }
+  };
 
   const update = (key: keyof typeof form, value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -263,16 +347,54 @@ function EventCard({ event }: { event: PublicEvent }) {
     "w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10";
 
   return (
-    <article className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+    <article id={`event-${event._id}`} className="scroll-mt-24 mx-auto max-w-[520px] overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-xl shadow-slate-300/40">
       {event.imageUrl && (
-        <div className="w-full bg-slate-100">
-          {/* Poster shown in full, never cropped, on any screen size */}
+        <div className="relative aspect-[4/5] w-full overflow-hidden bg-slate-950">
           <img
             src={optimizedImage(event.imageUrl, 1000)}
             alt={`${event.title} poster`}
-            className="block h-auto w-full object-contain"
+            className="block h-full w-full object-cover"
             loading="eager"
           />
+          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/95 via-black/55 to-transparent px-5 pb-5 pt-24 text-white">
+            <span className="inline-flex rounded-full bg-emerald-500 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em]">
+              {event.isFree ? "Free event" : "Registration open"}
+            </span>
+            <h2 className="mt-2 text-xl font-black leading-tight sm:text-2xl">{event.title}</h2>
+            <p className="mt-1 text-sm text-white/85">{event.date}{event.location ? ` · ${event.location}` : ""}</p>
+          </div>
+          <div className="absolute bottom-24 right-3 flex flex-col gap-2">
+            <button
+              type="button"
+              onClick={toggleLike}
+              disabled={interactionBusy}
+              className={`flex h-12 w-12 flex-col items-center justify-center rounded-full shadow-lg backdrop-blur ${
+                liked ? "bg-rose-500 text-white" : "bg-black/55 text-white"
+              }`}
+              aria-label="Like event"
+            >
+              <Heart className={`h-5 w-5 ${liked ? "fill-current" : ""}`} />
+              <span className="text-[10px] font-black">{likes.length}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => document.getElementById(`event-comment-${event._id}`)?.focus()}
+              className="flex h-12 w-12 flex-col items-center justify-center rounded-full bg-black/55 text-white shadow-lg backdrop-blur"
+              aria-label="View comments"
+            >
+              <MessageCircle className="h-5 w-5" />
+              <span className="text-[10px] font-black">{comments.length}</span>
+            </button>
+            <button
+              type="button"
+              onClick={shareEvent}
+              className="flex h-12 w-12 flex-col items-center justify-center rounded-full bg-black/55 text-white shadow-lg backdrop-blur"
+              aria-label="Share event"
+            >
+              <Share2 className="h-5 w-5" />
+              <span className="text-[9px] font-black">{copied ? "Copied" : "Share"}</span>
+            </button>
+          </div>
         </div>
       )}
 
@@ -291,6 +413,66 @@ function EventCard({ event }: { event: PublicEvent }) {
           {event.description && (
             <p className="mt-4 whitespace-pre-wrap text-sm leading-relaxed text-slate-600">{event.description}</p>
           )}
+        </div>
+
+        <div className="border-t border-slate-100 pt-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={toggleLike}
+              disabled={interactionBusy}
+              className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-bold transition ${
+                liked ? "bg-rose-100 text-rose-700" : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+              }`}
+            >
+              <Heart className={`h-4 w-4 ${liked ? "fill-current" : ""}`} />
+              {likes.length}
+            </button>
+            <button
+              type="button"
+              onClick={() => document.getElementById(`event-comment-${event._id}`)?.focus()}
+              className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-200"
+            >
+              <MessageCircle className="h-4 w-4" />
+              {comments.length}
+            </button>
+            <button
+              type="button"
+              onClick={shareEvent}
+              className="ml-auto inline-flex items-center gap-2 rounded-full bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-800 hover:bg-emerald-100"
+            >
+              <Share2 className="h-4 w-4" />
+              {copied ? "Link copied" : "Share"}
+            </button>
+          </div>
+
+          {comments.length > 0 && (
+            <div className="mt-4 max-h-36 space-y-2 overflow-y-auto">
+              {comments.slice(-5).reverse().map((item, index) => (
+                <div key={`${item.clerkId}-${item.createdAt || index}`} className="rounded-xl bg-slate-50 px-3 py-2">
+                  <p className="text-xs font-bold text-slate-800">{item.fullName}</p>
+                  <p className="mt-0.5 text-sm text-slate-600">{item.text}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <form onSubmit={postComment} className="mt-3 flex gap-2">
+            <input
+              id={`event-comment-${event._id}`}
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              placeholder="Add a comment..."
+              className="min-w-0 flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+            />
+            <button
+              type="submit"
+              disabled={interactionBusy || !comment.trim()}
+              className="rounded-xl bg-emerald-900 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+            >
+              Post
+            </button>
+          </form>
         </div>
 
         {step === "idle" && (
@@ -413,11 +595,18 @@ export default function EventsClient() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    fetch("/api/public/events", { cache: "no-store" })
+    const eventId = new URLSearchParams(window.location.search).get("event");
+    const url = eventId ? `/api/public/events?id=${encodeURIComponent(eventId)}` : "/api/public/events";
+    fetch(url, { cache: "no-store" })
       .then((res) => res.json())
       .then((data) => {
         if (data?.error) setError(data.error);
-        else setEvents(data.events || []);
+        else {
+          setEvents(data.events || []);
+          if (eventId) {
+            setTimeout(() => document.getElementById(`event-${eventId}`)?.scrollIntoView({ block: "start" }), 300);
+          }
+        }
       })
       .catch(() => setError("Unable to load events right now."))
       .finally(() => setLoading(false));
@@ -459,9 +648,11 @@ export default function EventsClient() {
             No upcoming events have been posted yet. Check back soon.
           </p>
         ) : (
-          <div className="space-y-8">
+          <div className="mx-auto max-h-[calc(100vh-11rem)] max-w-[560px] snap-y snap-mandatory space-y-5 overflow-y-auto pb-10 sm:rounded-[2rem]">
             {events.map((event) => (
-              <EventCard key={event._id} event={event} />
+              <div key={event._id} className="snap-start">
+                <EventCard event={event} />
+              </div>
             ))}
           </div>
         )}

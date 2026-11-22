@@ -43,10 +43,14 @@ function formatPhone(phone: string) {
   return cleaned;
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    const { searchParams } = new URL(req.url);
+    const eventId = searchParams.get("id");
     await connectToDatabase();
-    const events = await EventItem.find({ category: "upcoming" }).sort({ createdAt: -1 }).lean();
+    const query: Record<string, unknown> = { category: "upcoming" };
+    if (eventId && /^[a-f\d]{24}$/i.test(eventId)) query._id = eventId;
+    const events = await EventItem.find(query).sort({ createdAt: -1 }).lean();
 
     return NextResponse.json(
       {
@@ -61,6 +65,8 @@ export async function GET() {
           isFree: !!event.isFree,
           tiers: tiersFor(event),
           posterTemplate: event.posterTemplate?.imageUrl ? event.posterTemplate : null,
+          likes: Array.isArray(event.likes) ? event.likes : [],
+          comments: Array.isArray(event.comments) ? event.comments : [],
         })),
       },
       { status: 200 }

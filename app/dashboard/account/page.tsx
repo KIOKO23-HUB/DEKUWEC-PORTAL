@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useUser } from "@clerk/nextjs";
 import { optimizedImage } from "@/lib/image";
 import { 
@@ -26,6 +26,7 @@ export default function ComprehensiveAccountPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const profilePhotoRef = useRef<HTMLInputElement | null>(null);
   
   const [member, setMember] = useState({ email: "", course: "", year: "Year 1", photoURL: "", status: "Unregistered" });
   
@@ -131,7 +132,10 @@ export default function ComprehensiveAccountPage() {
           </div>
           
           <div className="flex flex-col items-center mb-8 pb-8 border-b border-gray-100">
-            <div className="relative group w-28 h-28">
+            <div
+              className="relative group w-28 h-28 cursor-pointer"
+              onClick={() => profilePhotoRef.current?.click()}
+            >
               <div className="w-full h-full rounded-full overflow-hidden bg-gray-100 border-4 border-emerald-100">
                 {displayImage ? (
                   <img src={optimizedImage(displayImage, 300)} alt="Profile" className="w-full h-full object-cover" />
@@ -141,11 +145,11 @@ export default function ComprehensiveAccountPage() {
                   </div>
                 )}
               </div>
-              <label className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition flex flex-col items-center justify-center cursor-pointer rounded-full text-white text-xs font-bold">
+              <div className="absolute inset-0 bg-black/40 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition flex flex-col items-center justify-center rounded-full text-white text-xs font-bold">
                 <UploadCloud className="h-5 w-5 mb-1" />
                 {uploadingPhoto ? "Uploading..." : "Change"}
-                <input type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} />
-              </label>
+              </div>
+              <input ref={profilePhotoRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} />
             </div>
             <h3 className="mt-4 font-bold text-gray-900">{user?.fullName}</h3>
           </div>

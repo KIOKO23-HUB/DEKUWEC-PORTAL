@@ -163,10 +163,10 @@ export default function NatureSnapsClient() {
 
   const shareSnap = async (snap: Snap) => {
     const url = `${window.location.origin}/nature-snaps?snap=${snap._id}`;
-    const text = `${snap.fullName || snap.photographer || "A member"} shared a nature snap on DEKUWEC`;
+    const text = `${snap.caption || snap.description || snap.title || "A nature snap"} — ${snap.fullName || snap.photographer || "DEKUWEC member"}`;
     try {
       if (navigator.share) {
-        await navigator.share({ title: "DEKUWEC Nature Snaps", text, url });
+        await navigator.share({ title: snap.title || "DEKUWEC Nature Snap", text, url });
         return;
       }
       await navigator.clipboard.writeText(url);
@@ -175,6 +175,41 @@ export default function NatureSnapsClient() {
     } catch {
       // User dismissed the share sheet.
     }
+  };
+
+  const interactSnap = async (snap: Snap, action: "like" | "dislike") => {
+    if (!isSignedIn || !user) {
+      setShowAuth(true);
+      return;
+    }
+    const hasLiked = snap.likes?.includes(user.id);
+    const hasDisliked = snap.dislikes?.includes(user.id);
+    const finalAction =
+      (action === "like" && hasLiked) || (action === "dislike" && hasDisliked)
+        ? "remove"
+        : action;
+
+    setCommunity((current) =>
+      current.map((item) => {
+        if (item._id !== snap._id) return item;
+        const likes = (item.likes || []).filter((id) => id !== user.id);
+        const dislikes = (item.dislikes || []).filter((id) => id !== user.id);
+        if (finalAction === "like") likes.push(user.id);
+        if (finalAction === "dislike") dislikes.push(user.id);
+        return { ...item, likes, dislikes };
+      })
+    );
+
+    await fetch("/api/community-snaps/interact", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        snapId: snap._id,
+        clerkId: user.id,
+        action: finalAction,
+        likerName: user.fullName || user.username || "A member",
+      }),
+    }).catch(() => loadSnaps());
   };
 
   return (
@@ -283,13 +318,21 @@ export default function NatureSnapsClient() {
           </p>
 
           <form onSubmit={publishSnap} className="mt-5 space-y-4">
-            <div className="relative overflow-hidden rounded-2xl border-2 border-dashed border-emerald-200 bg-emerald-50/60">
+            <div
+              className="relative cursor-pointer overflow-hidden rounded-2xl border-2 border-dashed border-emerald-200 bg-emerald-50/60"
+              onClick={() => {
+                if (!uploadForm.imageUrl) requireAuth(() => browseRef.current?.click());
+              }}
+            >
               {uploadForm.imageUrl ? (
                 <div className="relative aspect-video">
                   <img src={optimizedImage(uploadForm.imageUrl, 900)} alt="Upload preview" className="h-full w-full object-cover" />
                   <button
                     type="button"
-                    onClick={() => setUploadForm((prev) => ({ ...prev, imageUrl: "" }))}
+                    onClick={(clickEvent) => {
+                      clickEvent.stopPropagation();
+                      setUploadForm((prev) => ({ ...prev, imageUrl: "" }));
+                    }}
                     className="absolute right-2 top-2 rounded-full bg-black/70 p-1.5 text-white hover:bg-black"
                     aria-label="Remove photo"
                   >
@@ -303,14 +346,20 @@ export default function NatureSnapsClient() {
                   <div className="flex flex-wrap justify-center gap-2">
                     <button
                       type="button"
-                      onClick={() => requireAuth(() => cameraRef.current?.click())}
+                      onClick={(clickEvent) => {
+                        clickEvent.stopPropagation();
+                        requireAuth(() => cameraRef.current?.click());
+                      }}
                       className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-800"
                     >
                       <Camera className="h-4 w-4" /> Open camera
                     </button>
                     <button
                       type="button"
-                      onClick={() => requireAuth(() => browseRef.current?.click())}
+                      onClick={(clickEvent) => {
+                        clickEvent.stopPropagation();
+                        requireAuth(() => browseRef.current?.click());
+                      }}
                       className="inline-flex items-center gap-2 rounded-xl border border-emerald-300 bg-white px-4 py-2.5 text-sm font-bold text-emerald-800 hover:bg-emerald-50"
                     >
                       <UploadCloud className="h-4 w-4" /> Browse files
@@ -386,7 +435,15 @@ export default function NatureSnapsClient() {
         <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {community.map((snap) => (
             <article key={snap._id} className="group overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-emerald-100">
-              <button type="button" onClick={() => setPreview(snap)} className="block w-full text-left">
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => setPreview(snap)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") setPreview(snap);
+                }}
+                className="block w-full cursor-pointer text-left"
+              >
                 <div className="relative aspect-square overflow-hidden">
                   <img
                     src={optimizedImage(snap.imageUrl, 700)}
@@ -401,16 +458,30 @@ export default function NatureSnapsClient() {
                     {snap.fullName || "DEKUWEC member"}
                   </p>
                   <p className="mt-1 line-clamp-2 text-sm text-gray-600">{snap.caption || "No caption"}</p>
-                  <div className="mt-3 flex items-center gap-4 text-xs font-bold text-gray-500">
-                    <span className="flex items-center gap-1">
+                  <div className="mt-3 flex items-center gap-2 text-xs font-bold text-gray-500">
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        interactSnap(snap, "like");
+                      }}
+                      className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1.5 text-emerald-700 hover:bg-emerald-100"
+                    >
                       <ThumbsUp className="h-3.5 w-3.5 text-emerald-600" /> {snap.likes?.length || 0}
-                    </span>
-                    <span className="flex items-center gap-1">
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        interactSnap(snap, "dislike");
+                      }}
+                      className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2.5 py-1.5 text-rose-600 hover:bg-rose-100"
+                    >
                       <ThumbsDown className="h-3.5 w-3.5 text-rose-500" /> {snap.dislikes?.length || 0}
-                    </span>
+                    </button>
                   </div>
                 </div>
-              </button>
+              </div>
               <div className="px-4 pb-4">
                 <button
                   type="button"
