@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import PortalPageHeader from "@/components/portal/PortalPageHeader";
 import { useUser } from "@clerk/nextjs";
 import LeadershipSection from "@/components/LeadershipSection";
 import { 
@@ -96,11 +97,11 @@ export default function SupportPage() {
   return (
     <div className="p-6 sm:p-8 lg:p-12 max-w-7xl mx-auto space-y-10">
       
-      {/* Header */}
-      <div className="border-b border-gray-200 pb-6">
-        <h1 className="text-3xl sm:text-4xl font-black text-emerald-950 tracking-tight">Help & Inquiries</h1>
-        <p className="text-sm sm:text-base text-gray-500 mt-2">Dedan Kimathi University of Technology</p>
-      </div>
+      <PortalPageHeader
+        eyebrow="Support"
+        title="Help & inquiries"
+        description="Reach the executive board directly, or send a note and we will reply to your student email."
+      />
 
       {/* Top Section: Info & Contact Form */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">

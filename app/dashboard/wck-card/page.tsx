@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import PortalPageHeader from "@/components/portal/PortalPageHeader";
 import { CreditCard, CheckCircle, Shield, Loader2, X, Smartphone, AlertCircle } from "lucide-react";
 import { useUser } from "@clerk/nextjs";
 
@@ -192,12 +193,11 @@ export default function WckCardPage() {
 
   return (
     <div className="p-8 lg:p-12 max-w-3xl mx-auto space-y-8 font-sans relative">
-      <div>
-        <h1 className="text-3xl font-black text-emerald-950">Wildlife Clubs of Kenya (WCK) Card</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Apply for the official student affiliate card to gain free or subsidized access to Kenya Wildlife Service (KWS) national parks and reserves.
-        </p>
-      </div>
+      <PortalPageHeader
+        eyebrow="WCK Card"
+        title="Wildlife Clubs of Kenya member card"
+        description="Apply for the official student affiliate card for free or subsidised access to Kenya Wildlife Service parks and reserves."
+      />
 
       {existingApp ? (
         <div className="bg-white border border-gray-200 rounded-3xl p-8 shadow-sm space-y-6">

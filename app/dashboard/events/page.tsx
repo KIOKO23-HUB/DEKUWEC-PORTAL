@@ -1,295 +1,191 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useUser } from "@clerk/nextjs";
-import { 
-  Calendar, 
-  MapPin, 
-  Clock, 
-  ExternalLink, 
-  Leaf, 
-  Users, 
-  Image as ImageIcon,
-  X,
-  CheckCircle,
-  Send,
-  Loader2,
-  ChevronLeft,
-  ChevronRight,
-  Smartphone,
+import {
+  ArrowRight,
+  Calendar,
+  Camera,
+  CheckCircle2,
+  Clock,
   CreditCard,
-  AlertCircle,
-  Heart,
-  MessageSquare
+  ExternalLink,
+  Image as ImageIcon,
+  Leaf,
+  Loader2,
+  MapPin,
+  MessageSquare,
+  Send,
+  Smartphone,
+  Sparkles,
+  Ticket,
+  Users,
+  X,
 } from "lucide-react";
+import ReelsFeed, { type ReelItem } from "@/components/media/ReelsFeed";
+import { eventToReels } from "@/lib/reels";
 import { optimizedImage } from "@/lib/image";
 
-const FALLBACK_PREVIOUS = [
-  {
-    _id: "default_prev_1",
-    title: "Baraka Children's Home Outreach",
-    date: "January 2026",
-    description: "Our community give-back initiative where DEKUWEC members donated clothes, foodstuff, and spent the day interacting with the kids.",
-    imageUrl: "https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?q=80&w=1000&auto=format&fit=crop",
-    galleryLink: "https://photos.google.com",
-    category: "previous",
-    likes: [],
-    comments: []
-  },
-  {
-    _id: "default_prev_2",
-    title: "Club Fun Day at Farm House",
-    date: "June 27, 2026",
-    description: "A fantastic day of outdoor activities, board games, colorfest, and team-building in partnership with AYLF.",
-    imageUrl: "https://images.unsplash.com/photo-1526976663112-0058b76c8cb9?q=80&w=1000&auto=format&fit=crop",
-    galleryLink: "https://photos.google.com",
-    category: "previous",
-    likes: [],
-    comments: []
-  }
-];
+type Tier = { id: string; label: string; amount: number };
 
-const FALLBACK_PROJECTS = [
-  {
-    _id: "default_proj_1",
-    title: "Campus Tree Nursery Establishment",
-    description: "A continuous club initiative to cultivate indigenous tree seedlings for future conservation drives and community distribution.",
-    imageUrl: "https://images.unsplash.com/photo-1466692476868-aef1dfb1e735?q=80&w=1000&auto=format&fit=crop",
-    category: "project",
-    likes: [],
-    comments: []
-  }
-];
-
-const otherEvents = [
-  "Weekly Wednesday Physical Gatherings (5:00 PM – 6:45 PM)",
-  "EcoPulse Wildlife Debates",
-  "Monthly Campus Clean-up Drives"
-];
-
-function getEventImageUrl(url: string, width: number) {
-  try {
-    const imageUrl = new URL(url);
-    if (imageUrl.hostname === "res.cloudinary.com" && imageUrl.pathname.includes("/image/upload/")) {
-      imageUrl.pathname = imageUrl.pathname.replace(
-        "/image/upload/",
-        `/image/upload/f_auto,q_auto:good,w_${width},c_limit/`
-      );
-      return imageUrl.toString();
-    }
-  } catch {
-    return url;
-  }
-  return url;
-}
-
-// --- Smart Multi-Media Carousel Component ---
-const EventMediaCarousel = ({ event, fallbackImage }: { event: any, fallbackImage: string }) => {
-  const [currentIndex, setCurrentIndex] = useState(0);
-
-  const allMedia: any[] = [];
-  if (event.imageUrl) {
-    allMedia.push({ url: event.imageUrl, type: 'image' });
-  }
-  if (event.media && Array.isArray(event.media)) {
-    allMedia.push(...event.media);
-  }
-
-  const handleNext = () => setCurrentIndex(prev => prev === allMedia.length - 1 ? 0 : prev + 1);
-  const handlePrev = () => setCurrentIndex(prev => prev === 0 ? allMedia.length - 1 : prev - 1);
-
-  useEffect(() => {
-    if (allMedia.length <= 1) return;
-    const currentMedia = allMedia[currentIndex];
-    
-    if (currentMedia.type === 'image') {
-      const timer = setTimeout(() => {
-        handleNext();
-      }, 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [currentIndex, allMedia.length, allMedia]);
-
-  if (allMedia.length === 0) {
-    return <img src={optimizedImage(getEventImageUrl(fallbackImage, 960), 700)} alt="Event Cover" loading="lazy" decoding="async" className="w-full h-full object-cover bg-emerald-50" />;
-  }
-
-  const currentMedia = allMedia[currentIndex];
-
-  return (
-    <div className="relative w-full h-full bg-black/90 flex items-center justify-center group overflow-hidden">
-      {currentMedia.type === 'video' ? (
-        <video 
-          key={currentMedia.url}
-          src={currentMedia.url} 
-          muted 
-          controls 
-          playsInline 
-          preload="none"
-          onEnded={handleNext} 
-          className="w-full h-full object-cover" 
-        />
-      ) : (
-        <img 
-          src={getEventImageUrl(currentMedia.url, 1280)}
-          alt="Event Media" 
-          loading="lazy"
-          decoding="async"
-          sizes="(max-width: 768px) 100vw, 50vw"
-          className="w-full h-full object-cover transition-transform duration-700 hover:scale-105" 
-        />
-      )}
-
-      {allMedia.length > 1 && (
-        <>
-          <button 
-            onClick={(e) => { e.preventDefault(); handlePrev(); }}
-            className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/80 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition z-10 backdrop-blur-sm"
-          >
-            <ChevronLeft className="h-5 w-5" />
-          </button>
-          <button 
-            onClick={(e) => { e.preventDefault(); handleNext(); }}
-            className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/80 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition z-10 backdrop-blur-sm"
-          >
-            <ChevronRight className="h-5 w-5" />
-          </button>
-          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 z-10 bg-black/30 px-3 py-1.5 rounded-full backdrop-blur-md">
-            {allMedia.map((_, idx) => (
-              <div 
-                key={idx} 
-                className={`h-1.5 rounded-full transition-all duration-300 ${idx === currentIndex ? 'w-5 bg-emerald-400' : 'w-2 bg-white/60'}`} 
-              />
-            ))}
-          </div>
-        </>
-      )}
-    </div>
-  );
+type EventLite = {
+  _id: string;
+  title: string;
+  description: string;
+  date: string;
+  time?: string;
+  location?: string;
+  imageUrl?: string;
+  media?: { url?: string; type?: string; kind?: string }[];
+  galleryLink?: string;
+  category?: string;
+  isFree?: boolean;
+  likes?: string[];
+  reposts?: string[];
+  comments?: { clerkId: string; fullName: string; text: string; createdAt?: string }[];
 };
 
-// --- Interactive Likes & Comments Component ---
-const EventInteractions = ({ eventId, initialLikes = [], initialComments = [], user }: any) => {
-  const [likes, setLikes] = useState(initialLikes.length || 0);
-  const [isLiked, setIsLiked] = useState(user ? initialLikes.includes(user.id) : false);
-  const [showComments, setShowComments] = useState(false);
-  const [comments, setComments] = useState(initialComments || []);
-  const [newComment, setNewComment] = useState("");
-  const [isPosting, setIsPosting] = useState(false);
+type Step = "form" | "ask_pay" | "checkout" | "polling" | "success";
 
-  const handleLike = async () => {
-    if (!user) return alert("Please sign in to like posts.");
-    setIsLiked(!isLiked);
-    setLikes((prev: number) => isLiked ? prev - 1 : prev + 1);
-    
-    try {
-      await fetch(`/api/events/${eventId}/like`, { 
-        method: "POST", 
-        body: JSON.stringify({ userId: user.id }),
-        headers: { "Content-Type": "application/json" }
-      });
-    } catch (error) {
-      console.error("Failed to toggle like");
-    }
+function EventReactions({
+  event,
+  userId,
+  userName,
+}: {
+  event: EventLite;
+  userId?: string;
+  userName?: string;
+}) {
+  const [likes, setLikes] = useState<string[]>(event.likes || []);
+  const [comments, setComments] = useState(event.comments || []);
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const liked = !!userId && likes.includes(userId);
+
+  const interact = async (action: string, commentData?: { fullName: string; text: string }) => {
+    if (!userId) return;
+    await fetch("/api/events/interact", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ eventId: event._id, clerkId: userId, action, commentData }),
+    });
   };
 
-  const handlePostComment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user || !newComment.trim()) return;
-    
-    setIsPosting(true);
-    const commentObj = {
-      id: Date.now().toString(),
-      userName: user.fullName || "Member",
-      userImage: user.imageUrl,
-      text: newComment,
-      date: new Date().toLocaleDateString()
-    };
-    
-    setComments([...comments, commentObj]);
-    setNewComment("");
+  const toggleLike = () => {
+    if (!userId) return;
+    setLikes((current) =>
+      current.includes(userId) ? current.filter((id) => id !== userId) : [...current, userId]
+    );
+    interact(liked ? "unlike" : "like");
+  };
 
+  const submit = async (formEvent: React.FormEvent) => {
+    formEvent.preventDefault();
+    const text = draft.trim();
+    if (!text || !userId) return;
+    setBusy(true);
+    const name = userName || "DEKUWEC member";
+    const optimistic = {
+      clerkId: userId,
+      fullName: name,
+      text,
+      createdAt: new Date().toISOString(),
+    };
+    setComments((current) => [...current, optimistic]);
+    setDraft("");
     try {
-      await fetch(`/api/events/${eventId}/comment`, {
-        method: "POST",
-        body: JSON.stringify(commentObj),
-        headers: { "Content-Type": "application/json" }
-      });
-    } catch (error) {
-      console.error("Failed to post comment");
+      await interact("comment", { fullName: name, text });
     } finally {
-      setIsPosting(false);
+      setBusy(false);
     }
   };
 
   return (
-    <div className="mt-5 border-t border-gray-100 pt-4 w-full">
-      <div className="flex items-center gap-6 mb-4">
-        <button onClick={handleLike} className={`flex items-center gap-2 font-bold text-sm transition ${isLiked ? 'text-rose-500' : 'text-gray-500 hover:text-rose-500'}`}>
-          <Heart className={`h-5 w-5 ${isLiked ? 'fill-current' : ''}`} />
-          <span>{likes} {likes === 1 ? 'Like' : 'Likes'}</span>
+    <div className="border-t border-emerald-50 pt-3">
+      <div className="flex items-center gap-4">
+        <button
+          type="button"
+          onClick={toggleLike}
+          className={`inline-flex items-center gap-1.5 text-xs font-bold transition ${
+            liked ? "text-rose-600" : "text-slate-500 hover:text-rose-600"
+          }`}
+        >
+          <span className="text-base leading-none">♥</span>
+          {likes.length} {likes.length === 1 ? "like" : "likes"}
         </button>
-        <button onClick={() => setShowComments(!showComments)} className="flex items-center gap-2 font-bold text-sm text-gray-500 hover:text-emerald-600 transition">
-          <MessageSquare className="h-5 w-5" />
-          <span>{comments.length} Comments</span>
+        <button
+          type="button"
+          onClick={() => setOpen((value) => !value)}
+          className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 transition hover:text-emerald-700"
+        >
+          <MessageSquare className="h-4 w-4" />
+          {comments.length} comments
         </button>
       </div>
 
-      {showComments && (
-        <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
-          <div className="max-h-48 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
+      {open ? (
+        <div className="mt-3 space-y-2">
+          <div className="max-h-40 space-y-2 overflow-y-auto pr-1">
             {comments.length === 0 ? (
-              <p className="text-xs text-gray-400 text-center italic py-2">No comments yet. Be the first!</p>
+              <p className="py-2 text-center text-xs italic text-slate-400">No comments yet.</p>
             ) : (
-              comments.map((c: any) => (
-                <div key={c.id} className="bg-gray-50 p-3 rounded-2xl flex gap-3">
-                  <img src={c.userImage || `https://ui-avatars.com/api/?name=${c.userName}`} alt="User" className="w-8 h-8 rounded-full" />
-                  <div>
-                    <div className="flex items-baseline gap-2">
-                      <span className="font-bold text-sm text-gray-900">{c.userName}</span>
-                      <span className="text-[10px] text-gray-400">{c.date}</span>
-                    </div>
-                    <p className="text-sm text-gray-700 mt-0.5 leading-snug">{c.text}</p>
-                  </div>
+              comments.map((entry, index) => (
+                <div key={`${entry.clerkId}-${index}`} className="rounded-xl bg-emerald-50/60 px-3 py-2">
+                  <p className="text-[11px] font-bold text-emerald-900">{entry.fullName}</p>
+                  <p className="text-xs leading-snug text-slate-600">{entry.text}</p>
                 </div>
               ))
             )}
           </div>
-          
-          {user ? (
-            <form onSubmit={handlePostComment} className="flex gap-2">
-              <input 
-                type="text" 
-                value={newComment}
-                onChange={(e) => setNewComment(e.target.value)}
-                placeholder="Write a comment..." 
-                className="flex-1 bg-gray-100 border-none px-4 py-2.5 rounded-full text-sm outline-none focus:ring-2 focus:ring-emerald-500 transition"
-              />
-              <button disabled={!newComment.trim() || isPosting} type="submit" className="bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-300 text-white p-2.5 rounded-full transition">
-                {isPosting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              </button>
-            </form>
-          ) : (
-            <p className="text-xs text-center text-gray-500 bg-gray-50 py-2 rounded-xl">Please sign in to join the conversation.</p>
-          )}
+          <form onSubmit={submit} className="flex gap-2">
+            <input
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              placeholder="Write a comment…"
+              maxLength={280}
+              className="min-w-0 flex-1 rounded-full border border-emerald-100 bg-white px-3.5 py-2 text-xs outline-none focus:border-emerald-500"
+            />
+            <button
+              type="submit"
+              disabled={!draft.trim() || busy}
+              className="rounded-full bg-emerald-700 p-2 text-white transition hover:bg-emerald-800 disabled:opacity-40"
+              aria-label="Post comment"
+            >
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            </button>
+          </form>
         </div>
-      )}
+      ) : null}
     </div>
   );
-};
+}
 
-export default function EventsPage() {
+export default function DashboardEventsPage() {
   const { user, isLoaded } = useUser();
-  const [events, setEvents] = useState<any[]>([]);
+  const [events, setEvents] = useState<EventLite[]>([]);
   const [loading, setLoading] = useState(true);
+  const [rsvpStatus, setRsvpStatus] = useState<Record<string, string>>({});
+  const [shareNote, setShareNote] = useState("");
 
-  // User RSVP statuses: map of eventId -> "Paid" | "Not Yet Paid"
-  const [userRsvpStatus, setUserRsvpStatus] = useState<{ [eventId: string]: string }>({});
-
-  // Modal Flow States
-  const [activeModalEvent, setActiveModalEvent] = useState<any | null>(null);
-  const [modalStep, setModalStep] = useState<"form" | "ask_pay" | "checkout" | "polling" | "success">("form");
+  const [activeEvent, setActiveEvent] = useState<EventLite | null>(null);
+  const [step, setStep] = useState<Step>("form");
+  const [form, setForm] = useState({ name: "", regNo: "", phone: "" });
+  const [paymentPhone, setPaymentPhone] = useState("");
+  const [tiers, setTiers] = useState<Tier[]>([
+    { id: "member", label: "Registered club member", amount: 650 },
+    { id: "first_year", label: "First year student", amount: 650 },
+    { id: "non_member", label: "Non-member / associate", amount: 750 },
+  ]);
+  const [selectedTier, setSelectedTier] = useState("member");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [receiptBalance, setReceiptBalance] = useState<number | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const stopPolling = () => {
     if (pollRef.current) {
       clearInterval(pollRef.current);
@@ -297,453 +193,558 @@ export default function EventsPage() {
     }
   };
   useEffect(() => stopPolling, []);
-  
-  // Form & Payment Inputs
-  const [formData, setFormData] = useState({ name: "", regNo: "", phone: "" });
-  const [paymentPhone, setPaymentPhone] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Dynamic Array Fee Configuration State
-  const [paymentOptions, setPaymentOptions] = useState([
-    { id: "member", label: "Registered Club Member", amount: 650 },
-    { id: "first_year", label: "First Year Student", amount: 650 },
-    { id: "non_member", label: "Non-Member / Associate", amount: 750 }
-  ]);
-  const [selectedTier, setSelectedTier] = useState<string>("member");
-  const [selectedAmount, setSelectedAmount] = useState<number>(650);
-  const [paymentAmount, setPaymentAmount] = useState<number>(650);
-  const [paymentBalance, setPaymentBalance] = useState<number | null>(null);
 
   useEffect(() => {
-    async function loadData() {
-      // Fire all three requests together instead of waiting for them one by one.
-      const eventsPromise = fetch("/api/admin/events");
-      const activityPromise = user ? fetch(`/api/account/activity?clerkId=${user.id}`) : null;
-      const feePromise = fetch("/api/admin/fees");
+    async function load() {
       try {
-        const res = await eventsPromise;
-        const data = await res.json();
-        if (data.events && data.events.length > 0) {
-          setEvents(data.events);
+        const [eventsRes, feesRes, activityRes] = await Promise.all([
+          fetch("/api/admin/events", { cache: "no-store" }).catch(() => null),
+          fetch("/api/admin/fees", { cache: "no-store" }).catch(() => null),
+          user
+            ? fetch(`/api/account/activity?clerkId=${user.id}`, { cache: "no-store" }).catch(() => null)
+            : Promise.resolve(null),
+        ]);
+
+        if (eventsRes?.ok) {
+          const data = await eventsRes.json();
+          setEvents(Array.isArray(data.events) ? data.events : []);
         }
 
-        if (activityPromise) {
-          const userActivity = await activityPromise;
-          const actData = await userActivity.json();
-          if (actData.rsvps) {
-            const statusMap: { [key: string]: string } = {};
-            actData.rsvps.forEach((r: any) => {
-              statusMap[r.eventName] = r.paymentStatus || "Not Yet Paid";
-            });
-            setUserRsvpStatus(statusMap);
-          }
+        if (activityRes?.ok) {
+          const activity = await activityRes.json();
+          const map: Record<string, string> = {};
+          (activity.rsvps || []).forEach((rsvp: any) => {
+            map[rsvp.eventName] = rsvp.paymentStatus || "Not Yet Paid";
+          });
+          setRsvpStatus(map);
         }
-      } catch (err) {
-        console.error("Failed to load events data:", err);
-      }
 
-      try {
-        const feeRes = await feePromise;
-        if (feeRes.ok) {
-          const feeData = await feeRes.json();
-          if (feeData && feeData.eventTiers && Array.isArray(feeData.eventTiers) && feeData.eventTiers.length > 0) {
-            setPaymentOptions(feeData.eventTiers);
-            setSelectedTier(feeData.eventTiers[0].id);
-            setSelectedAmount(feeData.eventTiers[0].amount);
-            setPaymentAmount(feeData.eventTiers[0].amount);
-          } else if (feeData && feeData.eventMember) {
-            const legacyOptions = [
-              { id: "member", label: "Registered Club Member", amount: feeData.eventMember },
-              { id: "first_year", label: "First Year Student", amount: feeData.eventMember },
-              { id: "non_member", label: "Non-Member / Associate", amount: feeData.eventNonMember }
+        if (feesRes?.ok) {
+          const fees = await feesRes.json();
+          if (Array.isArray(fees.eventTiers) && fees.eventTiers.length) {
+            setTiers(fees.eventTiers);
+            setSelectedTier(fees.eventTiers[0].id);
+          } else if (fees.eventMember) {
+            const legacy: Tier[] = [
+              { id: "member", label: "Registered club member", amount: fees.eventMember },
+              { id: "first_year", label: "First year student", amount: fees.eventMember },
+              {
+                id: "non_member",
+                label: "Non-member / associate",
+                amount: fees.eventNonMember || fees.eventMember,
+              },
             ];
-            setPaymentOptions(legacyOptions);
-            setSelectedTier(legacyOptions[0].id);
-            setSelectedAmount(legacyOptions[0].amount);
-            setPaymentAmount(legacyOptions[0].amount);
+            setTiers(legacy);
+            setSelectedTier(legacy[0].id);
           }
         }
-      } catch (error) {
-        console.log("Using fallback default fee structures.");
+      } catch (loadError) {
+        console.error("Failed to load events:", loadError);
       } finally {
         setLoading(false);
       }
     }
-    loadData();
-  }, [user]);
+    if (!isLoaded) return;
+    load();
+  }, [user, isLoaded]);
 
   useEffect(() => {
-    if (user) {
-      setFormData((prev) => ({
-        ...prev,
-        name: user.fullName || "",
-      }));
+    if (user?.fullName) {
+      setForm((previous) => ({ ...previous, name: previous.name || user.fullName || "" }));
     }
   }, [user]);
 
-  const handleTierChange = (tierId: string) => {
-    setSelectedTier(tierId);
-    const selectedOption = paymentOptions.find(opt => opt.id === tierId);
-    if (selectedOption) {
-      setSelectedAmount(selectedOption.amount);
-      setPaymentAmount(selectedOption.amount);
-    }
+  const selectedAmount = tiers.find((tier) => tier.id === selectedTier)?.amount ?? tiers[0]?.amount ?? 0;
+
+  const upcoming = useMemo(() => events.filter((event) => event.category === "upcoming"), [events]);
+  const previous = useMemo(() => events.filter((event) => event.category === "previous"), [events]);
+  const projects = useMemo(() => events.filter((event) => event.category === "project"), [events]);
+
+  const moments = useMemo<ReelItem[]>(
+    () => events.flatMap((event) => eventToReels(event)).slice(0, 12),
+    [events]
+  );
+
+  const reactToEvent = (item: ReelItem, action: string, commentData?: { fullName: string; text: string }) => {
+    if (!user) return Promise.resolve();
+    const eventId = item.id.split("-")[0];
+    return fetch("/api/events/interact", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ eventId, clerkId: user.id, action, commentData }),
+    }).catch(() => {});
   };
 
-  const handleOpenModal = (event: any, directToPay: boolean = false) => {
-    setActiveModalEvent(event);
-    if (directToPay) {
-      setPaymentPhone(formData.phone);
-      setModalStep("checkout");
-    } else {
-      setModalStep("form");
-    }
+  const openModal = (event: EventLite) => {
+    setActiveEvent(event);
+    setStep("form");
+    setError("");
+    setNotice("");
+    setReceiptBalance(null);
   };
 
-  const handleCloseModal = () => {
-    setActiveModalEvent(null);
-    setModalStep("form");
+  const closeModal = () => {
+    stopPolling();
+    setActiveEvent(null);
+    setStep("form");
+    setBusy(false);
   };
 
-  const handleSubmitApplication = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!activeModalEvent || !user) return;
-    setIsSubmitting(true);
+  const continueToPayment = (event: EventLite) => {
+    setActiveEvent(event);
+    setStep("checkout");
+    setError("");
+    setNotice("");
+    setPaymentPhone(form.phone);
+  };
+
+  const submitRegistration = async (submitEvent: React.FormEvent) => {
+    submitEvent.preventDefault();
+    if (!activeEvent || !user) return;
+    setBusy(true);
+    setError("");
 
     try {
-      // Check if event is strictly free
-      const isFreeEvent = activeModalEvent.isFree === true;
-
       const res = await fetch("/api/admin/registrations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           clerkId: user.id,
-          fullName: formData.name,
-          phone: formData.phone,
-          phoneNumber: formData.phone,
-          registrationNumber: formData.regNo,
+          fullName: form.name,
+          phone: form.phone,
+          phoneNumber: form.phone,
+          registrationNumber: form.regNo,
           email: user.primaryEmailAddress?.emailAddress || "",
-          eventName: activeModalEvent.title,
-          paymentStatus: isFreeEvent ? "Paid" : "Not Yet Paid",
-          amountPaid: isFreeEvent ? 0 : 0
+          eventName: activeEvent.title,
+          paymentStatus: activeEvent.isFree ? "Paid" : "Not Yet Paid",
+          amountPaid: 0,
         }),
       });
 
-      if (res.ok) {
-        setPaymentPhone(formData.phone); 
-        if (isFreeEvent) {
-          setUserRsvpStatus(prev => ({ ...prev, [activeModalEvent.title]: "Paid" }));
-          setModalStep("success");
-          setTimeout(() => handleCloseModal(), 2000);
-        } else {
-          setUserRsvpStatus(prev => ({ ...prev, [activeModalEvent.title]: "Not Yet Paid" }));
-          setModalStep("ask_pay");
-        }
-      } else {
-        const errData = await res.json().catch(() => ({}));
-        alert(`Failed to submit application: ${errData.error || "Please try again."}`);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error || "Could not submit your application. Please try again.");
+        return;
       }
-    } catch (error) {
-      alert("An error occurred during submission.");
+
+      setPaymentPhone(form.phone);
+
+      if (activeEvent.isFree) {
+        setRsvpStatus((current) => ({ ...current, [activeEvent.title]: "Paid" }));
+        setStep("success");
+        setNotice("Your free slot is confirmed. See you there!");
+      } else {
+        setRsvpStatus((current) => ({ ...current, [activeEvent.title]: "Not Yet Paid" }));
+        setStep("ask_pay");
+      }
+    } catch {
+      setError("Network error. Please try again.");
     } finally {
-      setIsSubmitting(false);
+      setBusy(false);
     }
   };
 
-  // REAL LIVE SAFARICOM DARAJA PAYMENT INTEGRATION
-  const handleInitiatePayment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!paymentPhone) return alert("Please enter your M-Pesa phone number.");
+  const initiatePayment = async (submitEvent: React.FormEvent) => {
+    submitEvent.preventDefault();
+    if (!activeEvent) return;
+    if (!paymentPhone.trim()) {
+      setError("Enter the M-Pesa number that will receive the prompt.");
+      return;
+    }
 
-    setModalStep("polling"); // Switch UI to polling spinner immediately
+    setBusy(true);
+    setError("");
+    setNotice("");
+    setStep("polling");
+    stopPolling();
 
     try {
-      // 1. Trigger the STK Push to the user's phone via backend
       const pushRes = await fetch("/api/mpesa/stkpush", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           clerkId: user?.id,
-          fullName: user?.fullName || formData.name || "Member",
-          phone: paymentPhone,
-          amount: paymentAmount,
+          fullName: user?.fullName || form.name || "Member",
+          phone: paymentPhone.replace(/[^\d+]/g, ""),
+          amount: selectedAmount,
           totalDue: selectedAmount,
           category: "Event Registration",
-          reference: activeModalEvent?.title || "Event Payment"
-        })
+          reference: activeEvent.title,
+        }),
       });
-
       const pushData = await pushRes.json();
 
       if (!pushRes.ok) {
-        alert(`M-Pesa Error: ${pushData.error}`);
-        setModalStep("checkout");
+        setError(pushData.error || "M-Pesa rejected the request. Please try again.");
+        setStep("checkout");
+        setBusy(false);
         return;
       }
 
-      // 2. Start Polling the Database for "Completed" Status
-      const paymentId = pushData.paymentId;
-      let attempts = 0;
-      const maxAttempts = 30; // Stop checking after 90 seconds (30 attempts * 3s)
+      setBusy(false);
+      setNotice("Prompt sent. Enter your M-Pesa PIN on your phone now.");
 
-      stopPolling();
+      let attempts = 0;
       pollRef.current = setInterval(async () => {
-        attempts++;
-        
+        attempts += 1;
         try {
-          const statusRes = await fetch(`/api/mpesa/status?id=${paymentId}`);
+          const statusRes = await fetch(`/api/mpesa/status?id=${pushData.paymentId}`, { cache: "no-store" });
           const statusData = await statusRes.json();
 
           if (statusData.status === "Completed") {
             stopPolling();
-            setPaymentBalance(statusData.balance ?? 0);
-            
-            // Mark local state as paid to update UI
-            if (activeModalEvent) {
-              setUserRsvpStatus(prev => ({ ...prev, [activeModalEvent.title]: "Paid" }));
-            }
-            setModalStep("success");
-            
-            // Auto-close modal after 3 seconds
-            setTimeout(() => {
-              handleCloseModal();
-            }, 3000);
-            
-          } else if (statusData.status === "Failed" || attempts >= maxAttempts) {
+            setReceiptBalance(statusData.balance ?? 0);
+            setRsvpStatus((current) => ({ ...current, [activeEvent.title]: "Paid" }));
+            setNotice("");
+            setStep("success");
+            window.setTimeout(() => closeModal(), 3500);
+          } else if (statusData.status === "Failed" || attempts >= 40) {
             stopPolling();
-            alert("Payment failed or timed out. Please check your funds and try again.");
-            setModalStep("checkout");
+            setError(
+              statusData.status === "Failed"
+                ? "Payment failed. Check your balance and try again."
+                : "Payment is taking too long. If you were charged, share your receipt with the club."
+            );
+            setStep("checkout");
           }
-        } catch (pollErr) {
-          console.error("Polling error", pollErr);
+        } catch {
+          /* keep polling */
         }
-      }, 3000); // Check every 3 seconds
-
-    } catch (error) {
-      console.error("Payment submission error:", error);
-      alert("Server connection failed.");
-      setModalStep("checkout");
+      }, 1500);
+    } catch {
+      setError("Server connection failed. Please try again.");
+      setStep("checkout");
+      setBusy(false);
     }
   };
 
-  if (!isLoaded) return null;
-
-  const dynamicUpcoming = events.filter((e) => e.category === "upcoming");
-  const upcomingEvents = dynamicUpcoming;
-
-  const dynamicPrevious = events.filter((e) => e.category === "previous");
-  const previousEvents = dynamicPrevious.length > 0 ? dynamicPrevious : FALLBACK_PREVIOUS;
-
-  const dynamicProjects = events.filter((e) => e.category === "project");
-  const ongoingProjects = dynamicProjects.length > 0 ? dynamicProjects : FALLBACK_PROJECTS;
-
   return (
-    <div className="p-6 sm:p-8 lg:p-12 max-w-7xl mx-auto space-y-12 relative font-sans">
-      
-      {/* Header */}
-      <div className="border-b border-gray-200 pb-6">
-        <h1 className="text-3xl sm:text-4xl font-black text-emerald-950 tracking-tight">Events & Activities</h1>
-        <p className="text-sm sm:text-base text-gray-500 mt-2 max-w-2xl">
-          Sign up for upcoming excursions, connect with nature, and browse through our past club highlights.
-        </p>
-      </div>
+    <div className="mx-auto max-w-6xl space-y-8 p-4 sm:p-7 lg:p-9">
+      <header className="animate-rise flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">
+            Events &amp; activities
+          </p>
+          <h1 className="mt-1 text-2xl font-black text-emerald-950 sm:text-3xl">Where the club goes next</h1>
+          <p className="mt-1 max-w-xl text-sm text-muted">
+            Watch the moments, reserve a slot, and pay with M-Pesa without leaving the portal.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800">
+            <Calendar className="h-3.5 w-3.5" /> {upcoming.length} upcoming
+          </span>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800">
+            <Camera className="h-3.5 w-3.5" /> {moments.length} moments
+          </span>
+          <Link
+            href="/events"
+            className="inline-flex items-center gap-1.5 rounded-full bg-emerald-900 px-3.5 py-2 text-xs font-bold text-white transition hover:bg-emerald-800"
+          >
+            Public page <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
+        </div>
+      </header>
 
       {loading ? (
-        <div className="flex justify-center py-20">
-          <Loader2 className="h-8 w-8 text-emerald-600 animate-spin" />
+        <div className="space-y-5">
+          <div className="skeleton h-24 rounded-3xl" />
+          <div className="skeleton h-64 rounded-3xl" />
         </div>
       ) : (
         <>
-          {/* Upcoming Section */}
-          <section className="space-y-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-emerald-100 text-emerald-600 rounded-lg">
-                <Calendar className="h-5 w-5" />
+          {moments.length > 0 ? (
+            <section className="card p-4 sm:p-5">
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="flex items-center gap-2 text-sm font-black text-emerald-950">
+                  <Sparkles className="h-4 w-4 text-emerald-600" /> Club moments
+                </h2>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted">
+                  Tap to watch · like · comment
+                </span>
               </div>
-              <h2 className="text-2xl font-black text-emerald-950">Upcoming Events</h2>
+              <ReelsFeed
+                items={moments}
+                currentUserId={user?.id}
+                storiesTitle="Event stories"
+                layout="grid"
+                onLike={(item, liked) => {
+                  reactToEvent(item, liked ? "like" : "unlike");
+                }}
+                onRepost={(item) => {
+                  const already = !!user && (item.reposts || []).includes(user.id);
+                  reactToEvent(item, already ? "unrepost" : "repost");
+                }}
+                onComment={(item, text) =>
+                  reactToEvent(item, "comment", {
+                    fullName: user?.fullName || "Member",
+                    text,
+                  }).then(() => undefined)
+                }
+                onShare={() => setShareNote("Link copied — share this event with a friend.")}
+              />
+              {shareNote ? (
+                <p className="mt-3 rounded-xl bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800">
+                  {shareNote}
+                </p>
+              ) : null}
+            </section>
+          ) : null}
+
+          <section className="space-y-4">
+            <div className="flex items-center gap-2">
+              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
+                <Calendar className="h-4 w-4" />
+              </span>
+              <h2 className="text-lg font-black text-emerald-950">Upcoming events</h2>
             </div>
-            
-            {upcomingEvents.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-gray-300 bg-white/70 px-6 py-12 text-center">
-                <Calendar className="mx-auto h-8 w-8 text-gray-400" />
-                <p className="mt-3 text-sm font-semibold text-gray-600">There are no upcoming events at the moment.</p>
+
+            {upcoming.length === 0 ? (
+              <div className="card border-dashed p-10 text-center">
+                <Calendar className="mx-auto h-9 w-9 text-emerald-300" />
+                <p className="mt-3 text-sm font-semibold text-slate-500">
+                  Nothing scheduled yet. Watch this space.
+                </p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-6">
-                {upcomingEvents.map((event) => {
-                const status = userRsvpStatus[event.title];
-                const isFree = event.isFree === true;
-
-                return (
-                  <div key={event._id} className="flex flex-col md:flex-row bg-white border border-gray-200 rounded-3xl overflow-hidden shadow-sm hover:shadow-md transition">
-                    <div className="md:w-2/5 h-64 md:h-auto relative bg-gray-100">
-                      <EventMediaCarousel event={event} fallbackImage="https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?q=80&w=1000" />
-                      <div className="absolute top-4 left-4 bg-emerald-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-md z-20">
-                        {isFree ? "Free Event" : (event.status || "Registration Open")}
-                      </div>
-                    </div>
-                    
-                    <div className="p-6 sm:p-8 md:w-3/5 flex flex-col justify-between space-y-6">
-                      <div className="space-y-4">
-                        <h3 className="text-2xl font-bold text-gray-900">{event.title}</h3>
-                        <div className="flex flex-wrap gap-4 text-xs font-semibold text-emerald-700">
-                          <div className="flex items-center gap-1.5 bg-emerald-50 px-3 py-1.5 rounded-lg">
-                            <Calendar className="h-4 w-4" /> <span>{event.date}</span>
-                          </div>
-                          {event.time && (
-                            <div className="flex items-center gap-1.5 bg-emerald-50 px-3 py-1.5 rounded-lg">
-                              <Clock className="h-4 w-4" /> <span>{event.time}</span>
+              <div className="grid gap-5">
+                {upcoming.map((event) => {
+                  const status = rsvpStatus[event.title];
+                  const paid = status === "Paid";
+                  const pending = status === "Not Yet Paid";
+                  return (
+                    <article key={event._id} className="card card-hover overflow-hidden">
+                      <div className="grid md:grid-cols-[minmax(0,300px)_minmax(0,1fr)]">
+                        <div className="relative h-56 md:h-full">
+                          {event.imageUrl ? (
+                            <img
+                              src={optimizedImage(event.imageUrl, 900)}
+                              alt={`${event.title} poster`}
+                              className="h-full w-full object-cover"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <div className="flex h-full items-center justify-center bg-emerald-950">
+                              <Calendar className="h-10 w-10 text-emerald-700" />
                             </div>
                           )}
-                          {event.location && (
-                            <div className="flex items-center gap-1.5 bg-emerald-50 px-3 py-1.5 rounded-lg">
-                              <MapPin className="h-4 w-4" /> <span>{event.location}</span>
-                            </div>
-                          )}
+                          <span className="absolute inset-0 bg-gradient-to-t from-emerald-950/80 via-emerald-950/10 to-transparent" />
+                          <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-900 backdrop-blur">
+                            {event.isFree ? "Free entry" : "Registration open"}
+                          </span>
+                          <span className="absolute bottom-3 left-3 right-3 text-xs font-bold text-white">
+                            {event.date}
+                          </span>
                         </div>
-                        <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">{event.description}</p>
-                      </div>
 
-                      <div>
-                        {status === "Paid" ? (
-                          <div className="inline-flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-200 px-6 py-3 rounded-xl text-sm font-bold">
-                            <CheckCircle className="h-5 w-5" /> Secured {isFree ? "" : "& Paid"}
-                          </div>
-                        ) : status === "Not Yet Paid" && !isFree ? (
-                          <div className="flex flex-col gap-3">
-                            <div className="flex flex-wrap items-center gap-3">
-                              <span className="inline-flex items-center gap-1.5 bg-amber-50 text-amber-800 border border-amber-200 px-4 py-2.5 rounded-xl text-xs font-bold">
-                                <AlertCircle className="h-4 w-4" /> Applied (Not Yet Paid)
-                              </span>
-                              <button 
-                                onClick={() => handleOpenModal(event, true)}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl text-xs font-bold transition shadow-sm"
-                              >
-                                Complete Payment
-                              </button>
+                        <div className="flex flex-col gap-4 p-5 sm:p-6">
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              {paid ? (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-800">
+                                  <CheckCircle2 className="h-3 w-3" /> Slot confirmed
+                                </span>
+                              ) : pending ? (
+                                <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-amber-800">
+                                  Payment pending
+                                </span>
+                              ) : null}
+                              {!event.isFree ? (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-700">
+                                  <Ticket className="h-3 w-3" /> from KES {tiers[0]?.amount ?? 650}
+                                </span>
+                              ) : null}
                             </div>
-                            <button 
-                              onClick={() => handleOpenModal(event, true)}
-                              className="text-xs text-gray-500 hover:text-emerald-700 font-bold transition text-left flex items-center gap-1.5 w-max ml-1"
-                            >
-                              <AlertCircle className="h-4 w-4" /> Did your payment fail or delay? Retry Here
-                            </button>
+                            <h3 className="mt-2 text-xl font-black leading-tight text-emerald-950">
+                              {event.title}
+                            </h3>
+                            <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-slate-600">
+                              {event.description}
+                            </p>
                           </div>
-                        ) : (
-                          <button 
-                            onClick={() => handleOpenModal(event, false)}
-                            className="bg-emerald-900 hover:bg-emerald-800 text-white px-6 py-3 rounded-xl text-sm font-bold transition shadow-sm w-full sm:w-auto"
-                          >
-                            {isFree ? "Register for Free" : "Apply for Event"}
-                          </button>
-                        )}
-                      </div>
 
-                      {/* LIKES AND COMMENTS */}
-                      <EventInteractions eventId={event._id} initialLikes={event.likes} initialComments={event.comments} user={user} />
-                    </div>
-                  </div>
-                );
+                          <div className="flex flex-wrap gap-2 text-[11px] font-semibold text-emerald-800">
+                            <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1.5">
+                              <Calendar className="h-3.5 w-3.5" /> {event.date}
+                            </span>
+                            {event.time ? (
+                              <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1.5">
+                                <Clock className="h-3.5 w-3.5" /> {event.time}
+                              </span>
+                            ) : null}
+                            {event.location ? (
+                              <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1.5">
+                                <MapPin className="h-3.5 w-3.5" /> {event.location}
+                              </span>
+                            ) : null}
+                          </div>
+
+                          <div className="mt-auto flex flex-wrap gap-2">
+                            {paid ? (
+                              <span className="inline-flex items-center gap-2 rounded-xl bg-emerald-800 px-5 py-3 text-sm font-bold text-white">
+                                <CheckCircle2 className="h-4 w-4" /> You are registered
+                              </span>
+                            ) : pending ? (
+                              <button
+                                type="button"
+                                onClick={() => continueToPayment(event)}
+                                className="inline-flex items-center gap-2 rounded-xl bg-amber-500 px-5 py-3 text-sm font-bold text-amber-950 transition hover:bg-amber-400"
+                              >
+                                <Smartphone className="h-4 w-4" /> Complete payment
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => openModal(event)}
+                                className="inline-flex items-center gap-2 rounded-xl bg-emerald-900 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-900/15 transition hover:bg-emerald-800"
+                              >
+                                <Ticket className="h-4 w-4" />
+                                {event.isFree ? "Reserve my slot" : "Reserve & pay"}
+                              </button>
+                            )}
+                            {event.galleryLink ? (
+                              <a
+                                href={event.galleryLink}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 px-4 py-3 text-xs font-bold text-emerald-800 transition hover:bg-emerald-50"
+                              >
+                                <ImageIcon className="h-4 w-4" /> Gallery
+                              </a>
+                            ) : null}
+                          </div>
+                        </div>
+                      </div>
+                    </article>
+                  );
                 })}
               </div>
             )}
           </section>
 
-          {/* Previous Events Section */}
-          <section className="space-y-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-gray-100 text-gray-600 rounded-lg">
-                <ImageIcon className="h-5 w-5" />
+          {previous.length > 0 ? (
+            <section className="space-y-4">
+              <div className="flex items-center gap-2">
+                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-sky-100 text-sky-700">
+                  <ImageIcon className="h-4 w-4" />
+                </span>
+                <h2 className="text-lg font-black text-emerald-950">Past events &amp; galleries</h2>
               </div>
-              <h2 className="text-2xl font-black text-emerald-950">Previous Events & Galleries</h2>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {previousEvents.map((event) => (
-                <div key={event._id} className="bg-white border border-gray-200 rounded-3xl p-5 shadow-sm hover:shadow-md transition flex flex-col">
-                  <div className="h-48 w-full rounded-2xl overflow-hidden mb-5 bg-gray-100 relative">
-                    <EventMediaCarousel event={event} fallbackImage="https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?q=80&w=1000" />
-                  </div>
-                  <h3 className="text-lg font-bold text-gray-900 mb-1">{event.title}</h3>
-                  <p className="text-xs font-bold text-emerald-600 mb-3">{event.date}</p>
-                  <p className="text-sm text-gray-600 leading-relaxed mb-6 flex-grow whitespace-pre-wrap">{event.description}</p>
-                  
-                  {event.galleryLink && (
-                    <a 
-                      href={event.galleryLink} 
-                      target="_blank" 
-                      rel="noopener noreferrer" 
-                      className="inline-flex items-center justify-center gap-2 w-full py-3 rounded-xl border-2 border-emerald-100 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs transition mb-4"
-                    >
-                      <ImageIcon className="h-4 w-4" />
-                      <span>View Google Photos Gallery</span>
-                      <ExternalLink className="h-3 w-3 ml-1" />
-                    </a>
-                  )}
-
-                  {/* LIKES AND COMMENTS */}
-                  <div className="mt-auto">
-                    <EventInteractions eventId={event._id} initialLikes={event.likes} initialComments={event.comments} user={user} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          {/* Ongoing Projects & Other Events Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            
-            {/* Ongoing Projects */}
-            <section className="lg:col-span-2 space-y-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-emerald-900 text-emerald-300 rounded-lg">
-                  <Leaf className="h-5 w-5" />
-                </div>
-                <h2 className="text-2xl font-black text-emerald-950">Ongoing Club Projects</h2>
-              </div>
-              
-              <div className="bg-emerald-950 text-white rounded-3xl overflow-hidden shadow-lg">
-                {ongoingProjects.map((project) => (
-                  <div key={project._id} className="flex flex-col sm:flex-row border-b border-emerald-900 last:border-b-0">
-                    <div className="sm:w-1/2 h-56 sm:h-auto bg-emerald-900 relative">
-                      <EventMediaCarousel event={project} fallbackImage="https://images.unsplash.com/photo-1466692476868-aef1dfb1e735?q=80&w=1000" />
-                    </div>
-                    <div className="p-6 sm:p-8 sm:w-1/2 flex flex-col justify-center">
-                      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-800/50 border border-emerald-700 text-emerald-300 text-[10px] font-bold uppercase tracking-wider mb-4 w-max">
-                        <Leaf className="h-3 w-3" /> Active Initiative
-                      </div>
-                      <h3 className="text-xl font-bold text-white mb-3">{project.title}</h3>
-                      <p className="text-sm text-emerald-100/80 leading-relaxed whitespace-pre-wrap">
-                        {project.description}
-                      </p>
-
-                      {/* LIKES AND COMMENTS FOR PROJECTS (Dark Theme) */}
-                      <div className="mt-4">
-                        <EventInteractions eventId={project._id} initialLikes={project.likes} initialComments={project.comments} user={user} />
+              <div className="grid gap-5 md:grid-cols-2">
+                {previous.map((event) => (
+                  <article key={event._id} className="card card-hover overflow-hidden">
+                    <div className="relative h-44 bg-emerald-950">
+                      {event.imageUrl ? (
+                        <img
+                          src={optimizedImage(event.imageUrl, 700)}
+                          alt={event.title}
+                          className="h-full w-full object-cover"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className="flex h-full items-center justify-center">
+                          <Camera className="h-8 w-8 text-emerald-700" />
+                        </div>
+                      )}
+                      <span className="absolute inset-0 bg-gradient-to-t from-emerald-950/85 via-transparent to-transparent" />
+                      <div className="absolute bottom-3 left-3 right-3">
+                        <h3 className="text-sm font-black text-white">{event.title}</h3>
+                        <p className="text-[10px] font-bold text-emerald-200">{event.date}</p>
                       </div>
                     </div>
-                  </div>
+                    <div className="space-y-3 p-4">
+                      <p className="line-clamp-2 text-xs leading-relaxed text-slate-600">{event.description}</p>
+                      <div className="flex items-center justify-between gap-2">
+                        {event.galleryLink ? (
+                          <a
+                            href={event.galleryLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-[11px] font-bold text-emerald-800 transition hover:bg-emerald-100"
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" /> Google Photos
+                          </a>
+                        ) : (
+                          <span className="text-[11px] font-semibold text-muted">Club archive</span>
+                        )}
+                      </div>
+                      <EventReactions event={event} userId={user?.id} userName={user?.fullName || undefined} />
+                    </div>
+                  </article>
                 ))}
               </div>
             </section>
+          ) : null}
 
-            {/* Other Regular Events */}
-            <section className="space-y-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-amber-100 text-amber-600 rounded-lg">
-                  <Users className="h-5 w-5" />
-                </div>
-                <h2 className="text-2xl font-black text-emerald-950">Other Events</h2>
+          <div className="grid gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+            <section className="space-y-4">
+              <div className="flex items-center gap-2">
+                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-lime-100 text-lime-800">
+                  <Leaf className="h-4 w-4" />
+                </span>
+                <h2 className="text-lg font-black text-emerald-950">Ongoing projects</h2>
               </div>
-              
-              <div className="bg-white border border-gray-200 rounded-3xl p-6 shadow-sm h-full">
-                <ul className="space-y-4">
-                  {otherEvents.map((event, index) => (
-                    <li key={index} className="flex items-start gap-3 p-3 rounded-2xl hover:bg-emerald-50 transition border border-transparent hover:border-emerald-100">
-                      <div className="mt-0.5 h-2 w-2 bg-emerald-500 rounded-full shrink-0" />
-                      <span className="text-sm text-gray-700 font-medium leading-tight">{event}</span>
+              {projects.length === 0 ? (
+                <div className="card p-6 text-sm text-slate-500">
+                  Project updates will appear here as the executive publishes them.
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {projects.map((project) => (
+                    <article key={project._id} className="card overflow-hidden">
+                      <div className="flex flex-col sm:flex-row">
+                        <div className="relative h-40 sm:h-auto sm:w-2/5">
+                          {project.imageUrl ? (
+                            <img
+                              src={optimizedImage(project.imageUrl, 600)}
+                              alt={project.title}
+                              className="h-full w-full object-cover"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <div className="flex h-full items-center justify-center bg-emerald-950">
+                              <Leaf className="h-7 w-7 text-emerald-700" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1 space-y-2 p-5">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-700">
+                            <Leaf className="h-3 w-3" /> Active initiative
+                          </span>
+                          <h3 className="text-sm font-black text-emerald-950">{project.title}</h3>
+                          <p className="line-clamp-3 text-xs leading-relaxed text-slate-600">
+                            {project.description}
+                          </p>
+                          <EventReactions event={project} userId={user?.id} userName={user?.fullName || undefined} />
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section className="space-y-4">
+              <div className="flex items-center gap-2">
+                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+                  <Users className="h-4 w-4" />
+                </span>
+                <h2 className="text-lg font-black text-emerald-950">Weekly rhythm</h2>
+              </div>
+              <div className="card p-5">
+                <ul className="space-y-3">
+                  {[
+                    "Weekly Wednesday physical gathering · 5:00 – 6:45 PM",
+                    "EcoPulse wildlife debates",
+                    "Monthly campus clean-up drives",
+                    "Nature Snap winners announced in person",
+                  ].map((item) => (
+                    <li
+                      key={item}
+                      className="flex items-start gap-2.5 text-xs font-medium leading-snug text-slate-700"
+                    >
+                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
+                      {item}
                     </li>
                   ))}
                 </ul>
@@ -753,194 +754,235 @@ export default function EventsPage() {
         </>
       )}
 
-      {/* MULTI-STAGE RSVP & PAYMENT MODAL */}
-      {activeModalEvent !== null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl w-full max-w-md p-6 sm:p-8 shadow-2xl relative animate-in fade-in zoom-in duration-200">
-            
-            <button 
-              onClick={handleCloseModal}
-              className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full transition"
-            >
-              <X className="h-5 w-5" />
-            </button>
-
-            {/* STAGE 1: Event Registration Form */}
-            {modalStep === "form" && (
-              <>
-                <div className="mb-6">
-                  <h3 className="text-xl font-black text-emerald-950">Event Application</h3>
-                  <p className="text-sm text-gray-500 mt-1">Submit your details to sign up for <strong>{activeModalEvent.title}</strong>.</p>
-                </div>
-
-                <form onSubmit={handleSubmitApplication} className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-1">Full Name</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. Kelvin Maina"
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:border-emerald-600 outline-none transition"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-1">Contact Phone Number</label>
-                    <input
-                      type="tel"
-                      required
-                      placeholder="e.g. 0712345678"
-                      value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:border-emerald-600 outline-none transition"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-1">DeKUT Registration Number</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. C025-01-0000/2023"
-                      value={formData.regNo}
-                      onChange={(e) => setFormData({ ...formData, regNo: e.target.value })}
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:border-emerald-600 outline-none transition uppercase"
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="w-full mt-4 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white font-bold text-sm transition flex items-center justify-center gap-2"
-                  >
-                    {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                    <span>Confirm Application</span>
-                  </button>
-                </form>
-              </>
-            )}
-
-            {/* STAGE 2: Congratulate & Ask Payment */}
-            {modalStep === "ask_pay" && (
-              <div className="text-center space-y-6 py-4">
-                <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
-                  <CheckCircle className="h-8 w-8" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-black text-emerald-950">Congratulations! 🎉</h3>
-                  <p className="text-sm text-gray-600 mt-2">
-                    Your spot for <strong>{activeModalEvent.title}</strong> has been logged.
-                  </p>
-                  <p className="text-sm font-bold text-emerald-800 mt-4">Do you want to complete your payment now?</p>
-                </div>
-
-                <div className="flex flex-col gap-3">
-                  <button 
-                    onClick={() => setModalStep("checkout")}
-                    className="w-full py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm transition"
-                  >
-                    Next: Proceed to Pay
-                  </button>
-                  <button 
-                    onClick={handleCloseModal}
-                    className="w-full py-3.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-sm transition"
-                  >
-                    I'll Pay Later
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* STAGE 3: Select Dynamic Payment Tier & Confirm M-Pesa Phone */}
-            {modalStep === "checkout" && (
-              <div className="space-y-6">
-                <div>
-                  <h3 className="text-xl font-black text-emerald-950">M-Pesa Checkout</h3>
-                  <p className="text-xs text-gray-500 mt-1">Select ticket type and confirm phone number for the STK Prompt.</p>
-                </div>
-
-                <form onSubmit={handleInitiatePayment} className="space-y-4">
-                  {/* Dynamic Dropdown Tier */}
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-1">Pay As</label>
-                    <select 
-                      value={selectedTier} 
-                      onChange={(e) => handleTierChange(e.target.value)}
-                      className="w-full px-4 py-3 rounded-xl border border-emerald-300 bg-emerald-50 text-emerald-900 font-bold text-sm outline-none"
-                    >
-                      {paymentOptions.map((opt) => (
-                        <option key={opt.id} value={opt.id}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-1">Amount to pay</label>
-                    <input type="number" min="1" required value={paymentAmount} onChange={(e) => setPaymentAmount(Number(e.target.value))} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-semibold outline-none focus:border-emerald-600" />
-                    <span className="text-[10px] text-gray-400 mt-1 block">Pay an installment now or enter the full remaining balance.</span>
-                  </div>
-
-                  {/* Phone Input with Editable Override */}
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-1">M-Pesa Phone Number</label>
-                    <div className="relative">
-                      <Smartphone className="h-4 w-4 text-gray-400 absolute left-3.5 top-3.5" />
-                      <input
-                        type="tel"
-                        required
-                        placeholder="07XXXXXXXX"
-                        value={paymentPhone}
-                        onChange={(e) => setPaymentPhone(e.target.value)}
-                        className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 text-sm font-semibold outline-none focus:border-emerald-600"
-                      />
-                    </div>
-                    <span className="text-[10px] text-gray-400 mt-1 block">Pre-filled with your registration contact. You may modify it to another number to pay.</span>
-                  </div>
-
-                  <button
-                    type="submit"
-                    className="w-full py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm transition flex items-center justify-center gap-2 shadow-md mt-2"
-                  >
-                    <CreditCard className="h-4 w-4" />
-                    <span>Send M-Pesa Prompt</span>
-                  </button>
-                </form>
-              </div>
-            )}
-
-            {/* STAGE 4: Waiting for M-Pesa PIN */}
-            {modalStep === "polling" && (
-              <div className="text-center space-y-5 py-8">
-                <Smartphone className="h-12 w-12 text-emerald-600 animate-pulse mx-auto" />
-                <h3 className="text-lg font-black text-emerald-950">Check your phone!</h3>
-                <p className="text-sm text-gray-500 px-4">
-                  An M-Pesa prompt has been sent to <strong>{paymentPhone}</strong>. Enter your PIN to finalize.
+      {activeEvent ? (
+        <div className="fixed inset-0 z-[75] flex items-end justify-center bg-emerald-950/60 backdrop-blur-sm sm:items-center sm:p-6">
+          <div className="animate-pop max-h-[94dvh] w-full max-w-md overflow-y-auto rounded-t-3xl bg-white p-6 shadow-2xl sm:rounded-3xl">
+            <div className="mb-5 flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-700">
+                  {step === "success" ? "Confirmed" : "Event application"}
                 </p>
-                <div className="flex items-center justify-center gap-2 text-xs font-bold text-emerald-600 mt-4">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Verifying payment with Safaricom...
-                </div>
+                <h3 className="mt-1 text-lg font-black leading-tight text-emerald-950">{activeEvent.title}</h3>
               </div>
-            )}
+              <button
+                type="button"
+                onClick={closeModal}
+                className="rounded-full p-2 text-slate-400 transition hover:bg-slate-100"
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
 
-            {/* STAGE 5: Success */}
-            {modalStep === "success" && (
-              <div className="text-center space-y-4 py-6">
-                <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
-                  <CheckCircle className="h-8 w-8" />
+            <div className="mb-5 flex items-center gap-1.5">
+              {["Details", "Payment", "Done"].map((label, index) => {
+                const activeStep =
+                  step === "form" ? 0 : step === "success" ? 2 : 1;
+                const done = step === "success" ? true : index < activeStep;
+                return (
+                  <div key={label} className="flex flex-1 items-center gap-1.5">
+                    <span
+                      className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-black ${
+                        done
+                          ? "bg-emerald-600 text-white"
+                          : index === activeStep
+                            ? "bg-emerald-100 text-emerald-800"
+                            : "bg-slate-100 text-slate-400"
+                      }`}
+                    >
+                      {done ? "✓" : index + 1}
+                    </span>
+                    <span
+                      className={`text-[10px] font-bold ${
+                        index === activeStep ? "text-emerald-900" : "text-slate-400"
+                      }`}
+                    >
+                      {label}
+                    </span>
+                    {index < 2 ? <span className="h-px flex-1 bg-slate-200" /> : null}
+                  </div>
+                );
+              })}
+            </div>
+
+            {error ? (
+              <p className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+                {error}
+              </p>
+            ) : null}
+
+            {step === "form" ? (
+              <form onSubmit={submitRegistration} className="space-y-3">
+                <label className="block">
+                  <span className="mb-1 block text-[11px] font-bold text-slate-700">Full name</span>
+                  <input
+                    required
+                    value={form.name}
+                    onChange={(event) => setForm({ ...form, name: event.target.value })}
+                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500"
+                    placeholder="Kelvin Maina"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-[11px] font-bold text-slate-700">Contact phone</span>
+                  <input
+                    required
+                    type="tel"
+                    value={form.phone}
+                    onChange={(event) => setForm({ ...form, phone: event.target.value })}
+                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500"
+                    placeholder="0712 345 678"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-[11px] font-bold text-slate-700">
+                    DeKUT registration number
+                  </span>
+                  <input
+                    required
+                    value={form.regNo}
+                    onChange={(event) => setForm({ ...form, regNo: event.target.value })}
+                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500"
+                    placeholder="C025-01-0000/2023"
+                  />
+                </label>
+                <button
+                  type="submit"
+                  disabled={busy}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-900 px-5 py-3.5 text-sm font-bold text-white transition hover:bg-emerald-800 disabled:opacity-50"
+                >
+                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+                  {activeEvent.isFree ? "Confirm free slot" : "Continue to payment"}
+                </button>
+              </form>
+            ) : null}
+
+            {step === "ask_pay" ? (
+              <div className="space-y-4">
+                <div className="rounded-2xl bg-emerald-50 p-4 text-xs leading-relaxed text-emerald-900">
+                  Your details are saved. Pay now to lock in your slot, or come back later from your events
+                  list.
                 </div>
-                <h3 className="text-xl font-black text-emerald-950">Payment Completed!</h3>
-                <p className="text-sm text-gray-500">Payment received. Your remaining balance is {paymentBalance ?? "being calculated"}. You can pay the full balance again from checkout.</p>
-                <button onClick={() => { setPaymentAmount(paymentBalance || selectedAmount); setModalStep("checkout"); }} className="w-full py-3 rounded-xl bg-emerald-600 text-white font-bold text-sm">Pay Full Balance Again</button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStep("checkout");
+                    setPaymentPhone(form.phone);
+                  }}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-900 px-5 py-3.5 text-sm font-bold text-white transition hover:bg-emerald-800"
+                >
+                  <Smartphone className="h-4 w-4" /> Pay with M-Pesa
+                </button>
+                <button
+                  type="button"
+                  onClick={closeModal}
+                  className="w-full rounded-xl border border-slate-200 px-5 py-3 text-sm font-bold text-slate-600 transition hover:bg-slate-50"
+                >
+                  Pay later
+                </button>
               </div>
-            )}
+            ) : null}
 
+            {step === "checkout" || step === "polling" ? (
+              <form onSubmit={initiatePayment} className="space-y-4">
+                <div>
+                  <p className="mb-2 text-[11px] font-bold text-slate-700">Choose your rate</p>
+                  <div className="space-y-2">
+                    {tiers.map((tier) => (
+                      <label
+                        key={tier.id}
+                        className={`flex cursor-pointer items-center justify-between rounded-xl border px-3.5 py-2.5 text-xs transition ${
+                          selectedTier === tier.id
+                            ? "border-emerald-500 bg-emerald-50 font-bold text-emerald-900"
+                            : "border-slate-200 text-slate-600 hover:border-emerald-300"
+                        }`}
+                      >
+                        <span className="flex items-center gap-2">
+                          <input
+                            type="radio"
+                            name="tier"
+                            value={tier.id}
+                            checked={selectedTier === tier.id}
+                            onChange={() => setSelectedTier(tier.id)}
+                            className="accent-emerald-700"
+                          />
+                          {tier.label}
+                        </span>
+                        <span className="font-black">KES {tier.amount}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <label className="block">
+                  <span className="mb-1 block text-[11px] font-bold text-slate-700">M-Pesa number</span>
+                  <input
+                    required
+                    inputMode="tel"
+                    value={paymentPhone}
+                    onChange={(event) => setPaymentPhone(event.target.value)}
+                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500"
+                    placeholder="0712 345 678"
+                  />
+                </label>
+
+                <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3 text-xs font-bold text-slate-700">
+                  <span className="inline-flex items-center gap-1.5">
+                    <CreditCard className="h-4 w-4 text-emerald-700" /> Total due
+                  </span>
+                  <span className="text-base font-black text-emerald-900">KES {selectedAmount}</span>
+                </div>
+
+                {notice ? (
+                  <p className="flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800">
+                    <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" /> {notice}
+                  </p>
+                ) : null}
+
+                <button
+                  type="submit"
+                  disabled={busy || step === "polling"}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-900 px-5 py-3.5 text-sm font-bold text-white transition hover:bg-emerald-800 disabled:opacity-60"
+                >
+                  {busy || step === "polling" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Smartphone className="h-4 w-4" />
+                  )}
+                  {step === "polling" ? "Waiting for confirmation…" : `Pay KES ${selectedAmount}`}
+                </button>
+                <p className="text-center text-[10px] text-muted">
+                  The prompt usually arrives in under 10 seconds.
+                </p>
+              </form>
+            ) : null}
+
+            {step === "success" ? (
+              <div className="space-y-3 text-center">
+                <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+                  <CheckCircle2 className="h-7 w-7" />
+                </span>
+                <p className="text-base font-black text-emerald-950">You are registered 🎉</p>
+                <p className="text-xs leading-relaxed text-slate-600">
+                  {notice || "Payment confirmed. Your slot is locked in."}
+                </p>
+                {receiptBalance ? (
+                  <p className="text-[11px] font-semibold text-emerald-800">
+                    Remaining balance: KES {receiptBalance}
+                  </p>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={closeModal}
+                  className="w-full rounded-xl bg-emerald-900 px-5 py-3 text-sm font-bold text-white transition hover:bg-emerald-800"
+                >
+                  Done
+                </button>
+              </div>
+            ) : null}
           </div>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import PortalPageHeader from "@/components/portal/PortalPageHeader";
 import { useUser } from "@clerk/nextjs";
 import { 
   ShoppingBag, CheckCircle, Clock, Smartphone, CreditCard, 
@@ -175,17 +176,12 @@ export default function MerchandisePage() {
 
   return (
     <div className="p-6 sm:p-8 lg:p-12 max-w-7xl mx-auto space-y-12 font-sans">
-      <div className="border-b border-gray-200 pb-6">
-        <div className="flex items-center gap-3 mb-2">
-          <div className="p-2 bg-emerald-100 text-emerald-700 rounded-xl">
-            <ShoppingBag className="h-6 w-6" />
-          </div>
-          <h1 className="text-3xl sm:text-4xl font-black text-emerald-950">Official Club Merchandise</h1>
-        </div>
-        <p className="text-sm text-gray-500 max-w-2xl">
-          Order authentic DEKUWEC gear, personalized t-shirts, and accessories. Collection is scheduled during our weekly Wednesday physical gathering exactly one week after confirmation.
-        </p>
-      </div>
+      <PortalPageHeader
+        eyebrow="Merchandise"
+        title="Official club gear"
+        description="Order authentic DEKUWEC t-shirts and accessories. Collection happens at the weekly Wednesday gathering, one week after confirmation."
+        icon={ShoppingBag}
+      />
 
       {/* Product Catalog Grid */}
       <section className="space-y-6">

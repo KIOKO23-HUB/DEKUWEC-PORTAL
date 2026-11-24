@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { UserButton, useUser } from "@clerk/nextjs";
 import { 
   Home, 
@@ -32,9 +32,48 @@ import {
 import MessageAttachment from "@/components/MessageAttachment";
 import { EcoPopup } from "@/components/EcoSpotlight";
 
+const NAV_SECTIONS = [
+  {
+    label: "Discover",
+    items: [
+      { href: "/dashboard", label: "Home", icon: Home },
+      { href: "/dashboard/events", label: "Events & reels", icon: CalendarDays },
+      { href: "/dashboard/snaps", label: "Nature Snaps", icon: Camera },
+      { href: "/dashboard/dispatch", label: "EcoPulse", icon: Radio },
+    ],
+  },
+  {
+    label: "Club",
+    items: [
+      { href: "/dashboard/membership", label: "Membership", icon: Users },
+      { href: "/dashboard/merchandise", label: "Merchandise", icon: ShoppingBag },
+      { href: "/dashboard/wck-card", label: "WCK Card", icon: CreditCard },
+    ],
+  },
+  {
+    label: "You",
+    items: [
+      { href: "/dashboard/account", label: "Account", icon: UserCircle },
+      { href: "/dashboard/support", label: "Support", icon: HelpCircle },
+    ],
+  },
+];
+
+const MOBILE_NAV = [
+  { href: "/dashboard", label: "Home", icon: Home },
+  { href: "/dashboard/events", label: "Events", icon: CalendarDays },
+  { href: "/dashboard/snaps", label: "Reels", icon: Camera },
+  { href: "/dashboard/membership", label: "Club", icon: Users },
+  { href: "/dashboard/account", label: "You", icon: UserCircle },
+];
+
+const isNavActive = (pathname: string, href: string) =>
+  href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(href);
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, isLoaded } = useUser();
   const router = useRouter(); // Hook for smart programmatic navigation
+  const pathname = usePathname() || "/dashboard";
   
   // UI Dropdown State
   const [isNotifOpen, setIsNotifOpen] = useState(false);
@@ -488,17 +527,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       )}
 
       {/* Sidebar Navigation - Now Responsive with 100dvh for proper mobile height */}
-      <aside className={`fixed md:relative inset-y-0 left-0 z-50 w-64 bg-[#064e3b] text-white flex flex-col h-[100dvh] transform transition-transform duration-300 ease-in-out md:translate-x-0 ${isMobileMenuOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full"}`}>
-        <div className="p-6 flex items-center justify-between space-x-3 shrink-0">
-          <div className="flex items-center space-x-3">
+      <aside className={`fixed md:relative inset-y-0 left-0 z-50 flex h-[100dvh] w-64 transform flex-col bg-gradient-to-b from-[#043527] via-[#064e3b] to-[#02231a] text-white shadow-xl shadow-emerald-950/20 transition-transform duration-300 ease-in-out md:translate-x-0 ${isMobileMenuOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full"}`}>
+        <div className="relative flex items-center justify-between space-x-3 overflow-hidden p-5 pb-4">
+          <span className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-lime-400/15 blur-2xl" />
+          <div className="relative flex items-center space-x-3">
             <img 
               src={logoUrl} 
               alt="DEKUWEC Logo" 
-              className="w-10 h-10 rounded-full bg-white p-0.5 object-cover shrink-0"
+              className="h-10 w-10 shrink-0 rounded-full bg-white/90 p-0.5 object-cover ring-2 ring-white/20"
             />
             <div>
-              <h2 className="font-black text-lg tracking-tight leading-none">DEKUWEC</h2>
-              <p className="text-[10px] text-emerald-200 mt-1">Dedan Kimathi University</p>
+              <h2 className="text-lg font-black leading-none tracking-tight">DEKUWEC</h2>
+              <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-emerald-300">Member portal</p>
             </div>
           </div>
           {/* Mobile Close Button */}
@@ -507,76 +547,111 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </button>
         </div>
 
-        <nav className="flex-1 px-4 py-2 space-y-1.5 overflow-y-auto">
-          <p className="text-[10px] font-bold text-emerald-300 uppercase tracking-widest mb-3 px-2">Navigation Menu</p>
-          <Link href="/dashboard" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center space-x-3 px-4 py-3 rounded-xl hover:bg-emerald-800/60 text-sm font-medium text-emerald-100 transition">
-            <Home className="h-4 w-4 text-emerald-300" /><span>Home</span>
-          </Link>
-          <Link href="/dashboard/events" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center space-x-3 px-4 py-3 rounded-xl hover:bg-emerald-800/60 text-sm font-medium text-emerald-100 transition">
-            <CalendarDays className="h-4 w-4 text-emerald-300" /><span>Events & Activities</span>
-          </Link>
-          <Link href="/dashboard/dispatch" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center space-x-3 px-4 py-3 rounded-xl hover:bg-emerald-800/60 text-sm font-medium text-emerald-100 transition">
-            <Radio className="h-4 w-4 text-emerald-300" /><span>EcoPulse Dispatch</span>
-          </Link>
-          <Link href="/dashboard/snaps" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center space-x-3 px-4 py-3 rounded-xl hover:bg-emerald-800/60 text-sm font-medium text-emerald-100 transition">
-            <Camera className="h-4 w-4 text-emerald-300" /><span>Nature Snaps</span>
-          </Link>
-          <Link href="/dashboard/membership" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center space-x-3 px-4 py-3 rounded-xl hover:bg-emerald-800/60 text-sm font-medium text-emerald-100 transition">
-            <Users className="h-4 w-4 text-emerald-300" /><span>Membership Portal</span>
-          </Link>
-          <Link href="/dashboard/merchandise" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center space-x-3 px-4 py-3 rounded-xl hover:bg-emerald-800/60 text-sm font-medium text-emerald-100 transition">
-            <ShoppingBag className="h-4 w-4 text-emerald-300" /><span>Club Merchandise</span>
-          </Link>
-          <Link href="/dashboard/support" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center space-x-3 px-4 py-3 rounded-xl hover:bg-emerald-800/60 text-sm font-medium text-emerald-100 transition">
-            <HelpCircle className="h-4 w-4 text-emerald-300" /><span>Support & Inquiries</span>
-          </Link>
-          <Link href="/dashboard/wck-card" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center space-x-3 px-4 py-3 rounded-xl hover:bg-emerald-800/60 text-sm font-medium text-emerald-100 transition">
-            <CreditCard className="h-4 w-4 text-emerald-300" /><span>WCK Card Application</span>
-          </Link>
+        <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-2">
+          {NAV_SECTIONS.map((section) => (
+            <div key={section.label}>
+              <p className="mb-1.5 px-3 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-400/80">
+                {section.label}
+              </p>
+              <div className="space-y-1">
+                {section.items.map((item) => {
+                  const active = isNavActive(pathname, item.href);
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      aria-current={active ? "page" : undefined}
+                      className={`group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition ${
+                        active
+                          ? "bg-white/12 font-bold text-white shadow-sm"
+                          : "font-medium text-emerald-100/85 hover:bg-white/8 hover:text-white"
+                      }`}
+                    >
+                      <span
+                        className={`absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full transition ${
+                          active ? "bg-lime-300" : "bg-transparent"
+                        }`}
+                      />
+                      <item.icon
+                        className={`h-4 w-4 shrink-0 transition ${
+                          active ? "text-lime-300" : "text-emerald-300 group-hover:text-lime-200"
+                        }`}
+                      />
+                      <span className="truncate">{item.label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </nav>
 
-        {/* Added pb-8 on mobile to ensure the button clears iOS toolbars */}
-        <div className="p-4 border-t border-emerald-800/60 shrink-0 pb-8 md:pb-4 bg-[#064e3b]">
-          <Link href="/dashboard/account" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center space-x-3 px-4 py-3 mb-3 rounded-xl border border-emerald-500/40 bg-emerald-900/60 hover:bg-emerald-800 transition text-sm font-bold text-emerald-100">
-            <UserCircle className="h-4 w-4 text-emerald-300" /><span>Account Dashboard</span>
-          </Link>
+        <div className="shrink-0 border-t border-white/10 p-3 pb-8 md:pb-3">
+          <div className="flex items-center gap-2.5 rounded-2xl bg-white/8 p-2.5">
+            {user?.imageUrl ? (
+              <img
+                src={user.imageUrl}
+                alt={user.fullName || "Member"}
+                className="h-9 w-9 rounded-full object-cover ring-2 ring-lime-300/40"
+              />
+            ) : (
+              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-800 text-xs font-black text-lime-200">
+                {(user?.firstName?.[0] || "D").toUpperCase()}
+              </span>
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-xs font-bold text-white">
+                {user?.fullName || user?.username || "DEKUWEC member"}
+              </p>
+              <p className="truncate text-[10px] text-emerald-300">
+                {user?.primaryEmailAddress?.emailAddress || "Member portal"}
+              </p>
+            </div>
+            <div className="shrink-0">
+              <UserButton />
+            </div>
+          </div>
         </div>
       </aside>
 
       {/* Right Side: Main Content Area */}
       <div className="flex-1 flex flex-col h-[100dvh] overflow-hidden relative w-full">
         
-        <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 md:px-8 shrink-0 z-20 shadow-sm relative">
+        <header className="glass relative z-20 flex h-16 shrink-0 items-center justify-between border-b border-emerald-100/80 px-3 md:px-6">
           
           {/* Hamburger Button for Mobile */}
-          <div className="flex items-center w-auto md:w-32">
-            <button onClick={() => setIsMobileMenuOpen(true)} className="md:hidden p-2 -ml-2 text-gray-600 hover:text-emerald-700">
+          <div className="flex w-auto items-center md:w-40">
+            <button onClick={() => setIsMobileMenuOpen(true)} className="rounded-xl p-2 text-emerald-800 transition hover:bg-emerald-50 md:hidden" aria-label="Open menu">
               <Menu className="h-6 w-6" />
             </button>
+            <p className="hidden truncate text-xs font-bold uppercase tracking-[0.14em] text-emerald-700 md:block">
+              {pathname === "/dashboard" ? "Home" : pathname.replace("/dashboard/", "").replace("/", " · ")}
+            </p>
           </div>
 
           {/* CENTER: The Like Button (Scaled for Mobile) */}
-          <div className="flex justify-center flex-1">
+          <div className="flex flex-1 justify-center">
             <button 
               onClick={handleLikePortal}
               disabled={hasLiked}
-              className={`flex items-center gap-1.5 md:gap-2 px-3 md:px-5 py-1.5 md:py-2 rounded-full transition shadow-sm border font-bold text-xs md:text-sm ${
+              className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold transition md:gap-2 md:px-5 md:py-2 md:text-sm ${
                 hasLiked 
-                  ? 'bg-rose-50 text-rose-600 border-rose-200 cursor-default' 
-                  : 'bg-white text-gray-600 border-gray-200 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200'
+                  ? 'cursor-default border-rose-200 bg-rose-50 text-rose-600' 
+                  : 'border-emerald-100 bg-white/80 text-emerald-800 shadow-sm hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600'
               }`}
             >
               <Heart className={`h-3.5 w-3.5 md:h-4 md:w-4 ${hasLiked ? 'fill-rose-500 text-rose-500' : ''}`} />
               <span className="hidden md:inline">Like our portal</span>
               <span className="md:hidden">Like</span>
-              <span className="bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full text-[10px] md:text-xs ml-0.5 md:ml-1 font-black">
+              <span className="ml-0.5 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-black text-emerald-700 md:ml-1 md:text-xs">
                 {likeCount}
               </span>
             </button>
           </div>
 
           {/* RIGHT SIDE: Icons & Profile */}
-          <div className="flex items-center space-x-2 md:space-x-4 w-auto md:w-32 justify-end">
+          <div className="flex w-auto items-center justify-end space-x-1.5 md:w-40 md:space-x-3">
             
             <button 
               onClick={() => { setIsMessagesOpen(!isMessagesOpen); setIsNotifOpen(false); }}
@@ -813,9 +888,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         )}
 
-        <main className="flex-1 overflow-y-auto flex flex-col bg-gray-50" onClick={() => { setIsNotifOpen(false); setIsMessagesOpen(false); }}>
-          <div className="flex-1">{children}</div>
-          <footer className="bg-white border-t border-gray-200 py-6 px-8 mt-auto shrink-0 flex flex-col md:flex-row items-center justify-between gap-6 z-10 shadow-sm">
+        <main className="flex-1 overflow-y-auto flex flex-col bg-canvas" onClick={() => { setIsNotifOpen(false); setIsMessagesOpen(false); }}>
+          <div className="flex-1 pb-20 md:pb-0">{children}</div>
+          <footer className="mt-auto flex shrink-0 flex-col items-center justify-between gap-6 border-t border-emerald-100 bg-white px-8 py-6 md:flex-row z-10">
             <div className="flex items-center gap-4">
               <img 
                 src={logoUrl} 
@@ -829,6 +904,34 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <div className="text-xs text-gray-400 font-medium text-center md:text-right">&copy; 2026 DEKUWEC • Dedan Kimathi University of Technology. <br className="md:hidden" />All Rights Reserved.</div>
           </footer>
         </main>
+
+        {/* Mobile bottom navigation */}
+        <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-emerald-100 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
+          <div className="flex items-stretch justify-around">
+            {MOBILE_NAV.map((item) => {
+              const active = isNavActive(pathname, item.href);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  aria-current={active ? "page" : undefined}
+                  className={`flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[10px] font-bold transition ${
+                    active ? "text-emerald-800" : "text-slate-400 hover:text-emerald-700"
+                  }`}
+                >
+                  <span
+                    className={`flex h-8 w-8 items-center justify-center rounded-xl transition ${
+                      active ? "bg-emerald-100 text-emerald-800" : "text-slate-500"
+                    }`}
+                  >
+                    <item.icon className="h-[18px] w-[18px]" />
+                  </span>
+                  {item.label}
+                </Link>
+              );
+            })}
+          </div>
+        </nav>
       </div>
       <EcoPopup />
     </div>

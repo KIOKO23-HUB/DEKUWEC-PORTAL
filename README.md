@@ -1,5 +1,15 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Member portal
+
+Everything under `/dashboard` shares one shell (`app/dashboard/layout.tsx`): a grouped
+sidebar with active-state tracking, a glass top bar, a user card, and a mobile bottom nav.
+Pages open with the shared `components/portal/PortalPageHeader.tsx` banner so section
+headings, colours and spacing stay consistent.
+
+`/dashboard/events` combines a reels/stories gallery with RSVP cards and a three-step
+M-Pesa flow (details → payment → confirmation) that polls every 1.5 seconds.
+
 ## Media experience
 
 Nature Snaps and club events use a shared reels/stories engine

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import PortalPageHeader from "@/components/portal/PortalPageHeader";
 import { 
   Radio, 
   HelpCircle, 
@@ -87,18 +88,12 @@ export default function EcoPulseDispatchPage() {
   return (
     <div className="p-6 sm:p-8 lg:p-12 max-w-7xl mx-auto space-y-12">
       
-      {/* Page Header */}
-      <div className="border-b border-gray-200 pb-6">
-        <div className="flex items-center gap-3 mb-2">
-          <div className="p-2 bg-emerald-100 text-emerald-600 rounded-lg">
-            <Radio className="h-6 w-6" />
-          </div>
-          <h1 className="text-3xl sm:text-4xl font-black text-emerald-950 tracking-tight">EcoPulse Dispatch</h1>
-        </div>
-        <p className="text-sm sm:text-base text-gray-500 max-w-3xl leading-relaxed">
-          The central hub for our weekly meeting discussion topics. Engage with the Question of the Week, and read up on the latest environmental and socio-economic news shaping our world.
-        </p>
-      </div>
+      <PortalPageHeader
+        eyebrow="EcoPulse Dispatch"
+        title="The weekly conservation briefing"
+        description="Question of the week, wildlife headlines, and the socio-economic stories shaping our environment."
+        icon={Radio}
+      />
 
       {loading ? (
         <div className="flex justify-center py-20">

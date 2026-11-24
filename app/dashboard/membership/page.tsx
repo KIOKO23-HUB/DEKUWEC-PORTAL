@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import PortalPageHeader from "@/components/portal/PortalPageHeader";
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation"; 
 import { 
@@ -370,17 +371,12 @@ export default function MembershipPortalPage() {
 
   return (
     <div className="p-6 sm:p-8 lg:p-12 max-w-7xl mx-auto space-y-10 font-sans relative">
-      <div className="border-b border-gray-200 pb-6">
-        <div className="flex items-center gap-3 mb-2">
-          <div className="p-2 bg-emerald-100 text-emerald-700 rounded-xl">
-            <Users className="h-6 w-6" />
-          </div>
-          <h1 className="text-3xl sm:text-4xl font-black text-emerald-950">Membership Portal</h1>
-        </div>
-        <p className="text-sm text-gray-600 max-w-3xl">
-          Confirm your club affiliation, register as a new member, and connect with fellow conservationists in our student directory.
-        </p>
-      </div>
+      <PortalPageHeader
+        eyebrow="Membership"
+        title="Your place in the club"
+        description="Confirm your affiliation, register as a new member, and connect with fellow conservationists in the student directory."
+        icon={Users}
+      />
 
       <section className="bg-white border border-gray-200 rounded-3xl p-6 sm:p-10 shadow-sm space-y-6">
         <div className="flex items-center gap-3 pb-4 border-b border-gray-100">
