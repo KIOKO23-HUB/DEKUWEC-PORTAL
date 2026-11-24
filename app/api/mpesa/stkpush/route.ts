@@ -122,7 +122,7 @@ export async function POST(req: Request) {
     const stkRes = await fetch(STK_URL, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${accessToken}`,
+        Authorization: "Bearer ${accessToken}",
         "Content-Type": "application/json",
       },
       body: JSON.stringify(stkPayload),

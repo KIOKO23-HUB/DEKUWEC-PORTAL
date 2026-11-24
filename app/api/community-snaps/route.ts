@@ -18,10 +18,22 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const { clerkId, fullName, userProfilePic, imageUrl, caption } = await req.json();
+    const { clerkId, fullName, userProfilePic, imageUrl, videoUrl, mediaType, caption } = await req.json();
     await connectToDatabase();
+
+    if (!imageUrl && !videoUrl) {
+      return NextResponse.json({ error: "Add an image or a short video." }, { status: 400 });
+    }
     
-    const newSnap = new CommunitySnap({ clerkId, fullName, userProfilePic, imageUrl, caption });
+    const newSnap = new CommunitySnap({
+      clerkId,
+      fullName,
+      userProfilePic,
+      imageUrl: imageUrl || "",
+      videoUrl: videoUrl || "",
+      mediaType: mediaType === "video" ? "video" : "image",
+      caption,
+    });
     await newSnap.save();
 
     const snapLink = `/nature-snaps?snap=${newSnap._id}`;

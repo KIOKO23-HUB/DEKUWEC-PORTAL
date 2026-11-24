@@ -5,7 +5,7 @@ import Notification from "@/models/Notification";
 
 export async function POST(req: Request) {
   try {
-    const { snapId, clerkId, action, likerName } = await req.json();
+    const { snapId, clerkId, action, likerName, commentData } = await req.json();
     await connectToDatabase();
 
     const snap = await CommunitySnap.findById(snapId);
@@ -31,7 +31,21 @@ export async function POST(req: Request) {
       }
     } else if (action === "dislike") {
       snap.dislikes.push(clerkId);
-    } // If action is "remove", they stay removed.
+    } else if (action === "repost") {
+      snap.reposts = snap.reposts || [];
+      if (!snap.reposts.includes(clerkId)) snap.reposts.push(clerkId);
+    } else if (action === "unrepost") {
+      snap.reposts = (snap.reposts || []).filter((id: string) => id !== clerkId);
+    } else if (action === "comment") {
+      const text = String(commentData?.text || "").trim().slice(0, 280);
+      if (!text) return NextResponse.json({ error: "Comment cannot be empty" }, { status: 400 });
+      snap.comments = snap.comments || [];
+      snap.comments.push({
+        clerkId,
+        fullName: String(commentData?.fullName || likerName || "Member").slice(0, 80),
+        text,
+      });
+    }
 
     await snap.save();
     return NextResponse.json({ message: "Interaction updated", snap }, { status: 200 });

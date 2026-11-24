@@ -5,6 +5,7 @@ import { useUser } from "@clerk/nextjs";
 import {
   Camera, Trophy, Award, Medal, Loader2, X, UploadCloud, Share2,
   CheckCircle, Sparkles, Image as ImageIcon, ThumbsUp, ThumbsDown, Users,
+  Repeat2, MessageCircle, Send, Video,
 } from "lucide-react";
 import PublicPageShell from "@/components/PublicPageShell";
 import GoogleContinueButton from "@/components/GoogleContinueButton";
@@ -14,7 +15,9 @@ import { optimizedImage } from "@/lib/image";
 
 type Snap = {
   _id: string;
-  imageUrl: string;
+  imageUrl?: string;
+  videoUrl?: string;
+  mediaType?: "image" | "video";
   caption?: string;
   description?: string;
   title?: string;
@@ -24,6 +27,8 @@ type Snap = {
   type?: "winner" | "honourable" | "top_submission";
   likes?: string[];
   dislikes?: string[];
+  reposts?: string[];
+  comments?: { clerkId: string; fullName: string; text: string; createdAt?: string }[];
   createdAt?: string;
 };
 
@@ -42,7 +47,7 @@ export default function NatureSnapsClient() {
   const [showAuth, setShowAuth] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [uploadForm, setUploadForm] = useState({ imageUrl: "", caption: "" });
+  const [uploadForm, setUploadForm] = useState({ imageUrl: "", videoUrl: "", mediaType: "image" as "image" | "video", caption: "" });
   const [toast, setToast] = useState("");
   const [copiedId, setCopiedId] = useState("");
 
@@ -114,8 +119,32 @@ export default function NatureSnapsClient() {
 
     setUploading(true);
     try {
+      if (file.type.startsWith("video/")) {
+        if (file.size > 25 * 1024 * 1024) throw new Error("Keep short videos below 25 MB.");
+        const duration = await new Promise<number>((resolve) => {
+          const video = document.createElement("video");
+          video.preload = "metadata";
+          video.onloadedmetadata = () => {
+            const value = Number.isFinite(video.duration) ? video.duration : 0;
+            URL.revokeObjectURL(video.src);
+            resolve(value);
+          };
+          video.onerror = () => {
+            URL.revokeObjectURL(video.src);
+            resolve(0);
+          };
+          video.src = URL.createObjectURL(file);
+        });
+        if (duration > 12) throw new Error("Short nature clips must be 12 seconds or less.");
+        if (!duration) throw new Error("This video could not be read. Try a shorter MP4 clip.");
+      }
       const url = await uploadImage(file);
-      setUploadForm((prev) => ({ ...prev, imageUrl: url }));
+      setUploadForm((prev) => ({
+        ...prev,
+        imageUrl: file.type.startsWith("video/") ? "" : url,
+        videoUrl: file.type.startsWith("video/") ? url : "",
+        mediaType: file.type.startsWith("video/") ? "video" : "image",
+      }));
     } catch (error: any) {
       setToast(error?.message || "Could not upload that photo. Try again.");
     } finally {
@@ -129,8 +158,8 @@ export default function NatureSnapsClient() {
       setShowAuth(true);
       return;
     }
-    if (!uploadForm.imageUrl) {
-      setToast("Add a photo first.");
+    if (!uploadForm.imageUrl && !uploadForm.videoUrl) {
+      setToast("Add a photo or 12-second video first.");
       return;
     }
 
@@ -144,6 +173,8 @@ export default function NatureSnapsClient() {
           fullName: user.fullName || user.username || "Member",
           userProfilePic: user.imageUrl,
           imageUrl: uploadForm.imageUrl,
+          videoUrl: uploadForm.videoUrl,
+          mediaType: uploadForm.mediaType,
           caption: uploadForm.caption,
         }),
       });
@@ -151,7 +182,7 @@ export default function NatureSnapsClient() {
       if (!res.ok) throw new Error(data.error || "Could not publish your snap.");
 
       const link = `${window.location.origin}/nature-snaps?snap=${data.snap?._id || ""}`;
-      setUploadForm({ imageUrl: "", caption: "" });
+      setUploadForm({ imageUrl: "", videoUrl: "", mediaType: "image", caption: "" });
       setToast(`Thanks for posting! 🌿 ${data.message || "Your snap is live."} Share it: ${link}`);
       await loadSnaps();
     } catch (error: any) {
@@ -374,11 +405,11 @@ export default function NatureSnapsClient() {
               ) : null}
             </div>
 
-            <input ref={browseRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+            <input ref={browseRef} type="file" accept="image/*,video/mp4,video/webm,video/quicktime" className="hidden" onChange={handleFile} />
             <input
               ref={cameraRef}
               type="file"
-              accept="image/*"
+              accept="video/mp4,video/webm,video/quicktime"
               capture="environment"
               className="hidden"
               onChange={handleFile}

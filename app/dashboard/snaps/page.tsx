@@ -48,7 +48,7 @@ export default function NatureSnapsPage() {
 
   const [isUploading, setIsUploading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [uploadForm, setUploadForm] = useState({ imageUrl: "", caption: "" });
+  const [uploadForm, setUploadForm] = useState({ imageUrl: "", videoUrl: "", mediaType: "image" as "image" | "video", caption: "" });
   const browseInputRef = useRef<HTMLInputElement | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -70,11 +70,36 @@ export default function NatureSnapsPage() {
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (file.type.startsWith("video/")) {
+      const duration = await new Promise<number>((resolve) => {
+        const video = document.createElement("video");
+        video.preload = "metadata";
+        video.onloadedmetadata = () => {
+          URL.revokeObjectURL(video.src);
+          resolve(Number.isFinite(video.duration) ? video.duration : 0);
+        };
+        video.onerror = () => {
+          URL.revokeObjectURL(video.src);
+          resolve(0);
+        };
+        video.src = URL.createObjectURL(file);
+      });
+      if (!duration || duration > 12) {
+        alert("Nature clips must be 12 seconds or less.");
+        e.target.value = "";
+        return;
+      }
+    }
     
     setIsUploading(true);
     try {
       const secureUrl = await uploadImage(file);
-      setUploadForm(prev => ({ ...prev, imageUrl: secureUrl }));
+      setUploadForm(prev => ({
+        ...prev,
+        imageUrl: file.type.startsWith("video/") ? "" : secureUrl,
+        videoUrl: file.type.startsWith("video/") ? secureUrl : "",
+        mediaType: file.type.startsWith("video/") ? "video" : "image",
+      }));
     } catch (err: any) {
       alert(err?.message || "Image upload failed. Please try again.");
     } finally {
@@ -85,7 +110,7 @@ export default function NatureSnapsPage() {
 
   const handlePublishSnap = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!uploadForm.imageUrl || !user) return alert("Please upload an image first.");
+    if ((!uploadForm.imageUrl && !uploadForm.videoUrl) || !user) return alert("Please upload an image or short video first.");
 
     setIsSubmitting(true);
     try {
@@ -97,12 +122,14 @@ export default function NatureSnapsPage() {
           fullName: user.fullName || "Member",
           userProfilePic: user.imageUrl,
           imageUrl: uploadForm.imageUrl,
+          videoUrl: uploadForm.videoUrl,
+          mediaType: uploadForm.mediaType,
           caption: uploadForm.caption
         }),
       });
 
       if (res.ok) {
-        setUploadForm({ imageUrl: "", caption: "" });
+        setUploadForm({ imageUrl: "", videoUrl: "", mediaType: "image", caption: "" });
         const commRes = await fetch("/api/community-snaps");
         const commData = await commRes.json();
         if (commData.snaps) setCommunitySnaps(commData.snaps);
@@ -369,8 +396,8 @@ export default function NatureSnapsPage() {
                     <Camera className="h-3.5 w-3.5" />
                     Take Photo
                   </button>
-                  <input ref={browseInputRef} type="file" accept="image/*" className="hidden" disabled={isUploading} onChange={handleImageUpload} />
-                  <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" disabled={isUploading} onChange={handleImageUpload} />
+                  <input ref={browseInputRef} type="file" accept="image/*,video/mp4,video/webm,video/quicktime" className="hidden" disabled={isUploading} onChange={handleImageUpload} />
+                  <input ref={cameraInputRef} type="file" accept="image/*,video/mp4,video/webm,video/quicktime" capture="environment" className="hidden" disabled={isUploading} onChange={handleImageUpload} />
                   <p className="text-[10px] text-gray-400">Supports JPG, PNG (Max 5MB)</p>
                 </div>
               )}

@@ -26,14 +26,23 @@ export function notificationEmailHtml({
 }) {
   const actionUrl = absoluteLink(link);
   return `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #064e3b;">
-      <h2 style="color: #059669;">${title}</h2>
-      ${imageUrl ? `<img src="${imageUrl}" alt="DEKUWEC update" style="max-width: 100%; border-radius: 8px; margin-bottom: 15px;" />` : ""}
-      <div style="background-color: #ecfdf5; padding: 20px; border-radius: 12px; margin: 20px 0; border: 1px solid #a7f3d0; white-space: pre-wrap;">${message}</div>
-      ${actionUrl ? `<a href="${actionUrl}" style="display: inline-block; background-color: #059669; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">View Details</a>` : ""}
-      <br/><br/>
-      <p>Best regards,<br/><strong>DEKUWEC Executive Board</strong></p>
-    </div>
+    <!doctype html>
+    <html>
+      <body style="margin:0;background:#eef7f1;font-family:Inter,Arial,sans-serif;color:#16352a;">
+        <div style="max-width:620px;margin:24px auto;background:#ffffff;border-radius:20px;overflow:hidden;border:1px solid #d8eadf;">
+          <div style="background:linear-gradient(135deg,#064e3b,#059669);padding:24px 28px;color:white;">
+            <p style="margin:0;font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#bbf7d0;">DEKUWEC</p>
+            <h1 style="margin:8px 0 0;font-size:24px;line-height:1.25;">${title}</h1>
+          </div>
+          ${imageUrl ? `<img src="${imageUrl}" alt="DEKUWEC update" style="display:block;width:100%;max-height:280px;object-fit:cover;" />` : ""}
+          <div style="padding:28px;">
+            <div style="background:#f3faf6;border-left:4px solid #10b981;padding:16px 18px;border-radius:10px;line-height:1.65;white-space:pre-wrap;">${message}</div>
+            ${actionUrl ? `<a href="${actionUrl}" style="display:inline-block;margin-top:22px;background:#064e3b;color:white;padding:13px 20px;text-decoration:none;border-radius:10px;font-weight:800;">View update →</a>` : ""}
+            <p style="margin-top:28px;padding-top:18px;border-top:1px solid #e5eee8;font-size:13px;color:#64748b;">Keep exploring, protecting, and sharing nature.<br/><strong style="color:#064e3b;">DEKUWEC Executive Board</strong></p>
+          </div>
+        </div>
+      </body>
+    </html>
   `;
 }
 
