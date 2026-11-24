@@ -70,6 +70,13 @@ const MOBILE_NAV = [
 const isNavActive = (pathname: string, href: string) =>
   href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(href);
 
+// Laptop/desktop header shows the five primary destinations; everything else
+// stays one tap away in the drawer.
+const DESKTOP_NAV = [
+  ...NAV_SECTIONS[0].items,
+  NAV_SECTIONS[1].items[0],
+];
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, isLoaded } = useUser();
   const router = useRouter(); // Hook for smart programmatic navigation
@@ -516,18 +523,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   });
 
   return (
-    <div className="flex min-h-screen bg-gray-50 font-sans overflow-hidden">
+    <div className="flex min-h-[100dvh] flex-col bg-canvas font-sans">
       
       {/* Mobile Menu Overlay */}
       {isMobileMenuOpen && (
         <div 
-          className="fixed inset-0 bg-black/60 z-40 md:hidden backdrop-blur-sm"
+          className="fixed inset-0 z-40 bg-emerald-950/60 backdrop-blur-sm lg:hidden"
           onClick={() => setIsMobileMenuOpen(false)}
         />
       )}
 
       {/* Sidebar Navigation - Now Responsive with 100dvh for proper mobile height */}
-      <aside className={`fixed md:relative inset-y-0 left-0 z-50 flex h-[100dvh] w-64 transform flex-col bg-gradient-to-b from-[#043527] via-[#064e3b] to-[#02231a] text-white shadow-xl shadow-emerald-950/20 transition-transform duration-300 ease-in-out md:translate-x-0 ${isMobileMenuOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full"}`}>
+      <aside
+        aria-hidden={!isMobileMenuOpen}
+        className={`fixed inset-y-0 left-0 z-50 flex h-[100dvh] w-72 max-w-[85vw] transform flex-col bg-gradient-to-b from-[#043527] via-[#064e3b] to-[#02231a] text-white shadow-2xl transition-transform duration-300 ease-in-out lg:hidden ${
+          isMobileMenuOpen ? "translate-x-0" : "pointer-events-none -translate-x-full"
+        }`}
+      >
         <div className="relative flex items-center justify-between space-x-3 overflow-hidden p-5 pb-4">
           <span className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-lime-400/15 blur-2xl" />
           <div className="relative flex items-center space-x-3">
@@ -542,8 +554,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </div>
           </div>
           {/* Mobile Close Button */}
-          <button onClick={() => setIsMobileMenuOpen(false)} className="md:hidden text-emerald-200 hover:text-white">
-            <X className="h-6 w-6" />
+          <button onClick={() => setIsMobileMenuOpen(false)} className="rounded-full p-1.5 text-emerald-200 transition hover:bg-white/10 hover:text-white">
+            <X className="h-5 w-5" />
           </button>
         </div>
 
@@ -587,7 +599,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           ))}
         </nav>
 
-        <div className="shrink-0 border-t border-white/10 p-3 pb-8 md:pb-3">
+        <div className="shrink-0 border-t border-white/10 p-3 pb-6">
           <div className="flex items-center gap-2.5 rounded-2xl bg-white/8 p-2.5">
             {user?.imageUrl ? (
               <img
@@ -615,23 +627,46 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </aside>
 
-      {/* Right Side: Main Content Area */}
-      <div className="flex-1 flex flex-col h-[100dvh] overflow-hidden relative w-full">
+      {/* Main column */}
+      <div className="flex min-h-0 flex-1 flex-col">
         
-        <header className="glass relative z-20 flex h-16 shrink-0 items-center justify-between border-b border-emerald-100/80 px-3 md:px-6">
+        <header className="glass sticky top-0 z-30 border-b border-emerald-100/80">
+          <div className="mx-auto flex h-16 w-full max-w-[1500px] items-center gap-2 px-3 sm:px-6">
           
-          {/* Hamburger Button for Mobile */}
-          <div className="flex w-auto items-center md:w-40">
-            <button onClick={() => setIsMobileMenuOpen(true)} className="rounded-xl p-2 text-emerald-800 transition hover:bg-emerald-50 md:hidden" aria-label="Open menu">
-              <Menu className="h-6 w-6" />
-            </button>
-            <p className="hidden truncate text-xs font-bold uppercase tracking-[0.14em] text-emerald-700 md:block">
-              {pathname === "/dashboard" ? "Home" : pathname.replace("/dashboard/", "").replace("/", " · ")}
-            </p>
-          </div>
+          {/* Mobile drawer trigger + brand */}
+          <button onClick={() => setIsMobileMenuOpen(true)} className="rounded-xl p-2 text-emerald-800 transition hover:bg-emerald-50 lg:hidden" aria-label="Open menu">
+            <Menu className="h-5 w-5" />
+          </button>
 
-          {/* CENTER: The Like Button (Scaled for Mobile) */}
-          <div className="flex flex-1 justify-center">
+          <Link href="/dashboard" className="flex shrink-0 items-center gap-2">
+            <img src={logoUrl} alt="DEKUWEC" className="h-8 w-8 rounded-full object-cover ring-2 ring-emerald-100" />
+            <span className="hidden text-sm font-black tracking-tight text-emerald-950 sm:block">DEKUWEC</span>
+          </Link>
+
+          {/* Desktop navigation */}
+          <nav className="ml-2 hidden items-center gap-0.5 lg:flex">
+            {DESKTOP_NAV.map((item) => {
+              const active = isNavActive(pathname, item.href);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  aria-current={active ? "page" : undefined}
+                  className={`relative flex items-center gap-1.5 rounded-xl px-3 py-2 text-[13px] transition ${
+                    active
+                      ? "bg-emerald-50 font-bold text-emerald-900"
+                      : "font-semibold text-slate-600 hover:bg-emerald-50/70 hover:text-emerald-800"
+                  }`}
+                >
+                  <item.icon className={`h-4 w-4 ${active ? "text-emerald-700" : "text-slate-400"}`} />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
+
+          {/* Like button */}
+          <div className="ml-auto flex items-center">
             <button 
               onClick={handleLikePortal}
               disabled={hasLiked}
@@ -650,8 +685,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </button>
           </div>
 
-          {/* RIGHT SIDE: Icons & Profile */}
-          <div className="flex w-auto items-center justify-end space-x-1.5 md:w-40 md:space-x-3">
+          {/* Icons & profile */}
+          <div className="flex items-center gap-1 sm:gap-1.5">
             
             <button 
               onClick={() => { setIsMessagesOpen(!isMessagesOpen); setIsNotifOpen(false); }}
@@ -708,15 +743,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               )}
             </div>
 
-            <div className="pl-1 md:pl-2 border-l border-gray-200 flex items-center">
+            <div className="ml-1 flex items-center border-l border-emerald-100 pl-2">
               <UserButton />
             </div>
+          </div>
           </div>
         </header>
 
         {/* LIVE Slide-out Messages Panel (Scaled for Mobile) */}
         {isMessagesOpen && (
-          <div className="absolute right-0 top-16 bottom-0 w-full sm:w-80 md:w-96 bg-white border-l border-gray-200 shadow-2xl z-30 flex flex-col animate-in slide-in-from-right duration-300">
+          <div className="animate-pop fixed inset-y-0 right-0 z-[60] flex w-full flex-col border-l border-emerald-100 bg-white shadow-2xl sm:w-96">
             
             {!activeChat ? (
               <>
@@ -888,8 +924,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         )}
 
-        <main className="flex-1 overflow-y-auto flex flex-col bg-canvas" onClick={() => { setIsNotifOpen(false); setIsMessagesOpen(false); }}>
-          <div className="flex-1 pb-20 md:pb-0">{children}</div>
+        <main className="flex min-h-0 flex-1 flex-col" onClick={() => { setIsNotifOpen(false); setIsMessagesOpen(false); }}>
+          <div className="mx-auto w-full max-w-[1500px] flex-1 pb-24 lg:pb-6">{children}</div>
           <footer className="mt-auto flex shrink-0 flex-col items-center justify-between gap-6 border-t border-emerald-100 bg-white px-8 py-6 md:flex-row z-10">
             <div className="flex items-center gap-4">
               <img 
@@ -906,7 +942,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </main>
 
         {/* Mobile bottom navigation */}
-        <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-emerald-100 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
+        <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-emerald-100 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden">
           <div className="flex items-stretch justify-around">
             {MOBILE_NAV.map((item) => {
               const active = isNavActive(pathname, item.href);

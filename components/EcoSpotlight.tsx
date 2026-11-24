@@ -195,7 +195,7 @@ export function EcoPopup() {
 
   return (
     <div
-      className="fixed inset-x-0 bottom-0 z-[80] flex justify-center p-3 sm:inset-0 sm:items-center sm:p-6"
+      className="fixed inset-0 z-[80] flex items-end justify-center p-3 sm:items-center sm:p-6"
       role="dialog"
       aria-modal="true"
       aria-label="Wildlife spotlight"
@@ -206,7 +206,7 @@ export function EcoPopup() {
         onClick={dismiss}
         className="absolute inset-0 bg-emerald-950/55 backdrop-blur-sm"
       />
-      <div className="animate-pop relative z-10 w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-2xl">
+      <div className="animate-pop relative z-10 max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-3xl bg-white shadow-2xl">
         <div className="hero-mesh animate-gradient relative px-6 pb-6 pt-7 text-white">
           <button
             type="button"
