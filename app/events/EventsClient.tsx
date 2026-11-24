@@ -23,7 +23,9 @@ type PublicEvent = {
   isFree: boolean;
   tiers: Tier[];
   posterTemplate?: PosterTemplate | null;
+  media?: { url?: string; type?: string; kind?: string }[];
   likes?: string[];
+  reposts?: string[];
   comments?: { clerkId: string; fullName: string; text: string; createdAt?: string }[];
 };
 
@@ -664,6 +666,7 @@ export default function EventsClient() {
   const [events, setEvents] = useState<PublicEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [shareNote, setShareNote] = useState("");
 
   const moments = useMemo<ReelItem[]>(
     () =>
@@ -677,7 +680,8 @@ export default function EventsClient() {
             date: event.date,
             location: event.location,
             likes: event.likes,
-            media: (event as any).media,
+            reposts: event.reposts,
+            media: event.media,
           })
         )
         .slice(0, 10),
@@ -685,6 +689,10 @@ export default function EventsClient() {
   );
 
   const reactToEvent = (item: ReelItem, action: string, commentData?: { fullName: string; text: string }) => {
+    if (!user) {
+      window.location.href = `/login?redirect_url=${encodeURIComponent("/events")}`;
+      return Promise.resolve();
+    }
     const eventId = item.id.split("-")[0];
     return fetch("/api/events/interact", {
       method: "POST",
@@ -751,9 +759,13 @@ export default function EventsClient() {
               items={moments}
               currentUserId={user?.id}
               storiesTitle="Event stories"
-              layout="grid"
+              layout="feed"
               onLike={(item, liked) => {
                 reactToEvent(item, liked ? "like" : "unlike");
+              }}
+              onRepost={(item) => {
+                const already = !!user && (item.reposts || []).includes(user.id);
+                reactToEvent(item, already ? "unrepost" : "repost");
               }}
               onComment={(item, text) =>
                 reactToEvent(item, "comment", {
@@ -761,8 +773,13 @@ export default function EventsClient() {
                   text,
                 }).then(() => undefined)
               }
-              onShare={() => {}}
+              onShare={() => setShareNote("Link copied — share this event with your friends.")}
             />
+            {shareNote ? (
+              <p className="mt-3 rounded-xl bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800">
+                {shareNote}
+              </p>
+            ) : null}
           </section>
         ) : null}
 

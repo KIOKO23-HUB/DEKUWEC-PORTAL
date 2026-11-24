@@ -47,7 +47,7 @@ export default function DashboardHomePage() {
   const load = async () => {
     try {
       const [eventsRes, snapsRes, communityRes] = await Promise.all([
-        fetch("/api/admin/events", { cache: "no-store" }).catch(() => null),
+        fetch("/api/public/events", { cache: "no-store" }).catch(() => null),
         fetch("/api/snaps", { cache: "no-store" }).catch(() => null),
         fetch("/api/community-snaps", { cache: "no-store" }).catch(() => null),
       ]);

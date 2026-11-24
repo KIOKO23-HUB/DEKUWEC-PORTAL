@@ -32,7 +32,11 @@ async function enforceHallOfFame(snapId: string, type: string) {
 export async function GET() {
   try {
     await connectToDatabase();
-    const snaps = await NatureSnap.find({}).sort({ createdAt: -1 });
+    const snaps = await NatureSnap.find({})
+      .select("imageUrl videoUrl mediaType title caption description photographer fullName type likes createdAt")
+      .sort({ createdAt: -1 })
+      .limit(60)
+      .lean();
     return NextResponse.json({ snaps }, { status: 200 });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || "Failed to fetch snaps" }, { status: 500 });

@@ -27,6 +27,7 @@ export type EventSource = {
   date?: string;
   location?: string;
   likes?: string[];
+  reposts?: string[];
   comments?: { clerkId: string; fullName: string; text: string; createdAt?: string }[];
   media?: { url?: string; type?: string; kind?: string }[];
 };
@@ -94,7 +95,7 @@ export function eventToReels(event: EventSource): ReelItem[] {
               createdAt: entry.createdAt,
             }))
           : [],
-      reposts: [],
+      reposts: index === 0 ? event.reposts || [] : [],
       href: `/events?event=${event._id}`,
     };
   });

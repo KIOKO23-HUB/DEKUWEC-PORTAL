@@ -26,6 +26,18 @@ export async function POST(req: Request) {
         { $pull: { likes: clerkId } }, // Removes the like
         { new: true }
       );
+    } else if (action === "repost") {
+      updatedEvent = await EventItem.findByIdAndUpdate(
+        eventId,
+        { $addToSet: { reposts: clerkId } },
+        { new: true }
+      );
+    } else if (action === "unrepost") {
+      updatedEvent = await EventItem.findByIdAndUpdate(
+        eventId,
+        { $pull: { reposts: clerkId } },
+        { new: true }
+      );
     } else if (action === "comment" && commentData) {
       updatedEvent = await EventItem.findByIdAndUpdate(
         eventId,

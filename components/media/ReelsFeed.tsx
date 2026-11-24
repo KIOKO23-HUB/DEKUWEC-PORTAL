@@ -18,6 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { optimizedImage } from "@/lib/image";
+import { videoPoster } from "@/lib/video";
 
 export type ReelComment = {
   id?: string;
@@ -99,6 +100,37 @@ function Avatar({ src, name, size = 36 }: { src?: string; name: string; size?: n
       style={{ width: size, height: size, fontSize: size * 0.36 }}
     >
       {initials(name)}
+    </span>
+  );
+}
+
+/**
+ * Feed/story thumbnail. Videos are represented by a Cloudinary first-frame
+ * image so a page of reels does not preload every clip.
+ */
+function Thumb({
+  item,
+  width,
+  alt,
+  className,
+}: {
+  item: ReelItem;
+  width: number;
+  alt: string;
+  className: string;
+}) {
+  if (item.kind !== "video") {
+    return <img src={optimizedImage(item.src, width)} alt={alt} className={className} loading="lazy" decoding="async" />;
+  }
+
+  const poster = item.poster || videoPoster(item.src, width);
+  if (poster) {
+    return <img src={poster} alt={alt} className={className} loading="lazy" decoding="async" />;
+  }
+
+  return (
+    <span className={`${className} flex items-center justify-center bg-emerald-950`}>
+      <Play className="h-6 w-6 text-white/80" />
     </span>
   );
 }
@@ -484,22 +516,12 @@ export default function ReelsFeed({
               <span className="story-ring rounded-full p-[3px] transition group-hover:scale-105">
                 <span className="block rounded-full bg-white p-[3px]">
                   <span className="relative block h-16 w-16 overflow-hidden rounded-full bg-emerald-100">
-                    {item.kind === "video" ? (
-                      <video
-                        src={item.src}
-                        className="h-full w-full object-cover"
-                        muted
-                        playsInline
-                        preload="metadata"
-                      />
-                    ) : (
-                      <img
-                        src={optimizedImage(item.src, 160)}
-                        alt={item.authorName}
-                        className="h-full w-full object-cover"
-                        loading="lazy"
-                      />
-                    )}
+                    <Thumb
+                      item={item}
+                      width={160}
+                      alt={item.authorName}
+                      className="h-full w-full object-cover"
+                    />
                     {item.kind === "video" ? (
                       <span className="absolute bottom-1 right-1 rounded-full bg-black/60 p-0.5 text-white">
                         <Play className="h-2.5 w-2.5 fill-current" />
@@ -528,16 +550,12 @@ export default function ReelsFeed({
               }}
               className="group relative aspect-[4/5] overflow-hidden rounded-2xl bg-emerald-950 text-left"
             >
-              {item.kind === "video" ? (
-                <video src={item.src} className="h-full w-full object-cover" muted playsInline preload="metadata" />
-              ) : (
-                <img
-                  src={optimizedImage(item.src, 600)}
-                  alt={item.caption || item.authorName}
-                  className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-                  loading="lazy"
-                />
-              )}
+              <Thumb
+                item={item}
+                width={600}
+                alt={item.caption || item.authorName}
+                className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+              />
               <span className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
               <span className="absolute bottom-2 left-2 right-2 line-clamp-2 text-[11px] font-bold text-white">
                 {item.caption || item.authorName}
@@ -592,23 +610,12 @@ export default function ReelsFeed({
                   onDoubleClick={() => toggleLike(item)}
                   className="relative block aspect-[4/5] w-full overflow-hidden bg-emerald-950"
                 >
-                  {item.kind === "video" ? (
-                    <video
-                      src={item.src}
-                      className="h-full w-full object-cover"
-                      muted
-                      playsInline
-                      preload="metadata"
-                    />
-                  ) : (
-                    <img
-                      src={optimizedImage(item.src, 800)}
-                      alt={item.caption || item.authorName}
-                      className="h-full w-full object-cover transition duration-700 hover:scale-[1.03]"
-                      loading="lazy"
-                      decoding="async"
-                    />
-                  )}
+                  <Thumb
+                    item={item}
+                    width={800}
+                    alt={item.caption || item.authorName}
+                    className="h-full w-full object-cover transition duration-700 hover:scale-[1.03]"
+                  />
                   {liked ? (
                     <Heart className="absolute right-3 top-3 h-5 w-5 fill-rose-500 text-rose-500 drop-shadow" />
                   ) : null}

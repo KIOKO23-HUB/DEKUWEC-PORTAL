@@ -9,9 +9,14 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     await connectToDatabase();
+    const officialFields =
+      "imageUrl videoUrl mediaType title caption description photographer fullName type likes createdAt";
+    const communityFields =
+      "imageUrl videoUrl mediaType caption fullName userProfilePic clerkId likes reposts comments createdAt";
+
     const [officialSnaps, communitySnaps] = await Promise.all([
-      NatureSnap.find({}).sort({ createdAt: -1 }).lean(),
-      CommunitySnap.find({}).sort({ createdAt: -1 }).lean(),
+      NatureSnap.find({}).select(officialFields).sort({ createdAt: -1 }).limit(80).lean(),
+      CommunitySnap.find({}).select(communityFields).sort({ createdAt: -1 }).limit(80).lean(),
     ]);
 
     return NextResponse.json(

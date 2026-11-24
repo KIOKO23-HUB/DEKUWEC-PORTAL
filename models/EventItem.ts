@@ -21,6 +21,7 @@ export interface IEventItem extends Document {
     name: { x: number; y: number; size: number; color: string; align: "left" | "center" | "right" };
   };
   likes: string[]; // NEW: Stores Clerk User IDs
+  reposts?: string[];
   comments: {
     clerkId: string;
     fullName: string;
@@ -54,6 +55,7 @@ const EventItemSchema = new Schema<IEventItem>({
   
   // NEW FIELDS FOR INTERACTION
   likes: { type: [String], default: [] },
+  reposts: { type: [String], default: [] },
   comments: [{
     clerkId: String,
     fullName: String,
