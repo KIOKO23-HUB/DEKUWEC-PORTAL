@@ -1,5 +1,31 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Media experience
+
+Nature Snaps and club events use a shared reels/stories engine
+(`components/media/ReelsFeed.tsx`):
+
+- Vertical 9:16 reels with autoplay, progress bars, tap-to-pause and arrow-key navigation.
+- Like, comment (with inline thread), repost and native share on every item.
+- Story rail with gradient rings; the viewer pauses autoplay while comments are open.
+- Photo uploads and short videos capped at **12 seconds** (`components/media/SnapComposer.tsx`).
+
+The member dashboard (`app/dashboard/page.tsx`) mirrors a social feed: stories, cards,
+an AI eco spotlight and the next-event reminder.
+
+## AI eco briefings
+
+`GET /api/ai/eco-spotlight` composes a daily wildlife spotlight, a rotating conservation
+tip and the next upcoming event reminder from a curated knowledge base plus live club data.
+It is deterministic per day/hour, cached for 5 minutes, and needs no external model key.
+The pop-up (`components/EcoSpotlight.tsx`) shows once per browser session.
+
+## Payments
+
+Event registration sends an M-Pesa STK push and polls `/api/mpesa/status` every 1.5s,
+showing a prompt → PIN → confirmation timeline. Safaricom access tokens are cached per
+worker to avoid an extra OAuth round trip on every prompt.
+
 ## Getting Started
 
 First, run the development server:

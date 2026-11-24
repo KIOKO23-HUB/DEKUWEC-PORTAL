@@ -1,44 +1,129 @@
 @import "tailwindcss";
 
+@theme {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: var(--font-sora), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+
+  --color-canvas: #f2f8f4;
+  --color-ink: #08211a;
+  --color-muted: #56706a;
+  --color-leaf: #0f8a5f;
+  --color-forest: #06382a;
+  --color-lime: #b8f36b;
+}
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: var(--color-canvas);
+  --foreground: var(--color-ink);
+  --ring: rgba(15, 138, 95, 0.32);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  -webkit-tap-highlight-color: transparent;
+  scroll-behavior: smooth;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  text-rendering: optimizeLegibility;
 }
 
-.landing-hero-image {
-  animation: landing-image-drift 24s ease-in-out infinite alternate;
+h1,
+h2,
+h3,
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
 }
 
-.landing-reveal {
-  animation: landing-rise-in 700ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+::selection {
+  background: #0f8a5f;
+  color: #ffffff;
 }
 
-@keyframes landing-image-drift {
-  from { transform: scale(1); }
-  to { transform: scale(1.08); }
+/* ---------- Surfaces ---------- */
+
+.glass {
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
 }
 
-@keyframes landing-rise-in {
+.glass-dark {
+  background: rgba(6, 32, 24, 0.62);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+}
+
+.card {
+  background: #ffffff;
+  border: 1px solid rgba(6, 56, 42, 0.08);
+  border-radius: 1.5rem;
+  box-shadow: 0 1px 2px rgba(6, 56, 42, 0.04), 0 18px 40px -28px rgba(6, 56, 42, 0.35);
+}
+
+.card-hover {
+  transition: transform 220ms cubic-bezier(0.2, 0.7, 0.2, 1), box-shadow 220ms ease;
+}
+
+.card-hover:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 22px 48px -26px rgba(6, 56, 42, 0.45);
+}
+
+.hero-mesh {
+  background-image:
+    radial-gradient(circle at 12% 20%, rgba(184, 243, 107, 0.35), transparent 45%),
+    radial-gradient(circle at 85% 10%, rgba(56, 189, 248, 0.22), transparent 40%),
+    radial-gradient(circle at 70% 85%, rgba(16, 185, 129, 0.35), transparent 45%),
+    linear-gradient(135deg, #043527 0%, #065f46 55%, #0b7a58 100%);
+}
+
+.text-balance {
+  text-wrap: balance;
+}
+
+/* ---------- Stories and reels ---------- */
+
+.story-ring {
+  background: conic-gradient(from 180deg, #b8f36b, #10b981, #0ea5e9, #b8f36b);
+}
+
+.reel-shell {
+  background: #04140f;
+  border-radius: 1.75rem;
+  overflow: hidden;
+  box-shadow: 0 30px 70px -35px rgba(4, 20, 15, 0.9);
+}
+
+.reel-media {
+  height: 100%;
+  width: 100%;
+  object-fit: cover;
+}
+
+.scrollbar-hide {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.snap-y-mandatory {
+  scroll-snap-type: y mandatory;
+}
+
+.snap-start {
+  scroll-snap-align: start;
+}
+
+/* ---------- Motion ---------- */
+
+@keyframes rise-in {
   from {
     opacity: 0;
     transform: translateY(18px);
@@ -49,9 +134,175 @@ body {
   }
 }
 
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pop-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  70% {
+    transform: scale(1.015);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes heart-pop {
+  0% {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  45% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0;
+  }
+}
+
+@keyframes soft-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-7px);
+  }
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.45);
+  }
+  70% {
+    box-shadow: 0 0 0 14px rgba(16, 185, 129, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+}
+
+@keyframes gradient-pan {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.animate-rise {
+  animation: rise-in 620ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+.animate-fade {
+  animation: fade-in 400ms ease both;
+}
+
+.animate-pop {
+  animation: pop-in 320ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+.animate-float {
+  animation: soft-float 6s ease-in-out infinite;
+}
+
+.animate-pulse-ring {
+  animation: pulse-ring 2.4s ease-out infinite;
+}
+
+.animate-gradient {
+  background-size: 220% 220%;
+  animation: gradient-pan 9s ease infinite;
+}
+
+.animate-heart {
+  animation: heart-pop 900ms ease forwards;
+}
+
+.stagger-1 {
+  animation-delay: 60ms;
+}
+.stagger-2 {
+  animation-delay: 120ms;
+}
+.stagger-3 {
+  animation-delay: 180ms;
+}
+.stagger-4 {
+  animation-delay: 240ms;
+}
+
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: #e6f0ea;
+}
+
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.65), transparent);
+  animation: shimmer 1.5s infinite;
+}
+
+/* ---------- Landing hero ---------- */
+
+.landing-hero-image {
+  animation: landing-image-drift 24s ease-in-out infinite alternate;
+}
+
+.landing-reveal {
+  animation: rise-in 700ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+@keyframes landing-image-drift {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.08);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .landing-hero-image,
-  .landing-reveal {
-    animation: none;
+  .landing-reveal,
+  .animate-rise,
+  .animate-fade,
+  .animate-pop,
+  .animate-float,
+  .animate-pulse-ring,
+  .animate-gradient,
+  .animate-heart,
+  .skeleton::after {
+    animation: none !important;
+  }
+
+  html {
+    scroll-behavior: auto;
   }
 }

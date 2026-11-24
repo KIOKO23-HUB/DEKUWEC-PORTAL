@@ -28,11 +28,33 @@ export function notificationEmailHtml({
   return `
     <!doctype html>
     <html>
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <style>
+          @keyframes dekuwec-rise {
+            from { opacity: 0; transform: translateY(14px); }
+            to { opacity: 1; transform: translateY(0); }
+          }
+          @keyframes dekuwec-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.55; }
+          }
+          .dekuwec-card { animation: dekuwec-rise 620ms ease both; }
+          .dekuwec-dot { animation: dekuwec-pulse 2.4s ease-in-out infinite; }
+          @media (max-width: 600px) {
+            .dekuwec-shell { margin: 0 !important; border-radius: 0 !important; }
+            .dekuwec-title { font-size: 20px !important; }
+          }
+        </style>
+      </head>
       <body style="margin:0;background:#eef7f1;font-family:Inter,Arial,sans-serif;color:#16352a;">
-        <div style="max-width:620px;margin:24px auto;background:#ffffff;border-radius:20px;overflow:hidden;border:1px solid #d8eadf;">
+        <div style="display:none;max-height:0;overflow:hidden;opacity:0;">${message.slice(0, 120)}</div>
+        <div class="dekuwec-shell dekuwec-card" style="max-width:620px;margin:24px auto;background:#ffffff;border-radius:20px;overflow:hidden;border:1px solid #d8eadf;">
           <div style="background:linear-gradient(135deg,#064e3b,#059669);padding:24px 28px;color:white;">
-            <p style="margin:0;font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#bbf7d0;">DEKUWEC</p>
-            <h1 style="margin:8px 0 0;font-size:24px;line-height:1.25;">${title}</h1>
+            <p style="margin:0;font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#bbf7d0;">
+              DEKUWEC <span class="dekuwec-dot" style="color:#b8f36b;">●</span> EcoPulse
+            </p>
+            <h1 class="dekuwec-title" style="margin:8px 0 0;font-size:24px;line-height:1.25;color:#ffffff;">${title}</h1>
           </div>
           ${imageUrl ? `<img src="${imageUrl}" alt="DEKUWEC update" style="display:block;width:100%;max-height:280px;object-fit:cover;" />` : ""}
           <div style="padding:28px;">

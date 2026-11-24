@@ -30,6 +30,7 @@ import {
   XCircle
 } from "lucide-react";
 import MessageAttachment from "@/components/MessageAttachment";
+import { EcoPopup } from "@/components/EcoSpotlight";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, isLoaded } = useUser();
@@ -829,6 +830,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </footer>
         </main>
       </div>
+      <EcoPopup />
     </div>
   );
 }

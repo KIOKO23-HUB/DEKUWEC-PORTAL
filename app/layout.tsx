@@ -1,12 +1,16 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Sora } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
+const sora = Sora({ subsets: ["latin"], variable: "--font-sora", display: "swap" });
 
 export const viewport: Viewport = {
-  themeColor: "#16a34a",
+  themeColor: "#06382a",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
 };
 
 export const metadata: Metadata = {
@@ -34,8 +38,8 @@ export default function RootLayout({
 }) {
   return (
     <ClerkProvider>
-      <html lang="en" className="h-full antialiased">
-        <body className={`${inter.className} min-h-full flex flex-col bg-white text-gray-900`}>
+      <html lang="en" className={`${inter.variable} ${sora.variable} h-full antialiased`}>
+        <body className="min-h-full flex flex-col bg-canvas text-ink">
           {children}
         </body>
       </html>

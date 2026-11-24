@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Camera, ShoppingBag, ShieldCheck, CalendarDays, LayoutDashboard } from "lucide-react";
+import { EcoPopup } from "@/components/EcoSpotlight";
 
 const links = [
   { href: "/nature-snaps", label: "Nature Snaps", icon: Camera },
@@ -84,6 +85,7 @@ export default function PublicPageShell({
           </div>
         </div>
       </footer>
+      <EcoPopup />
     </div>
   );
 }

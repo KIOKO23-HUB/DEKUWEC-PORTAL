@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useUser } from "@clerk/nextjs";
-import { Heart, MessageCircle, Share2 } from "lucide-react";
+import { Clapperboard, Heart, MessageCircle, Share2 } from "lucide-react";
 import { optimizedImage } from "@/lib/image";
 import { uploadImage } from "@/lib/clientUpload";
 import { renderPoster, type PosterTemplate } from "@/lib/poster";
+import ReelsFeed, { type ReelItem } from "@/components/media/ReelsFeed";
+import { eventToReels } from "@/lib/reels";
 
 type Tier = { id: string; label: string; amount: number };
 
@@ -165,6 +167,8 @@ function EventCard({ event }: { event: PublicEvent }) {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const [polling, setPolling] = useState(false);
+  const [payPhase, setPayPhase] = useState<"idle" | "sent" | "confirmed" | "failed">("idle");
   const [receipt, setReceipt] = useState("");
   const [likes, setLikes] = useState<string[]>(event.likes || []);
   const [comments, setComments] = useState(event.comments || []);
@@ -287,6 +291,8 @@ function EventCard({ event }: { event: PublicEvent }) {
     if (!registration) return;
     setError("");
     setBusy(true);
+    setPolling(false);
+    setPayPhase("idle");
     setStep("paying");
 
     try {
@@ -296,7 +302,7 @@ function EventCard({ event }: { event: PublicEvent }) {
         body: JSON.stringify({
           clerkId: registration.clerkId,
           fullName: form.fullName,
-          phone: payPhone,
+          phone: payPhone.replace(/[^\d+]/g, ""),
           amount: registration.amount,
           totalDue: registration.amount,
           category: "Event Registration",
@@ -310,33 +316,40 @@ function EventCard({ event }: { event: PublicEvent }) {
         return;
       }
 
-      setNotice("Check your phone and enter your M-Pesa PIN.");
+      setNotice("Prompt sent. Enter your M-Pesa PIN on your phone now.");
+      setPayPhase("sent");
+      setBusy(false);
+      setPolling(true);
       let attempts = 0;
       stopPolling();
+      // Faster poll loop (1.5s) so the confirmation lands while the member is
+      // still looking at their phone instead of waiting on a 30s refresh.
       pollRef.current = setInterval(async () => {
         attempts += 1;
         try {
-          const statusRes = await fetch(`/api/mpesa/status?id=${pushData.paymentId}`);
+          const statusRes = await fetch(`/api/mpesa/status?id=${pushData.paymentId}`, { cache: "no-store" });
           const statusData = await statusRes.json();
           if (statusData.status === "Completed") {
             stopPolling();
+            setPolling(false);
+            setPayPhase("confirmed");
             setReceipt(statusData.receipt || "");
             setNotice("");
             setStep("success");
-            setBusy(false);
-          } else if (statusData.status === "Failed" || attempts >= 30) {
+          } else if (statusData.status === "Failed" || attempts >= 40) {
             stopPolling();
+            setPolling(false);
+            setPayPhase("failed");
             setError(
               statusData.status === "Failed"
                 ? "Payment failed. Please check your balance and try again."
                 : "Payment is taking too long. If you were charged, contact the club with your receipt."
             );
-            setBusy(false);
           }
         } catch {
           /* keep polling */
         }
-      }, 3000);
+      }, 1500);
     } catch {
       setError("Server connection failed. Please try again.");
       setBusy(false);
@@ -541,26 +554,83 @@ function EventCard({ event }: { event: PublicEvent }) {
 
         {step === "paying" && registration && registration.amount > 0 && (
           <form onSubmit={pay} className="space-y-4 border-t border-slate-100 pt-5">
-            <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
-              <p>
-                <strong className="text-slate-900">{registration.tierLabel}</strong> · KES {registration.amount}
+            <div className="rounded-2xl bg-gradient-to-br from-emerald-50 to-lime-50 p-4 text-sm text-slate-600 ring-1 ring-emerald-100">
+              <p className="flex items-center justify-between">
+                <strong className="text-slate-900">{registration.tierLabel}</strong>
+                <span className="rounded-full bg-white px-2.5 py-1 text-xs font-black text-emerald-800">
+                  KES {registration.amount}
+                </span>
               </p>
               <p className="mt-1 text-xs text-slate-500">
-                An M-Pesa prompt is sent to the number below. Keep this page open until it confirms.
+                The prompt usually lands in under 10 seconds. Keep this page open while it confirms.
               </p>
             </div>
+
             <label className="block text-sm">
               <span className="mb-1.5 block font-semibold text-slate-700">M-Pesa number</span>
-              <input required value={payPhone} onChange={(e) => setPayPhone(e.target.value)} className={inputClass} placeholder="0712345678" />
+              <input
+                required
+                inputMode="tel"
+                autoComplete="tel"
+                value={payPhone}
+                onChange={(e) => setPayPhone(e.target.value)}
+                className={inputClass}
+                placeholder="0712345678"
+              />
             </label>
-            {notice && <p className="text-sm font-medium text-emerald-700">{notice}</p>}
+
+            <ol className="space-y-2 rounded-2xl bg-white p-3 ring-1 ring-slate-100">
+              {[
+                { key: "sent", label: "Prompt sent to your phone" },
+                { key: "pin", label: "Enter your M-Pesa PIN" },
+                { key: "confirmed", label: "Payment confirmed" },
+              ].map((item, index) => {
+                const done =
+                  (item.key === "sent" && (payPhase === "sent" || payPhase === "confirmed")) ||
+                  (item.key === "confirmed" && payPhase === "confirmed");
+                const active =
+                  (item.key === "pin" && payPhase === "sent") ||
+                  (item.key === "sent" && payPhase === "idle" && busy);
+                return (
+                  <li key={item.key} className="flex items-center gap-2.5 text-xs">
+                    <span
+                      className={`flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-black transition ${
+                        done
+                          ? "bg-emerald-600 text-white"
+                          : active
+                            ? "bg-amber-400 text-amber-950 animate-pulse-ring"
+                            : "bg-slate-100 text-slate-400"
+                      }`}
+                    >
+                      {done ? "✓" : index + 1}
+                    </span>
+                    <span className={done ? "font-bold text-emerald-800" : "font-medium text-slate-600"}>
+                      {item.label}
+                    </span>
+                  </li>
+                );
+              })}
+            </ol>
+
+            {notice && (
+              <p className="flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">
+                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                {notice}
+              </p>
+            )}
             {error && <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
             <button
               type="submit"
-              disabled={busy}
-              className="w-full rounded-xl bg-emerald-900 px-6 py-3.5 text-sm font-bold text-white hover:bg-emerald-800 disabled:opacity-60 sm:w-auto"
+              disabled={busy || polling}
+              className="w-full rounded-xl bg-emerald-900 px-6 py-3.5 text-sm font-bold text-white transition hover:bg-emerald-800 disabled:opacity-60 sm:w-auto"
             >
-              {busy ? "Waiting for M-Pesa…" : `Pay KES ${registration.amount} with M-Pesa`}
+              {busy
+                ? "Sending prompt…"
+                : polling
+                  ? "Waiting for confirmation…"
+                  : payPhase === "failed"
+                    ? `Retry KES ${registration.amount} payment`
+                    : `Pay KES ${registration.amount} with M-Pesa`}
             </button>
           </form>
         )}
@@ -590,9 +660,45 @@ function EventCard({ event }: { event: PublicEvent }) {
 }
 
 export default function EventsClient() {
+  const { user } = useUser();
   const [events, setEvents] = useState<PublicEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  const moments = useMemo<ReelItem[]>(
+    () =>
+      events
+        .flatMap((event) =>
+          eventToReels({
+            _id: event._id,
+            title: event.title,
+            description: event.description,
+            imageUrl: event.imageUrl,
+            date: event.date,
+            location: event.location,
+            likes: event.likes,
+            media: (event as any).media,
+          })
+        )
+        .slice(0, 10),
+    [events]
+  );
+
+  const reactToEvent = (item: ReelItem, action: string, commentData?: { fullName: string; text: string }) => {
+    const eventId = item.id.split("-")[0];
+    return fetch("/api/events/interact", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        eventId,
+        clerkId: user?.id,
+        action,
+        commentData: commentData
+          ? { ...commentData, fullName: commentData.fullName || user?.fullName || "DEKUWEC member" }
+          : undefined,
+      }),
+    }).catch(() => {});
+  };
 
   useEffect(() => {
     const eventId = new URLSearchParams(window.location.search).get("event");
@@ -628,11 +734,37 @@ export default function EventsClient() {
 
       <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6 sm:py-12">
         <div className="mb-8">
-          <h1 className="text-2xl font-black tracking-tight text-emerald-950 sm:text-3xl">Upcoming Events</h1>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-800">
+            <Clapperboard className="h-3.5 w-3.5" /> Event reels &amp; stories
+          </span>
+          <h1 className="mt-2 text-2xl font-black tracking-tight text-emerald-950 sm:text-3xl">
+            Upcoming Events
+          </h1>
           <p className="mt-2 text-sm text-slate-600">
-            Register and pay via M-Pesa in under a minute. No portal account needed.
+            Swipe the stories, then register and pay via M-Pesa in under a minute. No portal account needed.
           </p>
         </div>
+
+        {moments.length > 0 ? (
+          <section className="mb-9 rounded-3xl bg-white p-4 shadow-sm ring-1 ring-emerald-100 sm:p-5">
+            <ReelsFeed
+              items={moments}
+              currentUserId={user?.id}
+              storiesTitle="Event stories"
+              layout="grid"
+              onLike={(item, liked) => {
+                reactToEvent(item, liked ? "like" : "unlike");
+              }}
+              onComment={(item, text) =>
+                reactToEvent(item, "comment", {
+                  fullName: user?.fullName || "DEKUWEC member",
+                  text,
+                }).then(() => undefined)
+              }
+              onShare={() => {}}
+            />
+          </section>
+        ) : null}
 
         {error && (
           <p className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>
