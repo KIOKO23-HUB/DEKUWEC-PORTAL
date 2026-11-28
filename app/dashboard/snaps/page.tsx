@@ -150,6 +150,8 @@ export default function DashboardSnapsPage() {
               items={reels}
               currentUserId={user?.id}
               storiesTitle="Campus stories"
+              layout="grid"
+              compactMobileMedia
               onAddStory={() =>
                 document.getElementById("dashboard-composer")?.scrollIntoView({ behavior: "smooth" })
               }
@@ -188,7 +190,7 @@ export default function DashboardSnapsPage() {
             onMessage={setToast}
           />
           <div className="card p-4">
-            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-emerald-700">Reel tips</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-emerald-700">Snap tips</p>
             <ul className="mt-2 space-y-1.5 text-xs leading-relaxed text-slate-600">
               <li>Keep clips under 12 seconds — vertical (9:16) looks best.</li>
               <li>Get close to the subject, never to the animal.</li>

@@ -15,13 +15,13 @@ M-Pesa flow (details → payment → confirmation) that polls every 1.5 seconds.
 Nature Snaps and club events use a shared reels/stories engine
 (`components/media/ReelsFeed.tsx`):
 
-- Vertical 9:16 reels with autoplay, progress bars, tap-to-pause and arrow-key navigation.
+- Vertical 9:16 snaps with autoplay, progress bars, tap-to-pause and arrow-key navigation.
 - Like, comment (with inline thread), repost and native share on every item.
 - Story rail groups each member's stories together; stories expire after **7 days**.
-- Still photos fit inside the mobile viewer instead of being cropped; videos include mute and volume controls.
-- Camera recording stops automatically at **12 seconds** and offers normal, warm and monochrome effects plus microphone mute.
-- Video snaps can search Jamendo for CC BY tracks; the artist, Jamendo track page and license are credited in playback. Set `JAMENDO_CLIENT_ID` in the ignored local `.env.local` file; it is used only by the server API.
-- View-once chat media allows one replay, and mutual chat streaks are credited when each week completes.
+- The signed-in Snaps page uses a compact two-column phone gallery; photos fit inside the viewer instead of being cropped, and videos include mute and volume controls.
+- Camera recording stops automatically at **12 seconds**, scales the recording to a mobile-friendly size, and offers normal, warm, monochrome, vivid and cool effects plus microphone mute.
+- Video snaps support direct uploads up to **100 MB** and Jamendo search for tracks available under CC BY; the artist, Jamendo track page and license are credited in playback. Set `JAMENDO_CLIENT_ID` in the ignored local `.env.local` file; it is used only by the server API.
+- The dashboard Messages panel has a **Snaps** tab for sending a photo or up-to-12-second video to a friend as view-once media, with one replay. Mutual chat streaks are credited when each week completes.
 
 The member dashboard (`app/dashboard/page.tsx`) mirrors a social feed: stories, cards,
 an AI eco spotlight and the next-event reminder.

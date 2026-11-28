@@ -68,6 +68,7 @@ type ReelsFeedProps = {
   layout?: "feed" | "grid";
   emptyState?: React.ReactNode;
   initialOpenId?: string;
+  compactMobileMedia?: boolean;
 };
 
 const timeAgo = (value?: string) => {
@@ -155,6 +156,7 @@ function Media({
   onToggleMute,
   onTogglePause,
   onAutoplayBlocked,
+  compactMobileMedia,
 }: {
   item: ReelItem;
   muted: boolean;
@@ -165,6 +167,7 @@ function Media({
   onToggleMute?: () => void;
   onTogglePause?: () => void;
   onAutoplayBlocked?: () => void;
+  compactMobileMedia: boolean;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const musicRef = useRef<HTMLAudioElement | null>(null);
@@ -251,7 +254,11 @@ function Media({
       <img
         src={optimizedImage(item.src, 1200)}
         alt={item.caption || `${item.authorName} nature snap`}
-        className="max-h-[78dvh] max-w-[88vw] object-contain sm:max-h-full sm:max-w-full"
+        className={`object-contain ${
+          compactMobileMedia
+            ? "max-h-[70dvh] max-w-[76vw] sm:max-h-full sm:max-w-full"
+            : "max-h-[78dvh] max-w-[88vw] sm:max-h-full sm:max-w-full"
+        }`}
         loading="lazy"
         decoding="async"
         onClick={onTogglePause}
@@ -310,6 +317,7 @@ export default function ReelsFeed({
   layout = "feed",
   emptyState,
   initialOpenId,
+  compactMobileMedia = false,
 }: ReelsFeedProps) {
   const [local, setLocal] = useState<ReelItem[]>(items);
   const [openIndex, setOpenIndex] = useState<number | null>(null);
@@ -782,6 +790,7 @@ export default function ReelsFeed({
                 onToggleMute={() => setMuted((value) => !value)}
                 onTogglePause={() => setPaused((value) => !value)}
                 onAutoplayBlocked={() => setMuted(true)}
+                compactMobileMedia={compactMobileMedia}
               />
 
               <span className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-black/75 to-transparent" />

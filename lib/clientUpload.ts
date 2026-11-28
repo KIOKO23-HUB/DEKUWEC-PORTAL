@@ -1,6 +1,7 @@
 "use client";
 
 const MAX_UPLOAD_BYTES = 2_500_000;
+const MAX_SERVER_UPLOAD_BYTES = 25 * 1024 * 1024;
 
 /**
  * Shrinks phone photos in the browser before they leave the device. This keeps
@@ -89,6 +90,11 @@ export async function uploadImage(file: File): Promise<string> {
   try {
     return await directUpload(optimized);
   } catch (directError) {
+    if (optimized.type.startsWith("video/") && optimized.size > MAX_SERVER_UPLOAD_BYTES) {
+      throw new Error(
+        "Direct video upload failed. Try again on a stable connection; large videos cannot use the server fallback."
+      );
+    }
     console.warn("Direct upload failed, retrying through the server:", directError);
     return serverUpload(optimized);
   }

@@ -31,6 +31,8 @@ import {
 } from "lucide-react";
 import MessageAttachment from "@/components/MessageAttachment";
 import { EcoPopup } from "@/components/EcoSpotlight";
+import { uploadImage } from "@/lib/clientUpload";
+import { MAX_SNAP_VIDEO_SECONDS, readVideoDuration } from "@/lib/video";
 
 const NAV_SECTIONS = [
   {
@@ -85,7 +87,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // UI Dropdown State
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isMessagesOpen, setIsMessagesOpen] = useState(false);
-  const [messageTab, setMessageTab] = useState<"messages" | "streaks">("messages");
+  const [messageTab, setMessageTab] = useState<"messages" | "snaps" | "streaks">("messages");
+  const [chatMode, setChatMode] = useState<"message" | "snap">("message");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); 
   
   // Live Database State
@@ -407,14 +410,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     try {
       if (file) {
         setIsUploadingMedia(true);
-        const formData = new FormData();
-        formData.append("file", file);
-        const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
-        const uploadData = await uploadRes.json();
-        if (!uploadRes.ok || !uploadData.results?.[0]) throw new Error(uploadData.error || "Upload failed");
         uploadedMedia = {
-          url: uploadData.results[0].url,
-          type: uploadData.results[0].resource_type === "video" ? "video" : "image",
+          url: await uploadImage(file),
+          type: file.type.startsWith("video/") ? "video" : "image",
         };
       }
 
@@ -426,7 +424,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           content: content.trim(),
           mediaUrl: uploadedMedia?.url || "",
           mediaType: uploadedMedia?.type || "",
-          viewOnce: Boolean(uploadedMedia && viewOnce),
+          viewOnce: Boolean(uploadedMedia && (viewOnce || chatMode === "snap")),
           sticker,
         }),
       });
@@ -474,12 +472,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }, 300);
   };
 
-  const handleMediaSelection = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleMediaSelection = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
     if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) return alert("Choose a photo or video.");
-    if (file.size > 25 * 1024 * 1024) return alert("Media must be 25 MB or smaller.");
+    if (file.size > 100 * 1024 * 1024) return alert("Media must be 100 MB or smaller.");
+    if (chatMode === "snap" && file.type.startsWith("video/")) {
+      try {
+        const duration = await readVideoDuration(file);
+        if (duration > MAX_SNAP_VIDEO_SECONDS + 0.25) {
+          return alert(`Snap videos must be ${MAX_SNAP_VIDEO_SECONDS} seconds or shorter.`);
+        }
+      } catch (error) {
+        return alert(error instanceof Error ? error.message : "The video duration could not be checked.");
+      }
+    }
     setMediaFile(file);
   };
 
@@ -769,36 +777,52 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   <button onClick={() => setIsMessagesOpen(false)} className="p-1 hover:bg-emerald-800 rounded-full transition"><X className="h-5 w-5" /></button>
                 </div>
                 <div className="p-3 bg-gray-50 text-xs text-gray-500 font-semibold border-b border-gray-100 uppercase tracking-wider flex justify-between items-center">
-                  <span>Club Contacts Directory</span>
+                  <span>{messageTab === "snaps" ? "Send a snap to a friend" : "Club Contacts Directory"}</span>
                   {isFetchingContacts && <Loader2 className="h-3 w-3 animate-spin text-emerald-500" />}
                 </div>
                 <div className="flex gap-2 border-b border-gray-100 bg-white p-2">
                   <button
                     onClick={() => setMessageTab("messages")}
-                    className={`flex-1 rounded-lg px-3 py-2 text-xs font-bold transition ${messageTab === "messages" ? "bg-emerald-100 text-emerald-900" : "text-gray-500 hover:bg-gray-50"}`}
+                    className={`flex-1 rounded-lg px-2 py-2 text-xs font-bold transition ${messageTab === "messages" ? "bg-emerald-100 text-emerald-900" : "text-gray-500 hover:bg-gray-50"}`}
                   >
                     Messages
                   </button>
                   <button
+                    onClick={() => setMessageTab("snaps")}
+                    className={`flex-1 inline-flex items-center justify-center gap-1 rounded-lg px-2 py-2 text-xs font-bold transition ${messageTab === "snaps" ? "bg-lime-100 text-emerald-900" : "text-gray-500 hover:bg-gray-50"}`}
+                  >
+                    <Camera className="h-3.5 w-3.5" /> Snaps
+                  </button>
+                  <button
                     onClick={() => setMessageTab("streaks")}
-                    className={`flex-1 inline-flex items-center justify-center gap-1 rounded-lg px-3 py-2 text-xs font-bold transition ${messageTab === "streaks" ? "bg-orange-100 text-orange-800" : "text-gray-500 hover:bg-gray-50"}`}
+                    className={`flex-1 inline-flex items-center justify-center gap-1 rounded-lg px-2 py-2 text-xs font-bold transition ${messageTab === "streaks" ? "bg-orange-100 text-orange-800" : "text-gray-500 hover:bg-gray-50"}`}
                   >
                     <Flame className="h-3.5 w-3.5" /> Streaks
                   </button>
                 </div>
+                {messageTab === "snaps" && (
+                  <p className="border-b border-gray-100 bg-lime-50 px-3 py-2 text-[11px] leading-relaxed text-emerald-800">
+                    Choose a friend, attach a photo or video up to 12 seconds, and send it view-once with one replay.
+                  </p>
+                )}
                 <div className="flex-1 overflow-y-auto p-2">
                   {visibleDirectoryContacts.map((contact) => {
                     const conversation = inboxByContactId[contact.clerkId];
                     return (
                     <div 
                       key={contact.clerkId} 
-                      onClick={() => setActiveChat({
-                        id: contact.clerkId,
-                        name: contact.fullName || "Member",
-                        role: contact.status || "Pending",
-                        isOnline: presenceById[contact.clerkId]?.isOnline || false,
-                        lastSeenAt: presenceById[contact.clerkId]?.lastSeenAt || null,
-                      })}
+                      onClick={() => {
+                        setChatMode(messageTab === "snaps" ? "snap" : "message");
+                        setMediaFile(null);
+                        setMediaViewOnce(false);
+                        setActiveChat({
+                          id: contact.clerkId,
+                          name: contact.fullName || "Member",
+                          role: contact.status || "Pending",
+                          isOnline: presenceById[contact.clerkId]?.isOnline || false,
+                          lastSeenAt: presenceById[contact.clerkId]?.lastSeenAt || null,
+                        });
+                      }}
                       className="flex items-center gap-3 p-3 rounded-xl hover:bg-emerald-50 cursor-pointer transition border border-transparent hover:border-emerald-100 mb-1"
                     >
                       <div className="relative shrink-0">
@@ -823,6 +847,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         <p className="text-xs text-gray-500 truncate">
                           {presenceById[contact.clerkId]?.isOnline ? "Online now" : formatLastSeen(presenceById[contact.clerkId]?.lastSeenAt)}
                         </p>
+                        {messageTab === "snaps" && (
+                          <p className="text-[11px] font-semibold text-emerald-700">Tap to send a snap</p>
+                        )}
                         {conversation && <p className="text-[11px] text-gray-400 truncate">{conversation.lastMediaType ? `Photo/video · ${conversation.totalMessages} messages` : conversation.lastMessage || `${conversation.totalMessages} messages`}</p>}
                         {inboxByContactId[contact.clerkId]?.streakWeeks > 0 && (
                           <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-bold text-orange-600">
@@ -847,7 +874,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             ) : (
               <div className="flex flex-col h-full bg-gray-50">
                 <div className="p-4 border-b border-gray-200 bg-white flex items-center gap-3 shadow-sm z-10">
-                  <button onClick={() => { setActiveChat(null); setChatHistory([]); }} className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-full transition">
+                  <button onClick={() => { setActiveChat(null); setChatHistory([]); setMediaFile(null); setMediaViewOnce(false); setChatMode("message"); }} className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-full transition">
                     <ChevronLeft className="h-5 w-5" />
                   </button>
                   <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -864,6 +891,30 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   </div>
                 </div>
 
+                <div className="flex items-center gap-2 border-b border-gray-100 bg-white px-3 py-2">
+                  <button
+                    type="button"
+                    onClick={() => setChatMode("message")}
+                    aria-pressed={chatMode === "message"}
+                    className={`rounded-full px-3 py-1.5 text-xs font-bold ${chatMode === "message" ? "bg-emerald-100 text-emerald-900" : "text-gray-500 hover:bg-gray-50"}`}
+                  >
+                    Chat
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setChatMode("snap")}
+                    aria-pressed={chatMode === "snap"}
+                    className={`inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-bold ${chatMode === "snap" ? "bg-lime-100 text-emerald-900" : "text-gray-500 hover:bg-gray-50"}`}
+                  >
+                    <Camera className="h-3.5 w-3.5" /> Snap
+                  </button>
+                  {chatMode === "snap" ? (
+                    <span className="ml-auto text-right text-[10px] leading-tight text-emerald-700">
+                      Photo or video up to 12s · view once, one replay
+                    </span>
+                  ) : null}
+                </div>
+
                 <div className="flex-1 p-4 overflow-y-auto space-y-4">
                   {isLoadingChat ? (
                     <div className="flex items-center justify-center h-full">
@@ -872,7 +923,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   ) : chatHistory.length === 0 ? (
                     <div className="text-center text-sm text-gray-400 mt-10 flex flex-col items-center">
                       <MessageSquare className="h-8 w-8 text-gray-300 mb-2" />
-                      No messages yet. Send a message to start the conversation!
+                      {chatMode === "snap"
+                        ? "No messages yet. Choose a photo or short video below to send your first snap."
+                        : "No messages yet. Send a message to start the conversation!"}
                     </div>
                   ) : (
                     chatHistory.map((msg, idx) => {
@@ -901,9 +954,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   <div className="flex items-center justify-between gap-2 border-t border-gray-100 bg-emerald-50 px-3 py-2 text-xs">
                     <span className="min-w-0 truncate font-semibold text-emerald-900">{mediaFile.name}</span>
                     <div className="flex shrink-0 items-center gap-2">
-                      <label className="flex items-center gap-1 font-medium text-gray-700">
-                        <input type="checkbox" checked={mediaViewOnce} onChange={(event) => setMediaViewOnce(event.target.checked)} /> View once
-                      </label>
+                      {chatMode === "snap" ? (
+                        <span className="font-semibold text-emerald-800">View once · one replay</span>
+                      ) : (
+                        <label className="flex items-center gap-1 font-medium text-gray-700">
+                          <input type="checkbox" checked={mediaViewOnce} onChange={(event) => setMediaViewOnce(event.target.checked)} /> View once
+                        </label>
+                      )}
                       <button type="button" onClick={() => setMediaFile(null)} aria-label="Remove attachment" className="p-1 text-gray-500 hover:text-rose-600"><X className="h-4 w-4" /></button>
                     </div>
                   </div>
@@ -925,15 +982,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 )}
                 <form onSubmit={handleSendMessage} className="p-3 bg-white border-t border-gray-200 flex items-center gap-2">
                   <input ref={mediaInputRef} type="file" accept="image/*,video/*" onChange={handleMediaSelection} className="hidden" />
-                  <button type="button" onClick={() => mediaInputRef.current?.click()} disabled={isSending} aria-label="Attach photo or video" title="Attach photo or video" className="p-2 text-gray-500 hover:bg-emerald-50 hover:text-emerald-700 rounded-full disabled:opacity-50">
-                    <ImagePlus className="h-5 w-5" />
+                  <button type="button" onClick={() => mediaInputRef.current?.click()} disabled={isSending || isUploadingMedia} aria-label={chatMode === "snap" ? "Choose snap photo or video" : "Attach photo or video"} title={chatMode === "snap" ? "Choose snap photo or video" : "Attach photo or video"} className="p-2 text-gray-500 hover:bg-emerald-50 hover:text-emerald-700 rounded-full disabled:opacity-50">
+                    {chatMode === "snap" ? <Camera className="h-5 w-5" /> : <ImagePlus className="h-5 w-5" />}
                   </button>
                   <button type="button" onClick={() => setIsEmojiPickerOpen((open) => !open)} aria-label="Emoji and stickers" title="Emoji and stickers" className="p-2 text-gray-500 hover:bg-emerald-50 hover:text-emerald-700 rounded-full">
                     <Smile className="h-5 w-5" />
                   </button>
                   <input 
                     type="text" 
-                    placeholder="Type a message..." 
+                    placeholder={chatMode === "snap" ? "Add a caption (optional)..." : "Type a message..."}
                     className="flex-1 bg-gray-100 border-transparent focus:bg-white focus:border-emerald-500 focus:ring-0 text-sm rounded-full px-4 py-2 outline-none transition"
                     value={chatInput}
                     onChange={(e) => handleChatInputChange(e.target.value)}

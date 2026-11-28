@@ -7,6 +7,11 @@ import MessageConversation from "@/models/MessageConversation";
 import Notification from "@/models/Notification";
 import { sendEmail } from "@/lib/brevo";
 import {
+  MAX_NATURE_VIDEO_SECONDS,
+  getVideoInfo,
+  isNatureVideoWithinLimit,
+} from "@/lib/cloudinaryVideo";
+import {
   completedStreakWeeks,
   getIsoWeekKey,
   rollConversationStreak,
@@ -92,6 +97,23 @@ export async function POST(req: Request) {
     }
     if (mediaUrl && !["image", "video"].includes(mediaType)) {
       return NextResponse.json({ error: "Unsupported media type." }, { status: 400 });
+    }
+    if (mediaUrl && mediaType === "video" && viewOnce) {
+      try {
+        const info = await getVideoInfo(mediaUrl);
+        if (!info || !isNatureVideoWithinLimit(info.duration)) {
+          return NextResponse.json(
+            { error: `View-once video snaps must be ${MAX_NATURE_VIDEO_SECONDS} seconds or shorter.` },
+            { status: 400 }
+          );
+        }
+      } catch (error) {
+        console.error("Could not verify view-once video duration:", error);
+        return NextResponse.json(
+          { error: "We could not verify this snap's video length. Please upload it again." },
+          { status: 400 }
+        );
+      }
     }
 
     await connectToDatabase();

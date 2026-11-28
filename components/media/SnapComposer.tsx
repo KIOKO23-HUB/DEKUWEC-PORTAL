@@ -18,13 +18,15 @@ import {
 import { uploadImage } from "@/lib/clientUpload";
 import { optimizedImage } from "@/lib/image";
 import type { JamendoTrack } from "@/lib/jamendo";
+import { MAX_SNAP_VIDEO_SECONDS, readVideoDuration } from "@/lib/video";
 
-const MAX_VIDEO_SECONDS = 12;
-const MAX_VIDEO_BYTES = 25 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
 const CAMERA_FILTERS = {
   normal: "none",
   warm: "sepia(0.25) saturate(1.2)",
   mono: "grayscale(1) contrast(1.1)",
+  vivid: "saturate(1.45) contrast(1.05)",
+  cool: "hue-rotate(15deg) saturate(1.1)",
 } as const;
 
 type Props = {
@@ -37,23 +39,6 @@ type Props = {
   onMessage?: (message: string) => void;
   className?: string;
 };
-
-async function readVideoDuration(file: File) {
-  return new Promise<number>((resolve) => {
-    const video = document.createElement("video");
-    video.preload = "metadata";
-    video.onloadedmetadata = () => {
-      const value = Number.isFinite(video.duration) ? video.duration : 0;
-      URL.revokeObjectURL(video.src);
-      resolve(value);
-    };
-    video.onerror = () => {
-      URL.revokeObjectURL(video.src);
-      resolve(0);
-    };
-    video.src = URL.createObjectURL(file);
-  });
-}
 
 export default function SnapComposer({
   signedIn,
@@ -150,11 +135,10 @@ export default function SnapComposer({
       const isVideo = file.type.startsWith("video/");
       if (!isVideo) setSelectedMusic(null);
       if (isVideo) {
-        if (file.size > MAX_VIDEO_BYTES) throw new Error("Keep nature clips below 25 MB.");
+        if (file.size > MAX_VIDEO_BYTES) throw new Error("Keep nature clips below 100 MB.");
         const duration = await readVideoDuration(file);
-        if (!duration) throw new Error("That video could not be read. Try a shorter MP4 clip.");
-        if (duration > MAX_VIDEO_SECONDS + 0.25) {
-          throw new Error(`Nature clips must be ${MAX_VIDEO_SECONDS} seconds or less.`);
+        if (duration > MAX_SNAP_VIDEO_SECONDS + 0.25) {
+          throw new Error(`Nature clips must be ${MAX_SNAP_VIDEO_SECONDS} seconds or less.`);
         }
       }
       const url = await uploadImage(file);
@@ -217,9 +201,12 @@ export default function SnapComposer({
 
     const drawFrame = () => {
       if (preview.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && preview.videoWidth > 0) {
-        if (canvas.width !== preview.videoWidth || canvas.height !== preview.videoHeight) {
-          canvas.width = preview.videoWidth;
-          canvas.height = preview.videoHeight;
+        const scale = Math.min(1, 1280 / Math.max(preview.videoWidth, preview.videoHeight));
+        const width = Math.max(2, Math.floor((preview.videoWidth * scale) / 2) * 2);
+        const height = Math.max(2, Math.floor((preview.videoHeight * scale) / 2) * 2);
+        if (canvas.width !== width || canvas.height !== height) {
+          canvas.width = width;
+          canvas.height = height;
         }
         context.filter = CAMERA_FILTERS[cameraFilter];
         context.drawImage(preview, 0, 0, canvas.width, canvas.height);
@@ -283,7 +270,11 @@ export default function SnapComposer({
         "video/mp4",
       ];
       const mimeType = supportedTypes.find((type) => MediaRecorder.isTypeSupported(type));
-      const recorder = new MediaRecorder(recordingStream, mimeType ? { mimeType } : undefined);
+      const recorder = new MediaRecorder(recordingStream, {
+        ...(mimeType ? { mimeType } : {}),
+        videoBitsPerSecond: 2_500_000,
+        audioBitsPerSecond: 128_000,
+      });
       recordingChunksRef.current = [];
       discardRecordingRef.current = false;
       recorder.ondataavailable = (event) => {
@@ -323,11 +314,11 @@ export default function SnapComposer({
       setRecording(true);
       setRecordingSeconds(0);
       recordingTickRef.current = window.setInterval(() => {
-        setRecordingSeconds((seconds) => Math.min(MAX_VIDEO_SECONDS, seconds + 1));
+        setRecordingSeconds((seconds) => Math.min(MAX_SNAP_VIDEO_SECONDS, seconds + 1));
       }, 1000);
       recordingTimerRef.current = window.setTimeout(() => {
         if (recorder.state !== "inactive") recorder.stop();
-      }, MAX_VIDEO_SECONDS * 1000);
+      }, MAX_SNAP_VIDEO_SECONDS * 1000);
     } catch (recordingError) {
       stopCameraStream(recordingStreamRef.current);
       recordingStreamRef.current = null;
@@ -437,7 +428,7 @@ export default function SnapComposer({
                 />
               )}
               <span className="absolute left-2 top-2 rounded-full bg-black/60 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
-                {media.kind === "video" ? "Reel · 12s max" : "Photo"}
+                {media.kind === "video" ? "Snap video · 12s max" : "Photo"}
               </span>
               <button
                 type="button"
@@ -699,7 +690,7 @@ export default function SnapComposer({
             />
             <div className="absolute inset-x-0 top-0 flex items-center justify-between bg-gradient-to-b from-black/75 to-transparent p-4 text-white">
               <span className="text-sm font-bold">
-                {recording ? `Recording · ${recordingSeconds}/${MAX_VIDEO_SECONDS}s` : "Camera ready"}
+                {recording ? `Recording · ${recordingSeconds}/${MAX_SNAP_VIDEO_SECONDS}s` : "Camera ready"}
               </span>
               <button
                 type="button"
