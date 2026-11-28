@@ -20,6 +20,7 @@ Nature Snaps and club events use a shared reels/stories engine
 - Story rail groups each member's stories together; stories expire after **7 days**.
 - Still photos fit inside the mobile viewer instead of being cropped; videos include mute and volume controls.
 - Camera recording stops automatically at **12 seconds** and offers normal, warm and monochrome effects plus microphone mute.
+- Video snaps can search Jamendo for CC BY tracks; the artist, Jamendo track page and license are credited in playback. Set `JAMENDO_CLIENT_ID` in the ignored local `.env.local` file; it is used only by the server API.
 - View-once chat media allows one replay, and mutual chat streaks are credited when each week completes.
 
 The member dashboard (`app/dashboard/page.tsx`) mirrors a social feed: stories, cards,

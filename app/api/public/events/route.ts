@@ -62,7 +62,7 @@ export async function GET(req: Request) {
         eventId: { $in: eventIds },
         ...activeSnapFilter(),
       })
-        .select("imageUrl videoUrl mediaType kind expiresAt eventId eventTitle caption fullName userProfilePic clerkId likes reposts comments createdAt")
+        .select("imageUrl videoUrl mediaType musicTrackId musicTitle musicArtist musicAudioUrl musicTrackUrl musicLicenseUrl kind expiresAt eventId eventTitle caption fullName userProfilePic clerkId likes reposts comments createdAt")
         .sort({ createdAt: -1 })
         .limit(60)
         .lean();

@@ -48,6 +48,12 @@ export type ReelItem = {
   isStory?: boolean;
   expiresAt?: string;
   eventTitle?: string;
+  musicTrackId?: string;
+  musicTitle?: string;
+  musicArtist?: string;
+  musicAudioUrl?: string;
+  musicTrackUrl?: string;
+  musicLicenseUrl?: string;
 };
 
 type ReelsFeedProps = {
@@ -161,28 +167,40 @@ function Media({
   onAutoplayBlocked?: () => void;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const musicRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     const video = videoRef.current;
     if (video) video.muted = muted;
+    const music = musicRef.current;
+    if (music) music.muted = muted;
   }, [muted]);
 
   useEffect(() => {
     const video = videoRef.current;
     if (video) video.volume = volume;
+    const music = musicRef.current;
+    if (music) music.volume = volume;
   }, [volume]);
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
     video.currentTime = 0;
+    const music = musicRef.current;
+    if (music) {
+      music.pause();
+      music.currentTime = 0;
+    }
   }, [item.id]);
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
+    const music = musicRef.current;
     if (paused) {
       video.pause();
+      music?.pause();
       return;
     }
     video.play().catch(() => {
@@ -190,11 +208,15 @@ function Media({
       // playback and let them tap the sound button.
       onAutoplayBlocked?.();
     });
-  }, [paused, item.id, onAutoplayBlocked]);
+    music?.play().catch(() => onAutoplayBlocked?.());
+  }, [paused, muted, item.id, item.musicAudioUrl, onAutoplayBlocked]);
 
   if (item.kind === "video") {
     return (
       <div className="relative h-full w-full bg-black">
+        {item.musicAudioUrl ? (
+          <audio ref={musicRef} src={item.musicAudioUrl} preload="none" />
+        ) : null}
         <video
           ref={videoRef}
           src={item.src}
@@ -203,7 +225,10 @@ function Media({
           muted={muted}
           playsInline
           preload="metadata"
-          onEnded={onEnded}
+          onEnded={() => {
+            musicRef.current?.pause();
+            onEnded?.();
+          }}
           onTimeUpdate={(event) => {
             const el = event.currentTarget;
             if (el.duration) onProgress?.((el.currentTime / el.duration) * 100);
@@ -861,6 +886,26 @@ export default function ReelsFeed({
               <div className="absolute inset-x-0 bottom-0 z-20 px-4 pb-[5.6rem] pr-20">
                 {current.caption ? (
                   <p className="line-clamp-2 text-sm leading-snug text-white">{current.caption}</p>
+                ) : null}
+                {current.musicTrackUrl && current.musicTitle && current.musicArtist ? (
+                  <a
+                    href={current.musicTrackUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-1 inline-flex max-w-full items-center gap-1 truncate text-[11px] font-semibold text-lime-200 hover:text-white"
+                  >
+                    ♫ {current.musicTitle} · {current.musicArtist} · Jamendo (CC BY)
+                  </a>
+                ) : null}
+                {current.musicLicenseUrl ? (
+                  <a
+                    href={current.musicLicenseUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="ml-2 text-[10px] font-medium text-white/70 underline underline-offset-2"
+                  >
+                    License
+                  </a>
                 ) : null}
                 {current.href ? (
                   <a

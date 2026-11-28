@@ -7,6 +7,8 @@ import {
   Clock3,
   Image as ImageIcon,
   Loader2,
+  Music2,
+  Search,
   Send,
   UploadCloud,
   Video,
@@ -15,6 +17,7 @@ import {
 } from "lucide-react";
 import { uploadImage } from "@/lib/clientUpload";
 import { optimizedImage } from "@/lib/image";
+import type { JamendoTrack } from "@/lib/jamendo";
 
 const MAX_VIDEO_SECONDS = 12;
 const MAX_VIDEO_BYTES = 25 * 1024 * 1024;
@@ -76,6 +79,11 @@ export default function SnapComposer({
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [recordingMuted, setRecordingMuted] = useState(false);
   const [cameraFilter, setCameraFilter] = useState<keyof typeof CAMERA_FILTERS>("normal");
+  const [musicQuery, setMusicQuery] = useState("");
+  const [musicResults, setMusicResults] = useState<JamendoTrack[]>([]);
+  const [selectedMusic, setSelectedMusic] = useState<JamendoTrack | null>(null);
+  const [isSearchingMusic, setIsSearchingMusic] = useState(false);
+  const [musicError, setMusicError] = useState("");
   const cameraPreviewRef = useRef<HTMLVideoElement | null>(null);
   const cameraCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -106,11 +114,41 @@ export default function SnapComposer({
   }, []);
   const browseRef = useRef<HTMLInputElement | null>(null);
 
+  const searchMusic = async () => {
+    if (!signedIn) {
+      onRequireAuth();
+      return;
+    }
+    const query = musicQuery.trim();
+    if (query.length < 2) {
+      setMusicError("Enter at least two characters to search.");
+      return;
+    }
+
+    setMusicError("");
+    setMusicResults([]);
+    setIsSearchingMusic(true);
+    try {
+      const response = await fetch(`/api/music/search?q=${encodeURIComponent(query)}`, { cache: "no-store" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Music search failed.");
+      const tracks = Array.isArray(data.tracks) ? data.tracks : [];
+      setMusicResults(tracks);
+      if (tracks.length === 0) setMusicError("No matching CC BY tracks found.");
+    } catch (searchError) {
+      setMusicError(searchError instanceof Error ? searchError.message : "Music search failed.");
+      setMusicResults([]);
+    } finally {
+      setIsSearchingMusic(false);
+    }
+  };
+
   const uploadMedia = async (file: File) => {
     setError("");
     setUploading(true);
     try {
       const isVideo = file.type.startsWith("video/");
+      if (!isVideo) setSelectedMusic(null);
       if (isVideo) {
         if (file.size > MAX_VIDEO_BYTES) throw new Error("Keep nature clips below 25 MB.");
         const duration = await readVideoDuration(file);
@@ -335,6 +373,7 @@ export default function SnapComposer({
           userProfilePic: profilePic || "",
           imageUrl: media.kind === "image" ? media.url : "",
           videoUrl: media.kind === "video" ? media.url : "",
+          musicTrackId: media.kind === "video" ? selectedMusic?.id || "" : "",
           mediaType: media.kind,
           caption,
           kind: postKind,
@@ -345,6 +384,8 @@ export default function SnapComposer({
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Could not publish your snap.");
       setMedia(null);
+      setSelectedMusic(null);
+      setMusicResults([]);
       setCaption("");
       setEventId("");
       onMessage?.(
@@ -403,6 +444,7 @@ export default function SnapComposer({
                 onClick={(clickEvent) => {
                   clickEvent.stopPropagation();
                   setMedia(null);
+                  setSelectedMusic(null);
                 }}
                 className="absolute right-2 top-2 rounded-full bg-black/70 p-1.5 text-white transition hover:bg-black"
                 aria-label="Remove media"
@@ -461,6 +503,88 @@ export default function SnapComposer({
           className="hidden"
           onChange={handleFile}
         />
+        {media?.kind === "video" ? (
+          <div className="space-y-3 rounded-2xl border border-emerald-100 bg-white p-4">
+            <div className="flex items-center gap-2">
+              <Music2 className="h-4 w-4 text-emerald-700" />
+              <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800">Add licensed music</span>
+            </div>
+            {selectedMusic ? (
+              <div className="space-y-2 rounded-xl bg-emerald-50 p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="min-w-0 text-xs font-bold text-emerald-950">
+                    {selectedMusic.title} · {selectedMusic.artist}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedMusic(null)}
+                    className="shrink-0 text-[11px] font-bold text-rose-700 underline"
+                  >
+                    Remove
+                  </button>
+                </div>
+                <audio src={selectedMusic.audioUrl} controls preload="none" className="h-9 w-full" />
+                <p className="text-[10px] text-emerald-800">
+                  CC BY · You&apos;ll credit the artist and link the license on your snap.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="flex gap-2">
+                  <input
+                    type="search"
+                    value={musicQuery}
+                    onChange={(event) => setMusicQuery(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        void searchMusic();
+                      }
+                    }}
+                    maxLength={80}
+                    placeholder="Search songs or artists"
+                    className="min-w-0 flex-1 rounded-xl border border-emerald-100 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void searchMusic()}
+                    disabled={isSearchingMusic}
+                    className="inline-flex items-center gap-1 rounded-xl bg-emerald-800 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
+                  >
+                    {isSearchingMusic ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                    Search
+                  </button>
+                </div>
+                {musicError ? <p className="text-xs font-semibold text-rose-700">{musicError}</p> : null}
+                {musicResults.length > 0 ? (
+                  <div className="max-h-52 space-y-1 overflow-y-auto">
+                    {musicResults.map((track) => (
+                      <button
+                        key={track.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedMusic(track);
+                          setMusicResults([]);
+                          setMusicError("");
+                        }}
+                        className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left hover:bg-emerald-50"
+                      >
+                        <span className="min-w-0">
+                          <span className="block truncate text-xs font-bold text-slate-800">{track.title}</span>
+                          <span className="block truncate text-[10px] text-slate-500">{track.artist}</span>
+                        </span>
+                        <span className="shrink-0 text-[10px] font-bold text-emerald-700">CC BY · Preview</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+                {!musicError && musicResults.length === 0 ? (
+                  <p className="text-[10px] text-muted">Search results include tracks available under CC BY.</p>
+                ) : null}
+              </>
+            )}
+          </div>
+        ) : null}
         <div>
           <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-emerald-800">Post as</p>
           <div className="grid grid-cols-2 gap-2">

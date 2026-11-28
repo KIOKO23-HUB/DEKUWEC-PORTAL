@@ -4,6 +4,7 @@ import CommunitySnap from "@/models/CommunitySnap";
 import Notification from "@/models/Notification";
 import { notifyAllMembers } from "@/lib/notify";
 import { activeSnapFilter, storyExpiry } from "@/lib/snaps";
+import { getJamendoTrack, JamendoError, type JamendoTrack } from "@/lib/jamendo";
 import {
   MAX_NATURE_VIDEO_SECONDS,
   deleteVideo,
@@ -19,7 +20,7 @@ export async function GET() {
     await connectToDatabase();
     const snaps = await CommunitySnap.find(activeSnapFilter())
       .select(
-        "imageUrl videoUrl mediaType kind expiresAt eventId eventTitle caption fullName userProfilePic clerkId likes dislikes reposts comments createdAt"
+        "imageUrl videoUrl mediaType musicTrackId musicTitle musicArtist musicAudioUrl musicTrackUrl musicLicenseUrl kind expiresAt eventId eventTitle caption fullName userProfilePic clerkId likes dislikes reposts comments createdAt"
       )
       .sort({ createdAt: -1 })
       .limit(80)
@@ -40,6 +41,7 @@ export async function POST(req: Request) {
       videoUrl,
       mediaType,
       caption,
+      musicTrackId,
       kind,
       eventId,
       eventTitle,
@@ -51,7 +53,6 @@ export async function POST(req: Request) {
     }
 
     const isVideo = mediaType === "video" || !!videoUrl;
-
     // Verify the real duration with Cloudinary metadata. The browser check can
     // be bypassed, so an over-long clip is deleted and rejected here.
     if (isVideo && videoUrl) {
@@ -85,6 +86,28 @@ export async function POST(req: Request) {
         );
       }
     }
+
+    let musicTrack: JamendoTrack | null = null;
+    if (musicTrackId) {
+      if (!isVideo) {
+        return NextResponse.json({ error: "Music can only be added to video snaps." }, { status: 400 });
+      }
+      try {
+        musicTrack = await getJamendoTrack(String(musicTrackId));
+      } catch (error) {
+        if (error instanceof JamendoError) {
+          return NextResponse.json({ error: error.message }, { status: error.status });
+        }
+        console.error("Could not verify the selected music track:", error);
+        return NextResponse.json({ error: "The selected music track could not be verified." }, { status: 502 });
+      }
+      if (!musicTrack) {
+        return NextResponse.json(
+          { error: "That track is unavailable or does not allow remixing under the supported license." },
+          { status: 400 }
+        );
+      }
+    }
     
     const newSnap = new CommunitySnap({
       clerkId,
@@ -93,6 +116,12 @@ export async function POST(req: Request) {
       imageUrl: isVideo ? "" : imageUrl || "",
       videoUrl: isVideo ? videoUrl : "",
       mediaType: isVideo ? "video" : "image",
+      musicTrackId: musicTrack?.id || "",
+      musicTitle: musicTrack?.title || "",
+      musicArtist: musicTrack?.artist || "",
+      musicAudioUrl: musicTrack?.audioUrl || "",
+      musicTrackUrl: musicTrack?.trackUrl || "",
+      musicLicenseUrl: musicTrack?.licenseUrl || "",
       kind: kind === "story" ? "story" : "reel",
       expiresAt: storyExpiry(kind),
       eventId: typeof eventId === "string" ? eventId.slice(0, 40) : "",

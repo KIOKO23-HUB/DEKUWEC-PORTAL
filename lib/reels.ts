@@ -5,6 +5,12 @@ export type SnapSource = {
   imageUrl?: string;
   videoUrl?: string;
   mediaType?: "image" | "video";
+  musicTrackId?: string;
+  musicTitle?: string;
+  musicArtist?: string;
+  musicAudioUrl?: string;
+  musicTrackUrl?: string;
+  musicLicenseUrl?: string;
   caption?: string;
   description?: string;
   title?: string;
@@ -51,6 +57,12 @@ export function snapToReel(snap: SnapSource, official = false): ReelItem | null 
     id: snap._id,
     src,
     kind: isVideo ? "video" : "image",
+    musicTrackId: snap.musicTrackId,
+    musicTitle: snap.musicTitle,
+    musicArtist: snap.musicArtist,
+    musicAudioUrl: snap.musicAudioUrl,
+    musicTrackUrl: snap.musicTrackUrl,
+    musicLicenseUrl: snap.musicLicenseUrl,
     authorName: snap.fullName || snap.photographer || "DEKUWEC member",
     authorAvatar: snap.userProfilePic,
     authorId: snap.clerkId,
