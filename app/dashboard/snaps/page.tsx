@@ -79,7 +79,7 @@ export default function DashboardSnapsPage() {
       <header className="flex flex-col gap-4 border-b border-emerald-100 pb-5 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">Nature Snaps</p>
-          <h1 className="mt-1 text-2xl font-black text-emerald-950 sm:text-3xl">Your nature reels</h1>
+          <h1 className="mt-1 text-2xl font-black text-emerald-950 sm:text-3xl">Your nature snaps</h1>
           <p className="mt-1 text-sm text-muted">
             Photos and 12-second clips from members and the official gallery.
           </p>

@@ -3,7 +3,9 @@ import crypto from "crypto";
 import { connectToDatabase } from "@/lib/mongodb";
 import EventItem from "@/models/EventItem";
 import EventRegistration from "@/models/EventRegistration";
+import CommunitySnap from "@/models/CommunitySnap";
 import { sendEmail } from "@/lib/brevo";
+import { activeSnapFilter } from "@/lib/snaps";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +54,27 @@ export async function GET(req: Request) {
     if (eventId && /^[a-f\d]{24}$/i.test(eventId)) query._id = eventId;
     const events = await EventItem.find(query).sort({ createdAt: -1 }).lean();
 
+    // Member reels/stories tagged to an event appear in that event's reel rail.
+    const eventIds = events.map((event: any) => String(event._id));
+    let reelsByEvent = new Map<string, any[]>();
+    if (eventIds.length > 0) {
+      const tagged = await CommunitySnap.find({
+        eventId: { $in: eventIds },
+        ...activeSnapFilter(),
+      })
+        .select("imageUrl videoUrl mediaType kind expiresAt eventId eventTitle caption fullName userProfilePic clerkId likes reposts comments createdAt")
+        .sort({ createdAt: -1 })
+        .limit(60)
+        .lean();
+
+      reelsByEvent = (tagged as any[]).reduce((map, reel) => {
+        const list = map.get(reel.eventId) || [];
+        list.push(reel);
+        map.set(reel.eventId, list);
+        return map;
+      }, new Map<string, any[]>());
+    }
+
     return NextResponse.json(
       {
         events: events.map((event: any) => ({
@@ -69,6 +92,7 @@ export async function GET(req: Request) {
           likes: Array.isArray(event.likes) ? event.likes : [],
           reposts: Array.isArray(event.reposts) ? event.reposts : [],
           comments: Array.isArray(event.comments) ? event.comments : [],
+          reels: reelsByEvent.get(String(event._id)) || [],
         })),
       },
       { status: 200 }

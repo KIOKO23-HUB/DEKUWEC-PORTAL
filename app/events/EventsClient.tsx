@@ -8,7 +8,7 @@ import { optimizedImage } from "@/lib/image";
 import { uploadImage } from "@/lib/clientUpload";
 import { renderPoster, type PosterTemplate } from "@/lib/poster";
 import ReelsFeed, { type ReelItem } from "@/components/media/ReelsFeed";
-import { eventToReels } from "@/lib/reels";
+import { eventToReels, snapToReel, type SnapSource } from "@/lib/reels";
 
 type Tier = { id: string; label: string; amount: number };
 
@@ -27,6 +27,7 @@ type PublicEvent = {
   likes?: string[];
   reposts?: string[];
   comments?: { clerkId: string; fullName: string; text: string; createdAt?: string }[];
+  reels?: SnapSource[];
 };
 
 type Step = "idle" | "details" | "paying" | "success";
@@ -362,9 +363,9 @@ function EventCard({ event }: { event: PublicEvent }) {
     "w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10";
 
   return (
-    <article id={`event-${event._id}`} className="scroll-mt-24 mx-auto max-w-[520px] overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-xl shadow-slate-300/40">
+    <article id={`event-${event._id}`} className="scroll-mt-24 mx-auto max-w-[520px] rounded-[2rem] border border-slate-200 bg-white shadow-xl shadow-slate-300/40">
       {event.imageUrl && (
-        <div className="relative aspect-[4/5] w-full overflow-hidden bg-slate-950">
+        <div className="relative aspect-[4/5] w-full overflow-hidden rounded-t-[2rem] bg-slate-950">
           <img
             src={optimizedImage(event.imageUrl, 1000)}
             alt={`${event.title} poster`}
@@ -491,12 +492,14 @@ function EventCard({ event }: { event: PublicEvent }) {
         </div>
 
         {step === "idle" && (
-          <button
-            onClick={() => setStep("details")}
-            className="w-full rounded-xl bg-emerald-900 px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-emerald-900/15 transition hover:bg-emerald-800 sm:w-auto"
-          >
-            Register {event.isFree ? "" : "& Pay"}
-          </button>
+          <div className="sticky bottom-0 z-20 -mx-5 -mb-5 border-t border-slate-100 bg-white/95 px-5 py-3 backdrop-blur sm:static sm:mx-0 sm:mb-0 sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
+            <button
+              onClick={() => setStep("details")}
+              className="w-full rounded-xl bg-emerald-900 px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-emerald-900/15 transition hover:bg-emerald-800 sm:w-auto"
+            >
+              Register {event.isFree ? "" : "& Pay"}
+            </button>
+          </div>
         )}
 
         {step === "details" && (
@@ -671,8 +674,8 @@ export default function EventsClient() {
   const moments = useMemo<ReelItem[]>(
     () =>
       events
-        .flatMap((event) =>
-          eventToReels({
+        .flatMap((event) => {
+          const official = eventToReels({
             _id: event._id,
             title: event.title,
             description: event.description,
@@ -682,9 +685,13 @@ export default function EventsClient() {
             likes: event.likes,
             reposts: event.reposts,
             media: event.media,
-          })
-        )
-        .slice(0, 10),
+          });
+          const memberReels = (event.reels || [])
+            .map((reel) => snapToReel(reel, false))
+            .filter(Boolean) as ReelItem[];
+          return [...memberReels, ...official];
+        })
+        .slice(0, 12),
     [events]
   );
 
@@ -731,12 +738,20 @@ export default function EventsClient() {
       <header className="sticky top-0 z-20 border-b border-emerald-900/20 bg-emerald-950/95 backdrop-blur">
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-5 py-3">
           <span className="text-sm font-black tracking-tight text-white">DEKUWEC Events</span>
-          <Link
-            href="/"
-            className="inline-flex items-center gap-1.5 rounded-xl bg-white px-4 py-2 text-xs font-bold text-emerald-900 transition hover:bg-emerald-50"
-          >
-            ← Main Site
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-white/25 px-3 py-2 text-xs font-bold text-white transition hover:bg-white/10"
+            >
+              Portal
+            </Link>
+            <Link
+              href="/"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-white px-3.5 py-2 text-xs font-bold text-emerald-900 transition hover:bg-emerald-50"
+            >
+              ← Main Site
+            </Link>
+          </div>
         </div>
       </header>
 
@@ -797,9 +812,9 @@ export default function EventsClient() {
             No upcoming events have been posted yet. Check back soon.
           </p>
         ) : (
-          <div className="mx-auto max-h-[calc(100vh-11rem)] max-w-[560px] snap-y snap-mandatory space-y-5 overflow-y-auto pb-10 sm:rounded-[2rem]">
+          <div className="mx-auto max-w-[560px] space-y-6 pb-16">
             {events.map((event) => (
-              <div key={event._id} className="snap-start">
+              <div key={event._id} className="scroll-mt-24">
                 <EventCard event={event} />
               </div>
             ))}

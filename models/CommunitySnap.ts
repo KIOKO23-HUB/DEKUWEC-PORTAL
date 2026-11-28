@@ -7,6 +7,11 @@ const CommunitySnapSchema = new mongoose.Schema({
   imageUrl: { type: String, default: "" },
   videoUrl: { type: String, default: "" },
   mediaType: { type: String, enum: ["image", "video"], default: "image" },
+  // A reel stays on the wall; a story disappears one week after posting.
+  kind: { type: String, enum: ["reel", "story"], default: "reel" },
+  expiresAt: { type: Date, default: null, index: true },
+  eventId: { type: String, default: "" },
+  eventTitle: { type: String, default: "" },
   caption: { type: String, default: "" },
   likes: { type: [String], default: [] }, // Array of user Clerk IDs
   dislikes: { type: [String], default: [] }, // Array of user Clerk IDs

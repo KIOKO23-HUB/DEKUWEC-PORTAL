@@ -10,6 +10,7 @@ const MessageSchema = new mongoose.Schema({
   mediaType: { type: String, enum: ["image", "video", ""], default: "" },
   viewOnce: { type: Boolean, default: false },
   viewedAt: { type: Date, default: null },
+  viewCount: { type: Number, default: 0 },
   messageType: { type: String, enum: ["message", "system", "sticker"], default: "message" },
   isRead: { type: Boolean, default: false },
 }, { timestamps: true });

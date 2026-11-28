@@ -3,6 +3,7 @@ import { connectToDatabase } from "@/lib/mongodb";
 import CommunitySnap from "@/models/CommunitySnap";
 import Notification from "@/models/Notification";
 import { notifyAllMembers } from "@/lib/notify";
+import { activeSnapFilter, storyExpiry } from "@/lib/snaps";
 import {
   MAX_NATURE_VIDEO_SECONDS,
   deleteVideo,
@@ -16,9 +17,9 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   try {
     await connectToDatabase();
-    const snaps = await CommunitySnap.find({})
+    const snaps = await CommunitySnap.find(activeSnapFilter())
       .select(
-        "imageUrl videoUrl mediaType caption fullName userProfilePic clerkId likes dislikes reposts comments createdAt"
+        "imageUrl videoUrl mediaType kind expiresAt eventId eventTitle caption fullName userProfilePic clerkId likes dislikes reposts comments createdAt"
       )
       .sort({ createdAt: -1 })
       .limit(80)
@@ -31,7 +32,18 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const { clerkId, fullName, userProfilePic, imageUrl, videoUrl, mediaType, caption } = await req.json();
+    const {
+      clerkId,
+      fullName,
+      userProfilePic,
+      imageUrl,
+      videoUrl,
+      mediaType,
+      caption,
+      kind,
+      eventId,
+      eventTitle,
+    } = await req.json();
     await connectToDatabase();
 
     if (!imageUrl && !videoUrl) {
@@ -81,6 +93,10 @@ export async function POST(req: Request) {
       imageUrl: isVideo ? "" : imageUrl || "",
       videoUrl: isVideo ? videoUrl : "",
       mediaType: isVideo ? "video" : "image",
+      kind: kind === "story" ? "story" : "reel",
+      expiresAt: storyExpiry(kind),
+      eventId: typeof eventId === "string" ? eventId.slice(0, 40) : "",
+      eventTitle: typeof eventTitle === "string" ? eventTitle.slice(0, 120) : "",
       caption: String(caption || "").slice(0, 240),
     });
     await newSnap.save();

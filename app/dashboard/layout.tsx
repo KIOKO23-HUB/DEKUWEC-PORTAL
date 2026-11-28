@@ -85,6 +85,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // UI Dropdown State
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isMessagesOpen, setIsMessagesOpen] = useState(false);
+  const [messageTab, setMessageTab] = useState<"messages" | "streaks">("messages");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); 
   
   // Live Database State
@@ -521,6 +522,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (firstTime !== secondTime) return secondTime - firstTime;
     return (first.fullName || "").localeCompare(second.fullName || "");
   });
+  const visibleDirectoryContacts = messageTab === "streaks"
+    ? sortedDirectoryContacts
+      .filter((contact) => (inboxByContactId[contact.clerkId]?.streakWeeks || 0) > 0)
+      .sort((first, second) =>
+        inboxByContactId[second.clerkId].streakWeeks - inboxByContactId[first.clerkId].streakWeeks
+      )
+    : sortedDirectoryContacts;
 
   return (
     <div className="flex min-h-[100dvh] flex-col bg-canvas font-sans">
@@ -764,8 +772,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   <span>Club Contacts Directory</span>
                   {isFetchingContacts && <Loader2 className="h-3 w-3 animate-spin text-emerald-500" />}
                 </div>
+                <div className="flex gap-2 border-b border-gray-100 bg-white p-2">
+                  <button
+                    onClick={() => setMessageTab("messages")}
+                    className={`flex-1 rounded-lg px-3 py-2 text-xs font-bold transition ${messageTab === "messages" ? "bg-emerald-100 text-emerald-900" : "text-gray-500 hover:bg-gray-50"}`}
+                  >
+                    Messages
+                  </button>
+                  <button
+                    onClick={() => setMessageTab("streaks")}
+                    className={`flex-1 inline-flex items-center justify-center gap-1 rounded-lg px-3 py-2 text-xs font-bold transition ${messageTab === "streaks" ? "bg-orange-100 text-orange-800" : "text-gray-500 hover:bg-gray-50"}`}
+                  >
+                    <Flame className="h-3.5 w-3.5" /> Streaks
+                  </button>
+                </div>
                 <div className="flex-1 overflow-y-auto p-2">
-                  {sortedDirectoryContacts.map((contact) => {
+                  {visibleDirectoryContacts.map((contact) => {
                     const conversation = inboxByContactId[contact.clerkId];
                     return (
                     <div 
@@ -813,6 +835,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   })}
                   {!isFetchingContacts && directoryContacts.length === 0 && (
                     <div className="p-4 text-center text-xs text-gray-400 mt-4">No members found.</div>
+                  )}
+                  {!isFetchingContacts && messageTab === "streaks" && directoryContacts.length > 0 && visibleDirectoryContacts.length === 0 && (
+                    <div className="mt-4 flex flex-col items-center p-5 text-center text-xs text-gray-500">
+                      <Flame className="mb-2 h-6 w-6 text-orange-400" />
+                      No active streaks yet. Message a friend each week to build one.
+                    </div>
                   )}
                 </div>
               </>

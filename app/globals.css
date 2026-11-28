@@ -104,6 +104,10 @@ h3,
   object-fit: cover;
 }
 
+.reel-image {
+  object-fit: contain;
+}
+
 .scrollbar-hide {
   scrollbar-width: none;
   -ms-overflow-style: none;

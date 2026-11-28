@@ -1,12 +1,28 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { Camera, Image as ImageIcon, Loader2, Send, UploadCloud, Video, X, Sparkles } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import {
+  CalendarDays,
+  Camera,
+  Clock3,
+  Image as ImageIcon,
+  Loader2,
+  Send,
+  UploadCloud,
+  Video,
+  X,
+  Sparkles,
+} from "lucide-react";
 import { uploadImage } from "@/lib/clientUpload";
 import { optimizedImage } from "@/lib/image";
 
 const MAX_VIDEO_SECONDS = 12;
 const MAX_VIDEO_BYTES = 25 * 1024 * 1024;
+const CAMERA_FILTERS = {
+  normal: "none",
+  warm: "sepia(0.25) saturate(1.2)",
+  mono: "grayscale(1) contrast(1.1)",
+} as const;
 
 type Props = {
   signedIn: boolean;
@@ -48,17 +64,49 @@ export default function SnapComposer({
 }: Props) {
   const [media, setMedia] = useState<{ url: string; kind: "image" | "video" } | null>(null);
   const [caption, setCaption] = useState("");
+  const [postKind, setPostKind] = useState<"reel" | "story">("reel");
+  const [events, setEvents] = useState<{ _id: string; title: string }[]>([]);
+  const [eventId, setEventId] = useState("");
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const [recording, setRecording] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [recordingMuted, setRecordingMuted] = useState(false);
+  const [cameraFilter, setCameraFilter] = useState<keyof typeof CAMERA_FILTERS>("normal");
+  const cameraPreviewRef = useRef<HTMLVideoElement | null>(null);
+  const cameraCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const recordingStreamRef = useRef<MediaStream | null>(null);
+  const cameraFrameRef = useRef<number | null>(null);
+  const recordingChunksRef = useRef<Blob[]>([]);
+  const recordingTimerRef = useRef<number | null>(null);
+  const recordingTickRef = useRef<number | null>(null);
+  const discardRecordingRef = useRef(false);
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/public/events", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!active || !data) return;
+        setEvents(
+          (data.events || []).map((event: { _id: string; title: string }) => ({
+            _id: event._id,
+            title: event.title,
+          }))
+        );
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
   const browseRef = useRef<HTMLInputElement | null>(null);
-  const captureRef = useRef<HTMLInputElement | null>(null);
 
-  const handleFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file) return;
-
+  const uploadMedia = async (file: File) => {
     setError("");
     setUploading(true);
     try {
@@ -78,6 +126,186 @@ export default function SnapComposer({
     } finally {
       setUploading(false);
     }
+  };
+
+  const handleFile = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (file) void uploadMedia(file);
+  };
+
+  const stopCameraStream = (stream: MediaStream | null) => {
+    stream?.getTracks().forEach((track) => track.stop());
+  };
+
+  const openCamera = async () => {
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+      setError("Camera recording is not supported in this browser. Use Browse files instead.");
+      return;
+    }
+
+    setError("");
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" } },
+        audio: true,
+      });
+      setCameraStream(stream);
+      setCameraOpen(true);
+      setRecordingMuted(false);
+      stream.getAudioTracks().forEach((track) => {
+        track.enabled = true;
+      });
+    } catch (cameraError) {
+      console.error("Could not open the camera:", cameraError);
+      setError("Camera or microphone permission was denied. Allow access or use Browse files.");
+    }
+  };
+
+  useEffect(() => {
+    const preview = cameraPreviewRef.current;
+    const canvas = cameraCanvasRef.current;
+    if (!preview || !canvas || !cameraStream) return;
+    preview.srcObject = cameraStream;
+    preview.play().catch((playError) => {
+      console.error("Camera preview could not start:", playError);
+      setError("Camera preview could not start. Please close it and try again.");
+    });
+    const context = canvas.getContext("2d");
+    if (!context) {
+      setError("Video effects are not supported in this browser. Use Browse files instead.");
+      return;
+    }
+
+    const drawFrame = () => {
+      if (preview.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && preview.videoWidth > 0) {
+        if (canvas.width !== preview.videoWidth || canvas.height !== preview.videoHeight) {
+          canvas.width = preview.videoWidth;
+          canvas.height = preview.videoHeight;
+        }
+        context.filter = CAMERA_FILTERS[cameraFilter];
+        context.drawImage(preview, 0, 0, canvas.width, canvas.height);
+      }
+      cameraFrameRef.current = window.requestAnimationFrame(drawFrame);
+    };
+    cameraFrameRef.current = window.requestAnimationFrame(drawFrame);
+
+    return () => {
+      if (cameraFrameRef.current !== null) window.cancelAnimationFrame(cameraFrameRef.current);
+      cameraFrameRef.current = null;
+    };
+  }, [cameraStream, cameraOpen, cameraFilter]);
+
+  useEffect(() => {
+    return () => {
+      if (recordingTimerRef.current !== null) window.clearTimeout(recordingTimerRef.current);
+      if (recordingTickRef.current !== null) window.clearInterval(recordingTickRef.current);
+      if (cameraFrameRef.current !== null) window.cancelAnimationFrame(cameraFrameRef.current);
+      stopCameraStream(cameraStream);
+      stopCameraStream(recordingStreamRef.current);
+    };
+  }, [cameraStream]);
+
+  const closeCamera = () => {
+    discardRecordingRef.current = true;
+    if (recordingTimerRef.current !== null) window.clearTimeout(recordingTimerRef.current);
+    if (recordingTickRef.current !== null) window.clearInterval(recordingTickRef.current);
+    recordingTimerRef.current = null;
+    recordingTickRef.current = null;
+    if (recorderRef.current && recorderRef.current.state !== "inactive") {
+      recorderRef.current.stop();
+    } else {
+      stopCameraStream(cameraStream);
+      setCameraStream(null);
+      setCameraOpen(false);
+      setRecording(false);
+    }
+  };
+
+  const startRecording = () => {
+    if (!cameraStream || recording) return;
+    try {
+      const canvasStream = cameraCanvasRef.current?.captureStream(30);
+      if (!canvasStream?.getVideoTracks().length) {
+        throw new Error("The camera preview is not ready yet.");
+      }
+      const audioTracks = cameraStream.getAudioTracks();
+      audioTracks.forEach((track) => {
+        track.enabled = !recordingMuted;
+      });
+      const recordingStream = new MediaStream([
+        ...canvasStream.getVideoTracks(),
+        ...audioTracks,
+      ]);
+      recordingStreamRef.current = recordingStream;
+      const supportedTypes = [
+        "video/webm;codecs=vp9",
+        "video/webm;codecs=vp8",
+        "video/webm",
+        "video/mp4",
+      ];
+      const mimeType = supportedTypes.find((type) => MediaRecorder.isTypeSupported(type));
+      const recorder = new MediaRecorder(recordingStream, mimeType ? { mimeType } : undefined);
+      recordingChunksRef.current = [];
+      discardRecordingRef.current = false;
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) recordingChunksRef.current.push(event.data);
+      };
+      recorder.onerror = (recorderError) => {
+        console.error("Camera recording failed:", recorderError);
+        setError("Recording failed. Please try again or choose a saved clip.");
+      };
+      recorder.onstop = () => {
+        if (recordingTimerRef.current !== null) window.clearTimeout(recordingTimerRef.current);
+        if (recordingTickRef.current !== null) window.clearInterval(recordingTickRef.current);
+        recordingTimerRef.current = null;
+        recordingTickRef.current = null;
+        const stream = cameraStream;
+        const blob = new Blob(recordingChunksRef.current, { type: recorder.mimeType || "video/webm" });
+        const shouldDiscard = discardRecordingRef.current;
+        recorderRef.current = null;
+        stopCameraStream(recordingStreamRef.current);
+        recordingStreamRef.current = null;
+        stopCameraStream(stream);
+        setCameraStream(null);
+        setCameraOpen(false);
+        setRecording(false);
+        setRecordingSeconds(0);
+        if (shouldDiscard) return;
+        if (!blob.size) {
+          setError("The recording was empty. Please try again.");
+          return;
+        }
+        const isMp4 = blob.type.includes("mp4");
+        const file = new File([blob], `nature-snap.${isMp4 ? "mp4" : "webm"}`, { type: blob.type });
+        void uploadMedia(file);
+      };
+      recorderRef.current = recorder;
+      recorder.start(250);
+      setRecording(true);
+      setRecordingSeconds(0);
+      recordingTickRef.current = window.setInterval(() => {
+        setRecordingSeconds((seconds) => Math.min(MAX_VIDEO_SECONDS, seconds + 1));
+      }, 1000);
+      recordingTimerRef.current = window.setTimeout(() => {
+        if (recorder.state !== "inactive") recorder.stop();
+      }, MAX_VIDEO_SECONDS * 1000);
+    } catch (recordingError) {
+      stopCameraStream(recordingStreamRef.current);
+      recordingStreamRef.current = null;
+      console.error("Could not start camera recording:", recordingError);
+      setError("Recording could not start on this device. Try another browser or use Browse files.");
+    }
+  };
+
+  const toggleRecordingMute = () => {
+    setRecordingMuted((muted) => {
+      const nextMuted = !muted;
+      cameraStream?.getAudioTracks().forEach((track) => {
+        track.enabled = !nextMuted;
+      });
+      return nextMuted;
+    });
   };
 
   const publish = async (event: React.FormEvent) => {
@@ -109,13 +337,21 @@ export default function SnapComposer({
           videoUrl: media.kind === "video" ? media.url : "",
           mediaType: media.kind,
           caption,
+          kind: postKind,
+          eventId: eventId || "",
+          eventTitle: events.find((event) => event._id === eventId)?.title || "",
         }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Could not publish your snap.");
       setMedia(null);
       setCaption("");
-      onMessage?.("Your snap is live. The whole club has been notified 🌿");
+      setEventId("");
+      onMessage?.(
+        postKind === "story"
+          ? "Story posted — it disappears automatically in 7 days ⏳"
+          : "Your reel is live. The whole club has been notified 🌿"
+      );
       await onPublished();
     } catch (publishError: any) {
       setError(publishError?.message || "Could not publish your snap.");
@@ -132,7 +368,9 @@ export default function SnapComposer({
         </span>
         <div>
           <h2 className="text-sm font-black text-emerald-950">Create a nature moment</h2>
-          <p className="text-[11px] text-muted">Photo or a 12-second video — straight to the reels.</p>
+          <p className="text-[11px] text-muted">
+            Post a snap that stays, or a story that vanishes in 7 days.
+          </p>
         </div>
       </div>
 
@@ -154,7 +392,7 @@ export default function SnapComposer({
                 <img
                   src={optimizedImage(media.url, 900)}
                   alt="Selected snap preview"
-                  className="h-full w-full object-cover"
+                  className="h-full w-full object-contain"
                 />
               )}
               <span className="absolute left-2 top-2 rounded-full bg-black/60 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
@@ -184,11 +422,11 @@ export default function SnapComposer({
                   onClick={(clickEvent) => {
                     clickEvent.stopPropagation();
                     if (!signedIn) return onRequireAuth();
-                    captureRef.current?.click();
+                    void openCamera();
                   }}
                   className="inline-flex items-center gap-1.5 rounded-full bg-emerald-700 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-emerald-800"
                 >
-                  <Video className="h-3.5 w-3.5" /> Record 12s reel
+                  <Video className="h-3.5 w-3.5" /> Record up to 12s
                 </button>
                 <button
                   type="button"
@@ -223,14 +461,58 @@ export default function SnapComposer({
           className="hidden"
           onChange={handleFile}
         />
-        <input
-          ref={captureRef}
-          type="file"
-          accept="video/mp4,video/webm,video/quicktime"
-          capture="environment"
-          className="hidden"
-          onChange={handleFile}
-        />
+        <div>
+          <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-emerald-800">Post as</p>
+          <div className="grid grid-cols-2 gap-2">
+            {(
+              [
+                { value: "reel", label: "Snap", hint: "Stays on the wall", icon: Video },
+                { value: "story", label: "Story", hint: "Disappears in 7 days", icon: Clock3 },
+              ] as const
+            ).map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => setPostKind(option.value)}
+                aria-pressed={postKind === option.value}
+                className={`flex items-start gap-2 rounded-xl border px-3 py-2.5 text-left transition ${
+                  postKind === option.value
+                    ? "border-emerald-500 bg-emerald-50 text-emerald-900"
+                    : "border-slate-200 bg-white text-slate-600 hover:border-emerald-300"
+                }`}
+              >
+                <option.icon className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>
+                  <span className="block text-xs font-black">{option.label}</span>
+                  <span className="block text-[10px] font-medium opacity-70">{option.hint}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {events.length > 0 ? (
+          <label className="block">
+            <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-emerald-800">
+              Tag an event (optional)
+            </span>
+            <select
+              value={eventId}
+              onChange={(changeEvent) => setEventId(changeEvent.target.value)}
+              className="w-full rounded-xl border border-emerald-100 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-emerald-500"
+            >
+              <option value="">Not linked to an event</option>
+              {events.map((event) => (
+                <option key={event._id} value={event._id}>
+                  {event.title}
+                </option>
+              ))}
+            </select>
+            <span className="mt-1 flex items-center gap-1 text-[10px] font-semibold text-muted">
+              <CalendarDays className="h-3 w-3" /> Tagged posts appear in that event&apos;s reels.
+            </span>
+          </label>
+        ) : null}
 
         <label className="block">
           <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-emerald-800">
@@ -261,7 +543,11 @@ export default function SnapComposer({
           className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-800 px-5 py-3.5 text-sm font-bold text-white shadow-lg shadow-emerald-900/15 transition hover:bg-emerald-900 disabled:opacity-50"
         >
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-          {signedIn ? "Post to the reels" : "Continue with Google to post"}
+          {signedIn
+            ? postKind === "story"
+              ? "Post story · disappears in 7 days"
+              : "Post snap"
+            : "Continue with Google to post"}
         </button>
 
         {!signedIn ? (
@@ -274,6 +560,71 @@ export default function SnapComposer({
           </p>
         )}
       </form>
+
+      {cameraOpen ? (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/90 p-3 sm:p-6">
+          <div className="relative w-full max-w-md overflow-hidden rounded-3xl bg-black shadow-2xl">
+            <canvas ref={cameraCanvasRef} className="hidden" />
+            <video
+              ref={cameraPreviewRef}
+              autoPlay
+              muted
+              playsInline
+              style={{ filter: CAMERA_FILTERS[cameraFilter] }}
+              className="aspect-[9/16] max-h-[72dvh] w-full bg-black object-cover"
+            />
+            <div className="absolute inset-x-0 top-0 flex items-center justify-between bg-gradient-to-b from-black/75 to-transparent p-4 text-white">
+              <span className="text-sm font-bold">
+                {recording ? `Recording · ${recordingSeconds}/${MAX_VIDEO_SECONDS}s` : "Camera ready"}
+              </span>
+              <button
+                type="button"
+                onClick={closeCamera}
+                aria-label="Close camera"
+                className="rounded-full bg-white/15 p-2 hover:bg-white/25"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="absolute inset-x-0 bottom-0 flex flex-col items-center gap-3 bg-gradient-to-t from-black/90 to-transparent p-4 pt-12">
+              <div className="flex items-center gap-2">
+                {(Object.keys(CAMERA_FILTERS) as (keyof typeof CAMERA_FILTERS)[]).map((filter) => (
+                  <button
+                    key={filter}
+                    type="button"
+                    onClick={() => setCameraFilter(filter)}
+                    aria-pressed={cameraFilter === filter}
+                    className={`rounded-full px-3 py-1.5 text-xs font-bold capitalize ${
+                      cameraFilter === filter ? "bg-lime-300 text-emerald-950" : "bg-white/15 text-white"
+                    }`}
+                  >
+                    {filter}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={toggleRecordingMute}
+                aria-label={recordingMuted ? "Include microphone audio" : "Mute microphone"}
+                className="rounded-full bg-white/15 px-3 py-2 text-xs font-bold text-white"
+              >
+                {recordingMuted ? "Mic off" : "Mic on"}
+              </button>
+              <button
+                type="button"
+                onClick={recording ? () => recorderRef.current?.stop() : startRecording}
+                className={`rounded-full px-5 py-3 text-sm font-black text-white ${
+                  recording ? "bg-rose-600" : "bg-emerald-600"
+                }`}
+              >
+                {recording ? "Stop & use" : "Start 12s recording"}
+              </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

@@ -16,13 +16,29 @@ export async function GET(req: Request) {
 
   try {
     await connectToDatabase();
-    const message = isDownload
-      ? await Message.findOne({ _id: messageId, $or: [{ senderId: userId }, { receiverId: userId }], viewOnce: false })
-      : await Message.findOneAndUpdate(
-          { _id: messageId, receiverId: userId, viewOnce: true, viewedAt: null },
-          { $set: { viewedAt: new Date() } },
-          { new: true }
-        );
+    let message;
+    if (isDownload) {
+      message = await Message.findOne({
+        _id: messageId,
+        $or: [{ senderId: userId }, { receiverId: userId }],
+        viewOnce: false,
+      });
+    } else {
+      const legacyViewFilter = { _id: messageId, receiverId: userId, viewOnce: true, viewCount: { $exists: false } };
+      await Message.updateMany(
+        { ...legacyViewFilter, viewedAt: null },
+        { $set: { viewCount: 0 } }
+      );
+      await Message.updateMany(
+        { ...legacyViewFilter, viewedAt: { $ne: null } },
+        { $set: { viewCount: 1 } }
+      );
+      message = await Message.findOneAndUpdate(
+        { _id: messageId, receiverId: userId, viewOnce: true, viewCount: { $lt: 2 } },
+        { $inc: { viewCount: 1 }, $set: { viewedAt: new Date() } },
+        { new: true }
+      );
+    }
     if (!message) return NextResponse.json({ error: "This media is unavailable or has already been opened." }, { status: 410 });
 
     const mediaUrl = new URL(message.mediaUrl);
@@ -42,6 +58,7 @@ export async function GET(req: Request) {
         "Cache-Control": "private, no-store, max-age=0",
         "Content-Disposition": isDownload ? `attachment; filename="dekuwec-message-${messageId}.${extension}"` : "inline",
         "X-Content-Type-Options": "nosniff",
+        ...(message.viewOnce ? { "X-View-Count": String(message.viewCount) } : {}),
       },
     });
   } catch (error) {

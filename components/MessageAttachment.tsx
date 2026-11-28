@@ -6,6 +6,9 @@ import { Download, Eye, Loader2, X } from "lucide-react";
 export default function MessageAttachment({ message, isMine }: { message: any; isMine: boolean }) {
   const [onceUrl, setOnceUrl] = useState<string | null>(null);
   const [hasViewed, setHasViewed] = useState(false);
+  const [viewsUsed, setViewsUsed] = useState(
+    Number(message.viewCount) || (message.viewedAt ? 1 : 0)
+  );
   const [isOpening, setIsOpening] = useState(false);
   const [error, setError] = useState("");
 
@@ -27,6 +30,8 @@ export default function MessageAttachment({ message, isMine }: { message: any; i
       if (!response.ok) throw new Error("This view-once media has already been opened or is unavailable.");
       setOnceUrl(URL.createObjectURL(await response.blob()));
       setHasViewed(true);
+      const views = Number(response.headers.get("X-View-Count"));
+      setViewsUsed(Number.isFinite(views) && views > 0 ? views : (count) => count + 1);
     } catch (openError) {
       setError(openError instanceof Error ? openError.message : "Unable to open media.");
     } finally {
@@ -42,12 +47,12 @@ export default function MessageAttachment({ message, isMine }: { message: any; i
   if (message.viewOnce && !isMine && !onceUrl) {
     return (
       <div className="mt-2">
-        {message.viewedAt || hasViewed ? (
-          <p className="text-xs italic opacity-75">View-once media opened</p>
+        {viewsUsed >= 2 ? (
+          <p className="text-xs italic opacity-75">View-once media opened twice</p>
         ) : (
           <button type="button" onClick={openOnce} disabled={isOpening} className="inline-flex items-center gap-2 rounded-lg bg-black/10 px-3 py-2 text-xs font-bold transition hover:bg-black/15 disabled:opacity-60">
             {isOpening ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
-            Open view-once {message.mediaType}
+            {viewsUsed > 0 || message.viewedAt || hasViewed ? "Replay" : "Open"} view-once {message.mediaType}
           </button>
         )}
         {error && <p className="mt-1 text-xs text-rose-700">{error}</p>}

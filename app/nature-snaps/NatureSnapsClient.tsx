@@ -37,6 +37,10 @@ type Snap = {
   userProfilePic?: string;
   clerkId?: string;
   type?: "winner" | "honourable" | "top_submission";
+  kind?: "reel" | "story";
+  expiresAt?: string;
+  eventId?: string;
+  eventTitle?: string;
   likes?: string[];
   dislikes?: string[];
   reposts?: string[];
@@ -93,8 +97,15 @@ export default function NatureSnapsClient() {
       authorName: snap.fullName || snap.photographer || "DEKUWEC member",
       authorAvatar: snap.userProfilePic,
       authorId: snap.clerkId,
-      subtitle: officialSnap ? typeLabel(snap.type) : "Member story",
-      badge: officialSnap ? typeLabel(snap.type) : "Member story",
+      subtitle: officialSnap
+        ? typeLabel(snap.type)
+        : snap.kind === "story"
+          ? "Story · 7 days"
+          : "Member reel",
+      badge: officialSnap ? typeLabel(snap.type) : snap.kind === "story" ? "Story · 7 days" : "Member snap",
+      isStory: snap.kind === "story",
+      expiresAt: snap.expiresAt,
+      eventTitle: officialSnap ? undefined : snap.eventTitle,
       caption: snap.caption || snap.description || snap.title,
       createdAt: snap.createdAt,
       likes: snap.likes || [],
@@ -159,13 +170,13 @@ export default function NatureSnapsClient() {
         <div className="absolute -bottom-24 left-1/3 h-56 w-56 rounded-full bg-emerald-300/20 blur-3xl" />
         <div className="relative">
           <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] backdrop-blur">
-            <Camera className="h-3.5 w-3.5 text-lime-300" /> Nature Snaps · Reels &amp; Stories
+            <Camera className="h-3.5 w-3.5 text-lime-300" /> Nature Snaps · Stories &amp; Snaps
           </span>
           <h1 className="mt-4 max-w-2xl text-3xl font-black leading-[1.08] text-balance sm:text-5xl">
             Nature, in motion.
           </h1>
           <p className="mt-3 max-w-xl text-sm leading-relaxed text-emerald-50/90 sm:text-base">
-            Swipe through wildlife photos and 12-second reels from DeKUT students. Like, comment, repost and
+            Swipe through wildlife photos and 12-second videos from DeKUT students. Like, comment, repost and
             share — then post your own moment.
           </p>
 
@@ -174,7 +185,7 @@ export default function NatureSnapsClient() {
               <Play className="h-3.5 w-3.5 fill-current text-lime-300" /> Tap a story to watch
             </span>
             <span className="inline-flex items-center gap-1.5 rounded-full bg-white/12 px-3 py-2 text-xs font-bold backdrop-blur">
-              <Video className="h-3.5 w-3.5 text-lime-300" /> {videoCount} reel{videoCount === 1 ? "" : "s"} live
+              <Video className="h-3.5 w-3.5 text-lime-300" /> {videoCount} video snap{videoCount === 1 ? "" : "s"} live
             </span>
             <span className="inline-flex items-center gap-1.5 rounded-full bg-white/12 px-3 py-2 text-xs font-bold backdrop-blur">
               <Users className="h-3.5 w-3.5 text-lime-300" /> {community.length} member posts
@@ -245,6 +256,18 @@ export default function NatureSnapsClient() {
         </section>
       ) : null}
 
+      <section id="snap-composer" className="mt-8 scroll-mt-24">
+        <SnapComposer
+          signedIn={!!isSignedIn}
+          clerkId={user?.id}
+          fullName={user?.fullName || user?.username || undefined}
+          profilePic={user?.imageUrl}
+          onRequireAuth={() => setShowAuth(true)}
+          onPublished={loadSnaps}
+          onMessage={setToast}
+        />
+      </section>
+
       <section className="mt-10">
         {loading ? (
           <div className="flex justify-center py-16">
@@ -288,19 +311,7 @@ export default function NatureSnapsClient() {
         )}
       </section>
 
-      <div className="mt-12 grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
-        <div id="snap-composer" className="scroll-mt-24">
-          <SnapComposer
-            signedIn={!!isSignedIn}
-            clerkId={user?.id}
-            fullName={user?.fullName || user?.username || undefined}
-            profilePic={user?.imageUrl}
-            onRequireAuth={() => setShowAuth(true)}
-            onPublished={loadSnaps}
-            onMessage={setToast}
-          />
-        </div>
-
+      <div className="mt-12">
         <div className="space-y-5">
           <EventReminderCardLite />
           <NotifyForm

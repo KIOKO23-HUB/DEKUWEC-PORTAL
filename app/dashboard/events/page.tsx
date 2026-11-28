@@ -24,7 +24,7 @@ import {
   X,
 } from "lucide-react";
 import ReelsFeed, { type ReelItem } from "@/components/media/ReelsFeed";
-import { eventToReels } from "@/lib/reels";
+import { eventToReels, snapToReel, type SnapSource } from "@/lib/reels";
 import { optimizedImage } from "@/lib/image";
 
 type Tier = { id: string; label: string; amount: number };
@@ -44,6 +44,7 @@ type EventLite = {
   likes?: string[];
   reposts?: string[];
   comments?: { clerkId: string; fullName: string; text: string; createdAt?: string }[];
+  reels?: SnapSource[];
 };
 
 type Step = "form" | "ask_pay" | "checkout" | "polling" | "success";
@@ -197,17 +198,33 @@ export default function DashboardEventsPage() {
   useEffect(() => {
     async function load() {
       try {
-        const [eventsRes, feesRes, activityRes] = await Promise.all([
+        const [eventsRes, feesRes, activityRes, snapsRes] = await Promise.all([
           fetch("/api/admin/events", { cache: "no-store" }).catch(() => null),
           fetch("/api/admin/fees", { cache: "no-store" }).catch(() => null),
           user
             ? fetch(`/api/account/activity?clerkId=${user.id}`, { cache: "no-store" }).catch(() => null)
             : Promise.resolve(null),
+          fetch("/api/community-snaps", { cache: "no-store" }).catch(() => null),
         ]);
 
         if (eventsRes?.ok) {
           const data = await eventsRes.json();
-          setEvents(Array.isArray(data.events) ? data.events : []);
+          const list: EventLite[] = Array.isArray(data.events) ? data.events : [];
+
+          // Member reels tagged to an event show inside that event's moments.
+          let grouped = new Map<string, SnapSource[]>();
+          if (snapsRes?.ok) {
+            const snapsData = await snapsRes.json();
+            grouped = ((snapsData.snaps || []) as SnapSource[]).reduce((map, snap) => {
+              if (!snap.eventId) return map;
+              const bucket = map.get(snap.eventId) || [];
+              bucket.push(snap);
+              map.set(snap.eventId, bucket);
+              return map;
+            }, new Map<string, SnapSource[]>());
+          }
+
+          setEvents(list.map((event) => ({ ...event, reels: grouped.get(event._id) || [] })));
         }
 
         if (activityRes?.ok) {
@@ -261,7 +278,15 @@ export default function DashboardEventsPage() {
   const projects = useMemo(() => events.filter((event) => event.category === "project"), [events]);
 
   const moments = useMemo<ReelItem[]>(
-    () => events.flatMap((event) => eventToReels(event)).slice(0, 12),
+    () =>
+      events
+        .flatMap((event) => {
+          const memberReels = (event.reels || [])
+            .map((reel) => snapToReel(reel, false))
+            .filter(Boolean) as ReelItem[];
+          return [...memberReels, ...eventToReels(event)];
+        })
+        .slice(0, 12),
     [events]
   );
 

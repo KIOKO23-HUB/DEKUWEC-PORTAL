@@ -6,16 +6,14 @@ import Message from "@/models/Message";
 import MessageConversation from "@/models/MessageConversation";
 import Notification from "@/models/Notification";
 import { sendEmail } from "@/lib/brevo";
+import {
+  completedStreakWeeks,
+  getIsoWeekKey,
+  rollConversationStreak,
+  type ConversationStreakSnapshot,
+} from "@/lib/messageStreaks";
 
 export const dynamic = "force-dynamic";
-
-function getIsoWeekKey(date: Date) {
-  const day = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
-  day.setUTCDate(day.getUTCDate() + 4 - (day.getUTCDay() || 7));
-  const yearStart = new Date(Date.UTC(day.getUTCFullYear(), 0, 1));
-  const week = Math.ceil((((day.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-  return `${day.getUTCFullYear()}-${String(week).padStart(2, "0")}`;
-}
 
 function escapeHtml(value: string) {
   return value.replace(/[&<>"']/g, (character) => ({
@@ -58,14 +56,20 @@ export async function GET(req: Request) {
     await Message.updateMany({ senderId: user2, receiverId: userId, isRead: false }, { $set: { isRead: true } });
     const [messages, conversation] = await Promise.all([
       Message.find(criteria).sort({ createdAt: -1, _id: -1 }).limit(100).lean(),
-      MessageConversation.findOne({ participantKey: [userId, user2].sort().join(":") }).lean()
+      MessageConversation.findOne({ participantKey: [userId, user2].sort().join(":") })
+        .select("activeWeek lastMutualWeek streakWeeks")
+        .lean<ConversationStreakSnapshot>()
     ]);
 
     const safeMessages = messages.reverse().map((message: any) => ({
       ...message,
       mediaUrl: message.viewOnce ? "" : message.mediaUrl,
+      viewCount: message.viewCount ?? (message.viewedAt ? 1 : 0),
     }));
-    return NextResponse.json({ messages: safeMessages, streakWeeks: (conversation as any)?.streakWeeks || 0 }, { status: 200 });
+    return NextResponse.json({
+      messages: safeMessages,
+      streakWeeks: conversation ? completedStreakWeeks(conversation, new Date()) : 0,
+    }, { status: 200 });
   } catch (error) {
     console.error("Messages GET Error:", error);
     return NextResponse.json({ error: "Failed to fetch chat history" }, { status: 500 });
@@ -120,17 +124,9 @@ export async function POST(req: Request) {
       conversation = await MessageConversation.create({ participantKey, participants: [userId, receiverId] });
     }
 
-    const previousWeekDate = new Date(now);
-    previousWeekDate.setUTCDate(previousWeekDate.getUTCDate() - 7);
-    const previousWeek = getIsoWeekKey(previousWeekDate);
-    if (conversation.activeWeek !== weekKey) {
-      if (conversation.lastMutualWeek !== previousWeek) conversation.streakWeeks = 0;
-      conversation.activeWeek = weekKey;
-      conversation.activeWeekParticipants = [];
-    }
+    rollConversationStreak(conversation, now);
     if (!conversation.activeWeekParticipants.includes(userId)) conversation.activeWeekParticipants.push(userId);
     if (receiverId && conversation.activeWeekParticipants.includes(receiverId) && conversation.lastMutualWeek !== weekKey) {
-      conversation.streakWeeks = conversation.lastMutualWeek === previousWeek ? conversation.streakWeeks + 1 : 1;
       conversation.lastMutualWeek = weekKey;
     }
     conversation.lastMessageAt = now;

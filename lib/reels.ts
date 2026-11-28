@@ -13,6 +13,10 @@ export type SnapSource = {
   userProfilePic?: string;
   clerkId?: string;
   type?: "winner" | "honourable" | "top_submission";
+  kind?: "reel" | "story";
+  expiresAt?: string;
+  eventId?: string;
+  eventTitle?: string;
   likes?: string[];
   reposts?: string[];
   comments?: { clerkId: string; fullName: string; text: string; createdAt?: string }[];
@@ -50,9 +54,12 @@ export function snapToReel(snap: SnapSource, official = false): ReelItem | null 
     authorName: snap.fullName || snap.photographer || "DEKUWEC member",
     authorAvatar: snap.userProfilePic,
     authorId: snap.clerkId,
-    subtitle: official ? snapBadge(snap.type) : "Member story",
-    badge: official ? snapBadge(snap.type) : "Member story",
+    subtitle: official ? snapBadge(snap.type) : snap.kind === "story" ? "Story · 7 days" : "Member snap",
+    badge: official ? snapBadge(snap.type) : snap.kind === "story" ? "Story · 7 days" : "Member snap",
     caption: snap.caption || snap.description || snap.title,
+    isStory: snap.kind === "story",
+    expiresAt: snap.expiresAt,
+    eventTitle: snap.eventTitle && !official ? String(snap.eventTitle) : undefined,
     createdAt: snap.createdAt,
     likes: snap.likes || [],
     reposts: snap.reposts || [],

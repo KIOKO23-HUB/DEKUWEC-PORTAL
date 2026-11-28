@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   BadgeCheck,
   ChevronLeft,
@@ -8,6 +8,7 @@ import {
   Heart,
   Loader2,
   MessageCircle,
+  Pause,
   Play,
   Plus,
   Repeat2,
@@ -44,6 +45,9 @@ export type ReelItem = {
   comments?: ReelComment[];
   reposts?: string[];
   href?: string;
+  isStory?: boolean;
+  expiresAt?: string;
+  eventTitle?: string;
 };
 
 type ReelsFeedProps = {
@@ -138,26 +142,55 @@ function Thumb({
 function Media({
   item,
   muted,
+  volume,
+  paused,
   onEnded,
   onProgress,
   onToggleMute,
+  onTogglePause,
+  onAutoplayBlocked,
 }: {
   item: ReelItem;
   muted: boolean;
+  volume: number;
+  paused: boolean;
   onEnded?: () => void;
   onProgress?: (percent: number) => void;
   onToggleMute?: () => void;
+  onTogglePause?: () => void;
+  onAutoplayBlocked?: () => void;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const [paused, setPaused] = useState(false);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (video) video.muted = muted;
+  }, [muted]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (video) video.volume = volume;
+  }, [volume]);
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
     video.currentTime = 0;
-    video.play().catch(() => {});
-    setPaused(false);
   }, [item.id]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (paused) {
+      video.pause();
+      return;
+    }
+    video.play().catch(() => {
+      // Browsers block sound until the member interacts. Fall back to muted
+      // playback and let them tap the sound button.
+      onAutoplayBlocked?.();
+    });
+  }, [paused, item.id, onAutoplayBlocked]);
 
   if (item.kind === "video") {
     return (
@@ -175,17 +208,7 @@ function Media({
             const el = event.currentTarget;
             if (el.duration) onProgress?.((el.currentTime / el.duration) * 100);
           }}
-          onClick={() => {
-            const el = videoRef.current;
-            if (!el) return;
-            if (el.paused) {
-              el.play().catch(() => {});
-              setPaused(false);
-            } else {
-              el.pause();
-              setPaused(true);
-            }
-          }}
+          onClick={onTogglePause}
         />
         {paused ? (
           <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
@@ -194,17 +217,6 @@ function Media({
             </span>
           </span>
         ) : null}
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            onToggleMute?.();
-          }}
-          className="absolute right-3 top-3 z-10 rounded-full bg-black/45 p-2 text-white backdrop-blur transition hover:bg-black/70"
-          aria-label={muted ? "Unmute video" : "Mute video"}
-        >
-          {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-        </button>
       </div>
     );
   }
@@ -213,9 +225,10 @@ function Media({
     <img
       src={optimizedImage(item.src, 1200)}
       alt={item.caption || `${item.authorName} nature snap`}
-      className="reel-media"
+      className="reel-media reel-image"
       loading="lazy"
       decoding="async"
+      onClick={onTogglePause}
     />
   );
 }
@@ -273,7 +286,11 @@ export default function ReelsFeed({
 }: ReelsFeedProps) {
   const [local, setLocal] = useState<ReelItem[]>(items);
   const [openIndex, setOpenIndex] = useState<number | null>(null);
-  const [muted, setMuted] = useState(true);
+  // Reels start with sound. If the browser blocks autoplay with audio, the
+  // player falls back to muted and shows a "Tap for sound" control.
+  const [muted, setMuted] = useState(false);
+  const [volume, setVolume] = useState(1);
+  const [paused, setPaused] = useState(false);
   const [progress, setProgress] = useState(0);
   const [sheetFor, setSheetFor] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -281,6 +298,31 @@ export default function ReelsFeed({
   const [burst, setBurst] = useState("");
   const imageTimer = useRef<number | null>(null);
   const openedInitial = useRef(false);
+
+  const storyGroups = useMemo(() => {
+    const groups = new Map<string, ReelItem[]>();
+    local.forEach((item, index) => {
+      if (!item.isStory) return;
+      const key = item.authorId || item.authorName || `story-${index}`;
+      const group = groups.get(key) || [];
+      group.push(item);
+      groups.set(key, group);
+    });
+
+    return Array.from(groups, ([key, group]) => ({
+      key,
+      items: group.slice().sort((a, b) => {
+        const first = Date.parse(a.createdAt || "");
+        const second = Date.parse(b.createdAt || "");
+        return (Number.isNaN(first) ? 0 : first) - (Number.isNaN(second) ? 0 : second);
+      }),
+    })).sort((a, b) => {
+      const latestA = Date.parse(a.items[a.items.length - 1]?.createdAt || "");
+      const latestB = Date.parse(b.items[b.items.length - 1]?.createdAt || "");
+      return (Number.isNaN(latestB) ? 0 : latestB) - (Number.isNaN(latestA) ? 0 : latestA);
+    });
+  }, [local]);
+  const storySequence = useMemo(() => storyGroups.flatMap((group) => group.items), [storyGroups]);
 
   useEffect(() => {
     setLocal(items);
@@ -303,18 +345,33 @@ export default function ReelsFeed({
     setDraft("");
   }, []);
 
+  const openAt = useCallback((index: number) => {
+    setPaused(false);
+    setProgress(0);
+    setSheetFor(null);
+    setOpenIndex(index);
+  }, []);
+
   const step = useCallback(
     (direction: 1 | -1) => {
       setProgress(0);
+      setPaused(false);
       setOpenIndex((index) => {
         if (index === null) return index;
+        if (local[index]?.isStory && storySequence.length > 0) {
+          const storyIndex = storySequence.findIndex((item) => item.id === local[index].id);
+          if (storyIndex >= 0) {
+            const nextStoryIndex = (storyIndex + direction + storySequence.length) % storySequence.length;
+            return local.findIndex((item) => item.id === storySequence[nextStoryIndex].id);
+          }
+        }
         const next = index + direction;
         if (next < 0) return local.length - 1;
         if (next >= local.length) return 0;
         return next;
       });
     },
-    [local.length]
+    [local, storySequence]
   );
 
   useEffect(() => {
@@ -329,8 +386,8 @@ export default function ReelsFeed({
   }, [openIndex, close, step]);
 
   useEffect(() => {
-    // Pause auto-advance while the member is reading or writing a comment.
-    if (openIndex === null || !current || sheetFor) return;
+    // Pause auto-advance while paused, or while reading/writing a comment.
+    if (openIndex === null || !current || sheetFor || paused) return;
     if (current.kind === "video") return;
     if (imageTimer.current) window.clearTimeout(imageTimer.current);
 
@@ -345,7 +402,7 @@ export default function ReelsFeed({
       window.clearInterval(tick);
       if (imageTimer.current) window.clearTimeout(imageTimer.current);
     };
-  }, [openIndex, current, step, sheetFor]);
+  }, [openIndex, current, step, sheetFor, paused]);
 
   const patch = (id: string, updater: (item: ReelItem) => ReelItem) =>
     setLocal((list) => list.map((item) => (item.id === id ? updater(item) : item)));
@@ -443,7 +500,7 @@ export default function ReelsFeed({
           type="button"
           onClick={(event) => {
             event.stopPropagation();
-            setOpenIndex(local.findIndex((entry) => entry.id === item.id));
+            openAt(local.findIndex((entry) => entry.id === item.id));
             setSheetFor(item.id);
           }}
           className="inline-flex items-center gap-1.5 text-sm font-bold text-slate-600 transition hover:text-emerald-700"
@@ -485,11 +542,20 @@ export default function ReelsFeed({
     return <>{emptyState}</>;
   }
 
+  // Keep each member's stories together; only move to another member after
+  // their stories have finished.
+  const railItems = storyGroups.length > 0 ? storyGroups.map((group) => group.items[0]) : local;
+  const sequenceItems = current?.isStory ? storySequence : local;
+  const sequenceIndex = current ? sequenceItems.findIndex((item) => item.id === current.id) : -1;
+
   return (
     <div className="space-y-6">
       <div>
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-black uppercase tracking-[0.16em] text-emerald-900">{storiesTitle}</h2>
+          <h2 className="text-sm font-black uppercase tracking-[0.16em] text-emerald-900">
+            {storiesTitle}
+            {storyGroups.length > 0 ? ` · ${storyGroups.length} members` : ""}
+          </h2>
           {onAddStory ? (
             <button
               type="button"
@@ -503,14 +569,11 @@ export default function ReelsFeed({
         </div>
 
         <div className="scrollbar-hide -mx-1 flex gap-4 overflow-x-auto px-1 pb-2">
-          {local.map((item, index) => (
+          {railItems.map((item) => (
             <button
               key={`story-${item.id}`}
               type="button"
-              onClick={() => {
-                setOpenIndex(index);
-                setProgress(0);
-              }}
+              onClick={() => openAt(local.findIndex((entry) => entry.id === item.id))}
               className="group flex w-[74px] shrink-0 flex-col items-center gap-1.5"
             >
               <span className="story-ring rounded-full p-[3px] transition group-hover:scale-105">
@@ -525,6 +588,11 @@ export default function ReelsFeed({
                     {item.kind === "video" ? (
                       <span className="absolute bottom-1 right-1 rounded-full bg-black/60 p-0.5 text-white">
                         <Play className="h-2.5 w-2.5 fill-current" />
+                      </span>
+                    ) : null}
+                    {item.isStory ? (
+                      <span className="absolute inset-x-0 top-0 bg-emerald-900/85 py-0.5 text-center text-[9px] font-black uppercase tracking-wide text-lime-200">
+                        7d
                       </span>
                     ) : null}
                   </span>
@@ -544,17 +612,16 @@ export default function ReelsFeed({
             <button
               key={item.id}
               type="button"
-              onClick={() => {
-                setOpenIndex(index);
-                setProgress(0);
-              }}
+              onClick={() => openAt(index)}
               className="group relative aspect-[4/5] overflow-hidden rounded-2xl bg-emerald-950 text-left"
             >
               <Thumb
                 item={item}
                 width={600}
                 alt={item.caption || item.authorName}
-                className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                className={`h-full w-full transition duration-500 group-hover:scale-105 ${
+                  item.kind === "video" ? "object-cover" : "object-contain"
+                }`}
               />
               <span className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
               <span className="absolute bottom-2 left-2 right-2 line-clamp-2 text-[11px] font-bold text-white">
@@ -596,17 +663,14 @@ export default function ReelsFeed({
                   </div>
                   {item.kind === "video" ? (
                     <span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-700">
-                      Reel
+                      {item.isStory ? "Story" : item.eventTitle ? "Event video" : "Video snap"}
                     </span>
                   ) : null}
                 </div>
 
                 <button
                   type="button"
-                  onClick={() => {
-                    setOpenIndex(index);
-                    setProgress(0);
-                  }}
+                  onClick={() => openAt(index)}
                   onDoubleClick={() => toggleLike(item)}
                   className="relative block aspect-[4/5] w-full overflow-hidden bg-emerald-950"
                 >
@@ -614,15 +678,28 @@ export default function ReelsFeed({
                     item={item}
                     width={800}
                     alt={item.caption || item.authorName}
-                    className="h-full w-full object-cover transition duration-700 hover:scale-[1.03]"
+                    className={`h-full w-full transition duration-700 ${
+                      item.kind === "video" ? "object-cover hover:scale-[1.03]" : "object-contain"
+                    }`}
                   />
                   {liked ? (
                     <Heart className="absolute right-3 top-3 h-5 w-5 fill-rose-500 text-rose-500 drop-shadow" />
                   ) : null}
                   <span className="absolute bottom-3 left-3 inline-flex items-center gap-1.5 rounded-full bg-black/45 px-2.5 py-1 text-[10px] font-bold text-white backdrop-blur">
                     <Play className="h-3 w-3 fill-current" />
-                    {item.kind === "video" ? "Watch reel" : "View story"}
+                    {item.isStory
+                      ? "Story · 7 days"
+                      : item.kind === "video"
+                        ? item.eventTitle
+                          ? "Watch event"
+                          : "Watch snap"
+                        : "View photo"}
                   </span>
+                  {item.eventTitle ? (
+                    <span className="absolute right-3 bottom-3 max-w-[55%] truncate rounded-full bg-emerald-900/80 px-2.5 py-1 text-[10px] font-bold text-lime-200 backdrop-blur">
+                      {item.eventTitle}
+                    </span>
+                  ) : null}
                 </button>
 
                 {item.caption ? (
@@ -647,15 +724,15 @@ export default function ReelsFeed({
 
           <div className="relative z-10 flex h-[100dvh] w-full max-w-[440px] flex-col overflow-hidden bg-black sm:h-[86vh] sm:rounded-[2rem]">
             <div className="absolute inset-x-0 top-0 z-20 flex gap-1 p-2">
-              {local.map((entry, index) => (
+              {sequenceItems.map((entry, index) => (
                 <span key={`bar-${entry.id}`} className="h-[3px] flex-1 overflow-hidden rounded-full bg-white/30">
                   <span
                     className="block h-full rounded-full bg-white"
                     style={{
                       width:
-                        index < (openIndex ?? 0)
+                        index < sequenceIndex
                           ? "100%"
-                          : index === openIndex
+                          : index === sequenceIndex
                             ? `${progress}%`
                             : "0%",
                     }}
@@ -668,9 +745,13 @@ export default function ReelsFeed({
               <Media
                 item={current}
                 muted={muted}
+                volume={volume}
+                paused={paused}
                 onEnded={() => step(1)}
                 onProgress={setProgress}
                 onToggleMute={() => setMuted((value) => !value)}
+                onTogglePause={() => setPaused((value) => !value)}
+                onAutoplayBlocked={() => setMuted(true)}
               />
 
               <span className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-black/75 to-transparent" />
@@ -691,6 +772,35 @@ export default function ReelsFeed({
                     {current.badge || current.subtitle || timeAgo(current.createdAt) || "DEKUWEC"}
                   </p>
                 </div>
+                {current.kind === "video" ? (
+                  <div className="flex shrink-0 items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setMuted((value) => !value)}
+                      aria-label={muted ? "Unmute video" : "Mute video"}
+                      className={`flex h-9 items-center gap-1.5 rounded-full px-2.5 text-[11px] font-bold backdrop-blur transition ${
+                        muted ? "bg-lime-300 text-emerald-950" : "bg-white/15 text-white hover:bg-white/25"
+                      }`}
+                    >
+                      {muted || volume === 0 ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+                      <span className="hidden sm:inline">{muted ? "Tap for sound" : "Sound"}</span>
+                    </button>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.05"
+                      value={muted ? 0 : volume}
+                      onChange={(event) => {
+                        const nextVolume = Number(event.target.value);
+                        setVolume(nextVolume);
+                        setMuted(nextVolume === 0);
+                      }}
+                      aria-label="Video volume"
+                      className="h-8 w-12 accent-lime-300 sm:w-16"
+                    />
+                  </div>
+                ) : null}
                 <button
                   type="button"
                   onClick={close}
@@ -701,24 +811,18 @@ export default function ReelsFeed({
                 </button>
               </div>
 
-              <button
-                type="button"
-                onClick={() => step(-1)}
-                aria-label="Previous"
-                className="absolute left-2 top-1/2 z-20 hidden -translate-y-1/2 rounded-full bg-black/35 p-2 text-white backdrop-blur transition hover:bg-black/60 sm:block"
-              >
-                <ChevronLeft className="h-5 w-5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => step(1)}
-                aria-label="Next"
-                className="absolute right-2 top-1/2 z-20 hidden -translate-y-1/2 rounded-full bg-black/35 p-2 text-white backdrop-blur transition hover:bg-black/60 sm:block"
-              >
-                <ChevronRight className="h-5 w-5" />
-              </button>
+              {/* Prominent hint when the browser blocked sound autoplay */}
+              {current.kind === "video" && muted ? (
+                <button
+                  type="button"
+                  onClick={() => setMuted(false)}
+                  className="absolute left-1/2 top-[68px] z-20 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-lime-300 px-3.5 py-2 text-[11px] font-black text-emerald-950 shadow-lg"
+                >
+                  <VolumeX className="h-3.5 w-3.5" /> Tap for sound
+                </button>
+              ) : null}
 
-              <div className="absolute bottom-24 right-3 z-20 flex flex-col items-center gap-4">
+              <div className="absolute right-3 top-1/2 z-20 flex -translate-y-1/2 flex-col items-center gap-3">
                 <ActionButton
                   label="Like"
                   count={(current.likes || []).length}
@@ -754,18 +858,46 @@ export default function ReelsFeed({
                 </ActionButton>
               </div>
 
-              <div className="absolute inset-x-0 bottom-0 z-20 px-4 pb-5 pr-20">
+              <div className="absolute inset-x-0 bottom-0 z-20 px-4 pb-[5.6rem] pr-20">
                 {current.caption ? (
-                  <p className="line-clamp-3 text-sm leading-snug text-white">{current.caption}</p>
+                  <p className="line-clamp-2 text-sm leading-snug text-white">{current.caption}</p>
                 ) : null}
                 {current.href ? (
                   <a
                     href={current.href}
-                    className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-lime-300 hover:text-lime-200"
+                    className="mt-1.5 inline-flex items-center gap-1 text-xs font-bold text-lime-300 hover:text-lime-200"
                   >
                     Open full details <ChevronRight className="h-3.5 w-3.5" />
                   </a>
                 ) : null}
+              </div>
+
+              {/* Always-visible playback controls (44px touch targets) */}
+              <div className="absolute inset-x-0 bottom-3 z-20 flex items-center justify-center gap-2 pr-20 pl-4">
+                <button
+                  type="button"
+                  onClick={() => step(-1)}
+                  aria-label="Previous story"
+                  className="flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-black/45 text-white backdrop-blur transition hover:bg-black/70 active:scale-95"
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPaused((value) => !value)}
+                  aria-label={paused ? "Play" : "Pause"}
+                  className="flex h-12 w-12 items-center justify-center rounded-full bg-white/90 text-emerald-950 shadow-lg transition hover:bg-white active:scale-95"
+                >
+                  {paused ? <Play className="h-5 w-5 fill-current" /> : <Pause className="h-5 w-5 fill-current" />}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => step(1)}
+                  aria-label="Next story"
+                  className="flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-black/45 text-white backdrop-blur transition hover:bg-black/70 active:scale-95"
+                >
+                  <ChevronRight className="h-5 w-5" />
+                </button>
               </div>
             </div>
 

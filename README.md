@@ -17,8 +17,10 @@ Nature Snaps and club events use a shared reels/stories engine
 
 - Vertical 9:16 reels with autoplay, progress bars, tap-to-pause and arrow-key navigation.
 - Like, comment (with inline thread), repost and native share on every item.
-- Story rail with gradient rings; the viewer pauses autoplay while comments are open.
-- Photo uploads and short videos capped at **12 seconds** (`components/media/SnapComposer.tsx`).
+- Story rail groups each member's stories together; stories expire after **7 days**.
+- Still photos fit inside the mobile viewer instead of being cropped; videos include mute and volume controls.
+- Camera recording stops automatically at **12 seconds** and offers normal, warm and monochrome effects plus microphone mute.
+- View-once chat media allows one replay, and mutual chat streaks are credited when each week completes.
 
 The member dashboard (`app/dashboard/page.tsx`) mirrors a social feed: stories, cards,
 an AI eco spotlight and the next-event reminder.

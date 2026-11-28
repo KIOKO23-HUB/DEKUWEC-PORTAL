@@ -22,7 +22,7 @@ import { eventToReels, snapToReel, type EventSource, type SnapSource } from "@/l
 
 const HUBS = [
   { href: "/dashboard/events", label: "Events", icon: CalendarDays, tone: "bg-emerald-50 text-emerald-700" },
-  { href: "/dashboard/snaps", label: "Reels", icon: Camera, tone: "bg-amber-50 text-amber-700" },
+  { href: "/dashboard/snaps", label: "Snaps", icon: Camera, tone: "bg-amber-50 text-amber-700" },
   { href: "/dashboard/dispatch", label: "EcoPulse", icon: Radio, tone: "bg-sky-50 text-sky-700" },
   { href: "/dashboard/membership", label: "Membership", icon: Users, tone: "bg-violet-50 text-violet-700" },
   { href: "/dashboard/merchandise", label: "Shop", icon: ShoppingBag, tone: "bg-rose-50 text-rose-700" },
@@ -123,7 +123,7 @@ export default function DashboardHomePage() {
             {user?.firstName ? `, ${user.firstName}` : ""} 🌿
           </h1>
           <p className="mt-1 text-sm text-muted">
-            Your conservation feed — reels, events and today&apos;s eco briefing.
+            Your conservation feed — snaps, events and today&apos;s eco briefing.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -131,7 +131,7 @@ export default function DashboardHomePage() {
             href="/dashboard/snaps"
             className="inline-flex items-center gap-1.5 rounded-full bg-emerald-900 px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-emerald-900/20 transition hover:bg-emerald-800"
           >
-            <Camera className="h-4 w-4 text-lime-300" /> Post a reel
+            <Camera className="h-4 w-4 text-lime-300" /> Post a snap
           </Link>
           <Link
             href="/events"
