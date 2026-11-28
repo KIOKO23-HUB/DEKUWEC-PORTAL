@@ -1,4 +1,4 @@
-/** Stories live for one week; reels stay on the wall. */
+/** Stories live for one week; snaps stay on the wall. */
 export const STORY_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** Mongo filter that hides expired stories without deleting the record. */

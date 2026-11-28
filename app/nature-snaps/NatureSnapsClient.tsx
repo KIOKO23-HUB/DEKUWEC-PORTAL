@@ -101,7 +101,7 @@ export default function NatureSnapsClient() {
         ? typeLabel(snap.type)
         : snap.kind === "story"
           ? "Story · 7 days"
-          : "Member reel",
+          : "Member snap",
       badge: officialSnap ? typeLabel(snap.type) : snap.kind === "story" ? "Story · 7 days" : "Member snap",
       isStory: snap.kind === "story",
       expiresAt: snap.expiresAt,

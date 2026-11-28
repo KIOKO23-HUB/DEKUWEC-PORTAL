@@ -204,7 +204,7 @@ export default function DashboardHomePage() {
                     href="/dashboard/snaps"
                     className="mt-3 inline-flex rounded-full bg-emerald-800 px-4 py-2 text-xs font-bold text-white"
                   >
-                    Create a reel
+                    Create a snap
                   </Link>
                 </div>
               }
@@ -244,7 +244,7 @@ export default function DashboardHomePage() {
                   href="/dashboard/snaps"
                   className="flex-1 rounded-xl border border-emerald-200 px-3 py-2 text-center text-[11px] font-bold text-emerald-800 transition hover:bg-emerald-50"
                 >
-                  My reels
+                  My snaps
                 </Link>
               </div>
             </div>

@@ -391,7 +391,7 @@ export default function SnapComposer({
       onMessage?.(
         postKind === "story"
           ? "Story posted — it disappears automatically in 7 days ⏳"
-          : "Your reel is live. The whole club has been notified 🌿"
+          : "Your snap is live. The whole club has been notified 🌿"
       );
       await onPublished();
     } catch (publishError: any) {
@@ -633,7 +633,7 @@ export default function SnapComposer({
               ))}
             </select>
             <span className="mt-1 flex items-center gap-1 text-[10px] font-semibold text-muted">
-              <CalendarDays className="h-3 w-3" /> Tagged posts appear in that event&apos;s reels.
+              <CalendarDays className="h-3 w-3" /> Tagged posts appear in that event&apos;s snaps.
             </span>
           </label>
         ) : null}

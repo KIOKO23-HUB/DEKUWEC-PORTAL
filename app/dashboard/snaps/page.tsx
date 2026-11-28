@@ -86,7 +86,7 @@ export default function DashboardSnapsPage() {
         </div>
         <div className="flex flex-wrap gap-2">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800">
-            <Video className="h-3.5 w-3.5" /> {reelsCount} reels
+            <Video className="h-3.5 w-3.5" /> {reelsCount} video snaps
           </span>
           <span className="inline-flex items-center gap-1.5 rounded-full bg-lime-50 px-3 py-2 text-xs font-bold text-lime-800">
             <Camera className="h-3.5 w-3.5" /> {myPosts} yours

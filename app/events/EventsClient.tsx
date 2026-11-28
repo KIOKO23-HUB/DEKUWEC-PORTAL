@@ -758,7 +758,7 @@ export default function EventsClient() {
       <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6 sm:py-12">
         <div className="mb-8">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-800">
-            <Clapperboard className="h-3.5 w-3.5" /> Event reels &amp; stories
+            <Clapperboard className="h-3.5 w-3.5" /> Event snaps &amp; stories
           </span>
           <h1 className="mt-2 text-2xl font-black tracking-tight text-emerald-950 sm:text-3xl">
             Upcoming Events

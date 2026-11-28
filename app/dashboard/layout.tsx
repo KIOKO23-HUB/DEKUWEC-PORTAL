@@ -37,7 +37,7 @@ const NAV_SECTIONS = [
     label: "Discover",
     items: [
       { href: "/dashboard", label: "Home", icon: Home },
-      { href: "/dashboard/events", label: "Events & reels", icon: CalendarDays },
+      { href: "/dashboard/events", label: "Events & snaps", icon: CalendarDays },
       { href: "/dashboard/snaps", label: "Nature Snaps", icon: Camera },
       { href: "/dashboard/dispatch", label: "EcoPulse", icon: Radio },
     ],
@@ -62,7 +62,7 @@ const NAV_SECTIONS = [
 const MOBILE_NAV = [
   { href: "/dashboard", label: "Home", icon: Home },
   { href: "/dashboard/events", label: "Events", icon: CalendarDays },
-  { href: "/dashboard/snaps", label: "Reels", icon: Camera },
+  { href: "/dashboard/snaps", label: "Snaps", icon: Camera },
   { href: "/dashboard/membership", label: "Club", icon: Users },
   { href: "/dashboard/account", label: "You", icon: UserCircle },
 ];

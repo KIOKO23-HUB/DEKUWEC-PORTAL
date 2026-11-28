@@ -247,14 +247,16 @@ function Media({
   }
 
   return (
-    <img
-      src={optimizedImage(item.src, 1200)}
-      alt={item.caption || `${item.authorName} nature snap`}
-      className="reel-media reel-image"
-      loading="lazy"
-      decoding="async"
-      onClick={onTogglePause}
-    />
+    <div className="flex h-full w-full items-center justify-center bg-black">
+      <img
+        src={optimizedImage(item.src, 1200)}
+        alt={item.caption || `${item.authorName} nature snap`}
+        className="max-h-[78dvh] max-w-[88vw] object-contain sm:max-h-full sm:max-w-full"
+        loading="lazy"
+        decoding="async"
+        onClick={onTogglePause}
+      />
+    </div>
   );
 }
 
@@ -570,7 +572,10 @@ export default function ReelsFeed({
   // Keep each member's stories together; only move to another member after
   // their stories have finished.
   const railItems = storyGroups.length > 0 ? storyGroups.map((group) => group.items[0]) : local;
-  const sequenceItems = current?.isStory ? storySequence : local;
+  const activeStoryGroup = current?.isStory
+    ? storyGroups.find((group) => group.items.some((item) => item.id === current.id))
+    : undefined;
+  const sequenceItems = activeStoryGroup?.items || local;
   const sequenceIndex = current ? sequenceItems.findIndex((item) => item.id === current.id) : -1;
 
   return (
@@ -743,7 +748,7 @@ export default function ReelsFeed({
           <button
             type="button"
             onClick={close}
-            aria-label="Close reels"
+            aria-label="Close snaps"
             className="absolute inset-0 h-full w-full cursor-default"
           />
 
