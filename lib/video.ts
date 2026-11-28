@@ -1,5 +1,9 @@
 export const MAX_SNAP_VIDEO_SECONDS = 12;
 
+export function isVideoFile(file: File): boolean {
+  return file.type.startsWith("video/") || /\.(mp4|webm|mov|m4v|avi|mkv)$/i.test(file.name);
+}
+
 export async function readVideoDuration(file: File): Promise<number> {
   const video = document.createElement("video");
   const objectUrl = URL.createObjectURL(file);

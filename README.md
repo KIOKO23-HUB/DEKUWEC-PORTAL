@@ -19,7 +19,7 @@ Nature Snaps and club events use a shared reels/stories engine
 - Like, comment (with inline thread), repost and native share on every item.
 - Story rail groups each member's stories together; stories expire after **7 days**.
 - The signed-in Snaps page uses a compact two-column phone gallery; photos fit inside the viewer instead of being cropped, and videos include mute and volume controls.
-- Camera recording stops automatically at **12 seconds**, scales the recording to a mobile-friendly size, and offers normal, warm, monochrome, vivid and cool effects plus microphone mute.
+- Members can take a photo with the device camera or choose media from the gallery. Camera video recording stops automatically at **12 seconds**, scales the recording to a mobile-friendly size, and offers normal, warm, monochrome, vivid and cool effects plus microphone mute.
 - Video snaps support direct uploads up to **100 MB** and Jamendo search for tracks available under CC BY; the artist, Jamendo track page and license are credited in playback. Set `JAMENDO_CLIENT_ID` in the ignored local `.env.local` file; it is used only by the server API.
 - The dashboard Messages panel has a **Snaps** tab for sending a photo or up-to-12-second video to a friend as view-once media, with one replay. Mutual chat streaks are credited when each week completes.
 

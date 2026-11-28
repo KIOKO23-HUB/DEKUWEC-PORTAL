@@ -18,7 +18,7 @@ import {
 import { uploadImage } from "@/lib/clientUpload";
 import { optimizedImage } from "@/lib/image";
 import type { JamendoTrack } from "@/lib/jamendo";
-import { MAX_SNAP_VIDEO_SECONDS, readVideoDuration } from "@/lib/video";
+import { isVideoFile, MAX_SNAP_VIDEO_SECONDS, readVideoDuration } from "@/lib/video";
 
 const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
 const CAMERA_FILTERS = {
@@ -98,6 +98,7 @@ export default function SnapComposer({
     };
   }, []);
   const browseRef = useRef<HTMLInputElement | null>(null);
+  const photoCaptureRef = useRef<HTMLInputElement | null>(null);
 
   const searchMusic = async () => {
     if (!signedIn) {
@@ -132,7 +133,7 @@ export default function SnapComposer({
     setError("");
     setUploading(true);
     try {
-      const isVideo = file.type.startsWith("video/");
+      const isVideo = isVideoFile(file);
       if (!isVideo) setSelectedMusic(null);
       if (isVideo) {
         if (file.size > MAX_VIDEO_BYTES) throw new Error("Keep nature clips below 100 MB.");
@@ -455,6 +456,17 @@ export default function SnapComposer({
                   onClick={(clickEvent) => {
                     clickEvent.stopPropagation();
                     if (!signedIn) return onRequireAuth();
+                    photoCaptureRef.current?.click();
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-white px-4 py-2.5 text-xs font-bold text-emerald-800 transition hover:bg-emerald-50"
+                >
+                  <Camera className="h-3.5 w-3.5" /> Take a photo
+                </button>
+                <button
+                  type="button"
+                  onClick={(clickEvent) => {
+                    clickEvent.stopPropagation();
+                    if (!signedIn) return onRequireAuth();
                     void openCamera();
                   }}
                   className="inline-flex items-center gap-1.5 rounded-full bg-emerald-700 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-emerald-800"
@@ -491,6 +503,14 @@ export default function SnapComposer({
           ref={browseRef}
           type="file"
           accept="image/*,video/mp4,video/webm,video/quicktime"
+          className="hidden"
+          onChange={handleFile}
+        />
+        <input
+          ref={photoCaptureRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
           className="hidden"
           onChange={handleFile}
         />

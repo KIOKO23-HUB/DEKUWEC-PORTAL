@@ -32,7 +32,7 @@ import {
 import MessageAttachment from "@/components/MessageAttachment";
 import { EcoPopup } from "@/components/EcoSpotlight";
 import { uploadImage } from "@/lib/clientUpload";
-import { MAX_SNAP_VIDEO_SECONDS, readVideoDuration } from "@/lib/video";
+import { isVideoFile, MAX_SNAP_VIDEO_SECONDS, readVideoDuration } from "@/lib/video";
 
 const NAV_SECTIONS = [
   {
@@ -118,6 +118,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
   const [emojiMode, setEmojiMode] = useState<"emoji" | "sticker">("emoji");
   const mediaInputRef = useRef<HTMLInputElement>(null);
+  const capturePhotoInputRef = useRef<HTMLInputElement>(null);
 
   // Reliable Cloudinary Logo URL
   const logoUrl = "https://res.cloudinary.com/dnipaby6h/image/upload/v1789108366/WhatsApp_Image_2026-09-03_at_09.49.04_q31jcg.jpg";
@@ -412,7 +413,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         setIsUploadingMedia(true);
         uploadedMedia = {
           url: await uploadImage(file),
-          type: file.type.startsWith("video/") ? "video" : "image",
+          type: isVideoFile(file) ? "video" : "image",
         };
       }
 
@@ -476,9 +477,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-    if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) return alert("Choose a photo or video.");
+    if (!file.type.startsWith("image/") && !isVideoFile(file)) return alert("Choose a photo or video.");
     if (file.size > 100 * 1024 * 1024) return alert("Media must be 100 MB or smaller.");
-    if (chatMode === "snap" && file.type.startsWith("video/")) {
+    if (chatMode === "snap" && isVideoFile(file)) {
       try {
         const duration = await readVideoDuration(file);
         if (duration > MAX_SNAP_VIDEO_SECONDS + 0.25) {
@@ -981,9 +982,38 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   </div>
                 )}
                 <form onSubmit={handleSendMessage} className="p-3 bg-white border-t border-gray-200 flex items-center gap-2">
+                  {chatMode === "snap" ? (
+                    <input
+                      ref={capturePhotoInputRef}
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      onChange={handleMediaSelection}
+                      className="hidden"
+                    />
+                  ) : null}
                   <input ref={mediaInputRef} type="file" accept="image/*,video/*" onChange={handleMediaSelection} className="hidden" />
-                  <button type="button" onClick={() => mediaInputRef.current?.click()} disabled={isSending || isUploadingMedia} aria-label={chatMode === "snap" ? "Choose snap photo or video" : "Attach photo or video"} title={chatMode === "snap" ? "Choose snap photo or video" : "Attach photo or video"} className="p-2 text-gray-500 hover:bg-emerald-50 hover:text-emerald-700 rounded-full disabled:opacity-50">
-                    {chatMode === "snap" ? <Camera className="h-5 w-5" /> : <ImagePlus className="h-5 w-5" />}
+                  {chatMode === "snap" ? (
+                    <button
+                      type="button"
+                      onClick={() => capturePhotoInputRef.current?.click()}
+                      disabled={isSending || isUploadingMedia}
+                      aria-label="Take a photo snap"
+                      title="Take a photo snap"
+                      className="rounded-full p-2 text-gray-500 hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-50"
+                    >
+                      <Camera className="h-5 w-5" />
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => mediaInputRef.current?.click()}
+                    disabled={isSending || isUploadingMedia}
+                    aria-label={chatMode === "snap" ? "Choose a photo or video snap" : "Attach photo or video"}
+                    title={chatMode === "snap" ? "Choose a photo or video snap" : "Attach photo or video"}
+                    className="rounded-full p-2 text-gray-500 hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-50"
+                  >
+                    <ImagePlus className="h-5 w-5" />
                   </button>
                   <button type="button" onClick={() => setIsEmojiPickerOpen((open) => !open)} aria-label="Emoji and stickers" title="Emoji and stickers" className="p-2 text-gray-500 hover:bg-emerald-50 hover:text-emerald-700 rounded-full">
                     <Smile className="h-5 w-5" />

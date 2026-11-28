@@ -1,5 +1,7 @@
 "use client";
 
+import { isVideoFile } from "@/lib/video";
+
 const MAX_UPLOAD_BYTES = 2_500_000;
 const MAX_SERVER_UPLOAD_BYTES = 25 * 1024 * 1024;
 
@@ -50,8 +52,9 @@ export async function compressImage(
 
 async function directUpload(file: File): Promise<string> {
   const signRes = await fetch("/api/upload", { method: "GET", cache: "no-store" });
-  if (!signRes.ok) throw new Error("Could not authorise the upload.");
+  if (!signRes.ok) throw new Error(`Could not authorize the upload (HTTP ${signRes.status}).`);
   const sign = await signRes.json();
+  const resourceType = isVideoFile(file) ? "video" : "image";
 
   const formData = new FormData();
   formData.append("file", file);
@@ -60,7 +63,7 @@ async function directUpload(file: File): Promise<string> {
   formData.append("signature", sign.signature);
   formData.append("folder", sign.folder || "dekuwec_portal");
 
-  const res = await fetch(`https://api.cloudinary.com/v1_1/${sign.cloudName}/auto/upload`, {
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${sign.cloudName}/${resourceType}/upload`, {
     method: "POST",
     body: formData,
   });
@@ -90,7 +93,7 @@ export async function uploadImage(file: File): Promise<string> {
   try {
     return await directUpload(optimized);
   } catch (directError) {
-    if (optimized.type.startsWith("video/") && optimized.size > MAX_SERVER_UPLOAD_BYTES) {
+    if (isVideoFile(optimized) && optimized.size > MAX_SERVER_UPLOAD_BYTES) {
       throw new Error(
         "Direct video upload failed. Try again on a stable connection; large videos cannot use the server fallback."
       );
